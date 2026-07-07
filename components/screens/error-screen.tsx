@@ -1,6 +1,7 @@
 'use client'
 
 import { MapPin, AlertCircle, Zap, ZapOff, Navigation, Upload, Clock, Lightbulb } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import TopBar from '@/components/top-bar'
 import { cn } from '@/lib/utils'
 
@@ -11,7 +12,9 @@ interface ErrorScreenProps {
   onProceed?: () => void
 }
 
-const errorConfig: Record<string, { icon: any; title: string; message: string; detail: string; primaryAction: string; secondaryAction?: string }> = {
+type ErrorType = ErrorScreenProps['type']
+
+const errorConfig: Record<ErrorType, { icon: LucideIcon; title: string; message: string; detail: string; primaryAction: string; secondaryAction?: string }> = {
   'location-request': {
     icon: MapPin,
     title: '위치 권한 필요',
