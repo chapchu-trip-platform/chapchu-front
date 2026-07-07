@@ -7,7 +7,7 @@ import TopBar from '@/components/top-bar'
 import { cn } from '@/lib/utils'
 import { mockMyPosts, mockWishlist, mockBookmarks, mockUserProfile } from '@/data/mock'
 
-type SettingsTab = 'nickname' | 'info' | 'posts' | 'wishlist' | 'bookmarks'
+export type SettingsTab = 'nickname' | 'info' | 'posts' | 'wishlist' | 'bookmarks'
 
 interface ProfileSettingsProps {
   initialTab: SettingsTab

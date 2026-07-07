@@ -19,11 +19,10 @@ import AlbumScreen from '@/components/screens/album-screen'
 import ProfileScreen from '@/components/screens/profile-screen'
 import ErrorScreen from '@/components/screens/error-screen'
 import PostShareSheet from '@/components/screens/post-share-sheet'
-import ProfileSettings from '@/components/screens/profile-settings-screens'
+import ProfileSettings, { type SettingsTab } from '@/components/screens/profile-settings-screens'
 
 type AppScreen = 'splash' | 'onboarding' | 'login' | 'signup' | 'main'
 type MapFlow = null | 'setup' | 'route' | 'progress' | 'end' | 'error' | 'sharing'
-type ProfileTab = null | 'settings' | 'nickname' | 'info' | 'posts' | 'wishlist' | 'bookmarks'
 
 export default function Page() {
   const [screen, setScreen] = useState<AppScreen>('splash')
@@ -31,7 +30,7 @@ export default function Page() {
   const [mapFlow, setMapFlow] = useState<MapFlow>(null)
   const [errorType, setErrorType] = useState<'location-denied' | 'location-request' | 'weather-failed' | 'no-routes' | 'no-places' | 'upload-failed' | 'session-expired' | null>(null)
   const [showPostShare, setShowPostShare] = useState(false)
-  const [showProfileSettings, setShowProfileSettings] = useState<ProfileTab>(null)
+  const [showProfileSettings, setShowProfileSettings] = useState<SettingsTab | null>(null)
   const [tripTitle, setTripTitle] = useState('골든이와의 서울 성수 여행')
   const [tripImage, setTripImage] = useState('/images/album-cover.png')
   const [petName, setPetName] = useState('골든이')
@@ -122,7 +121,7 @@ export default function Page() {
           {showProfileSettings && (
             <div className="absolute inset-0 z-50 bg-warm-beige flex flex-col">
               <ProfileSettings
-                initialTab={showProfileSettings as any}
+                initialTab={showProfileSettings}
                 onBack={() => setShowProfileSettings(null)}
               />
             </div>
@@ -181,7 +180,7 @@ export default function Page() {
 
               {activeTab === 'profile' && (
                 <ProfileScreen
-                  onOpenSettings={(tab) => setShowProfileSettings(tab as any)}
+                  onOpenSettings={setShowProfileSettings}
                 />
               )}
             </>

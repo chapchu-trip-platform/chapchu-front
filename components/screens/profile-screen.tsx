@@ -8,9 +8,10 @@ import {
 } from 'lucide-react'
 import TopBar from '@/components/top-bar'
 import { cn } from '@/lib/utils'
+import type { SettingsTab } from '@/components/screens/profile-settings-screens'
 
 interface ProfileScreenProps {
-  onOpenSettings?: (tab: string) => void
+  onOpenSettings?: (tab: SettingsTab) => void
 }
 
 type SubScreen = null | 'pets' | 'stamps' | 'memory-album'
@@ -339,7 +340,7 @@ export default function ProfileScreen({ onOpenSettings }: ProfileScreenProps) {
                 if (item.sub) {
                   setSubScreen(item.sub)
                 } else if (onOpenSettings) {
-                  const tabMap: Record<string, string> = {
+                  const tabMap: Record<string, SettingsTab> = {
                     '작성한 글': 'posts',
                     '장소 위시리스트': 'wishlist',
                     '북마크': 'bookmarks',

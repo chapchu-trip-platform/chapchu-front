@@ -5,16 +5,27 @@ import Image from 'next/image'
 import { X, Image as ImageIcon, MapPin, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+type LocationPrivacy = 'precise' | 'approximate' | 'none'
+
+interface SharedPost {
+  title: string
+  content: string
+  board: string
+  locationPrivacy: LocationPrivacy
+  image: string
+  pet: string
+}
+
 interface PostShareSheetProps {
   onClose: () => void
-  onShare: (post: any) => void
+  onShare: (post: SharedPost) => void
   tripTitle: string
   tripImage: string
   petName: string
 }
 
 const boards = ['전체', '여행후기', '팁/정보', '장소리뷰', '포토']
-const locationPrivacy = [
+const locationPrivacy: Array<{ value: LocationPrivacy; label: string; description: string }> = [
   { value: 'precise', label: '정확한 위치 공개', description: '경로와 방문 장소 노출' },
   { value: 'approximate', label: '대략적인 지역만 공개', description: '광역도시 단위로 표시' },
   { value: 'none', label: '위치 비공개', description: '위치 정보 숨김' },
@@ -24,7 +35,7 @@ export default function PostShareSheet({ onClose, onShare, tripTitle, tripImage,
   const [title, setTitle] = useState(tripTitle || '')
   const [content, setContent] = useState('')
   const [selectedBoard, setSelectedBoard] = useState('여행후기')
-  const [selectedPrivacy, setSelectedPrivacy] = useState<'precise' | 'approximate' | 'none'>('approximate')
+  const [selectedPrivacy, setSelectedPrivacy] = useState<LocationPrivacy>('approximate')
   const [isSharing, setIsSharing] = useState(false)
 
   const handleShare = async () => {
@@ -171,7 +182,7 @@ export default function PostShareSheet({ onClose, onShare, tripTitle, tripImage,
                     name="privacy"
                     value={opt.value}
                     checked={selectedPrivacy === opt.value}
-                    onChange={(e) => setSelectedPrivacy(e.target.value as any)}
+                    onChange={(e) => setSelectedPrivacy(e.target.value as LocationPrivacy)}
                     className="w-4 h-4"
                   />
                   <div>
