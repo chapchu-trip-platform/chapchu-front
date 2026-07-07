@@ -1,12 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
 import './globals.css'
-
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
-  display: 'swap',
-})
 
 export const metadata: Metadata = {
   title: 'PawRoute — 반려동물과 함께하는 여행',
@@ -28,7 +21,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="ko" className={`${inter.variable} bg-background`}>
+    <html lang="ko" className="bg-background">
       <body className="font-sans antialiased">{children}</body>
     </html>
   )
