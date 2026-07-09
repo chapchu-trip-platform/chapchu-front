@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
-import { X, Image as ImageIcon, MapPin, Lock } from 'lucide-react'
+import { X, Image as ImageIcon, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type LocationPrivacy = 'precise' | 'approximate' | 'none'

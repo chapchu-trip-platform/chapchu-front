@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { MapPin, Navigation, Search, X, ChevronRight } from 'lucide-react'
 import TopBar from '@/components/top-bar'
-import { cn } from '@/lib/utils'
 
 interface MapSetupScreenProps {
   onBack: () => void
@@ -24,7 +23,6 @@ export default function MapSetupScreen({ onBack, onNext }: MapSetupScreenProps) 
   const [activeField, setActiveField] = useState<'origin' | 'destination' | null>(null)
   const [query, setQuery] = useState('')
 
-  const currentFieldValue = activeField === 'origin' ? origin : destination
   const setCurrentField = activeField === 'origin' ? setOrigin : setDestination
 
   const handleSelect = (name: string) => {

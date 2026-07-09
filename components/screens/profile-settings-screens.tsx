@@ -4,7 +4,6 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { Heart, Bookmark } from 'lucide-react'
 import TopBar from '@/components/top-bar'
-import { cn } from '@/lib/utils'
 import { mockMyPosts, mockWishlist, mockBookmarks, mockUserProfile } from '@/data/mock'
 
 export type SettingsTab = 'nickname' | 'info' | 'posts' | 'wishlist' | 'bookmarks'
@@ -15,7 +14,7 @@ interface ProfileSettingsProps {
 }
 
 export default function ProfileSettings({ initialTab, onBack }: ProfileSettingsProps) {
-  const [tab, setTab] = useState<SettingsTab>(initialTab)
+  const [tab] = useState<SettingsTab>(initialTab)
   const [nickname, setNickname] = useState(mockUserProfile.nickname)
   const [email, setEmail] = useState(mockUserProfile.email)
   const [bio, setBio] = useState(mockUserProfile.bio)

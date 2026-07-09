@@ -9,7 +9,7 @@ export default function HomeRoute() {
   return (
     <HomeScreen
       onStartTrip={() => router.push('/map')}
-      onViewPost={() => router.push('/community')}
+      onViewPost={(postId) => router.push(`/community?post=${postId}`)}
     />
   )
 }

@@ -7,15 +7,36 @@ import MapRouteScreen from '@/components/screens/map-route-screen'
 import TravelProgressScreen from '@/components/screens/travel-progress-screen'
 import TripEndScreen from '@/components/screens/trip-end-screen'
 import PostShareSheet from '@/components/screens/post-share-sheet'
+import ErrorScreen from '@/components/screens/error-screen'
 import { useTravelStore } from '@/features/travel/stores/travel-store'
+import type { ErrorType } from '@/types'
 
 type MapStep = 'setup' | 'route' | 'progress' | 'end'
 
-export default function MapRouteFlow() {
+interface MapRouteFlowProps {
+  initialErrorType?: ErrorType
+}
+
+export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
   const router = useRouter()
   const [step, setStep] = useState<MapStep>('setup')
   const [showShareSheet, setShowShareSheet] = useState(false)
   const { draftTripTitle, draftTripImage, selectedPetName, setTravelStage } = useTravelStore()
+
+  if (initialErrorType) {
+    return (
+      <ErrorScreen
+        type={initialErrorType}
+        onBack={() => router.replace('/map')}
+        onRetry={() => router.replace('/map')}
+        onProceed={() => {
+          setTravelStage('planning')
+          setStep('route')
+          router.replace('/map')
+        }}
+      />
+    )
+  }
 
   if (showShareSheet) {
     return (

@@ -1,9 +1,8 @@
 'use client'
 
-import { MapPin, AlertCircle, Zap, ZapOff, Navigation, Upload, Clock, Lightbulb } from 'lucide-react'
+import { MapPin, AlertCircle, Zap, ZapOff, Upload, Clock, Lightbulb } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import TopBar from '@/components/top-bar'
-import { cn } from '@/lib/utils'
 
 interface ErrorScreenProps {
   type: 'location-denied' | 'location-request' | 'weather-failed' | 'no-routes' | 'no-places' | 'upload-failed' | 'session-expired'

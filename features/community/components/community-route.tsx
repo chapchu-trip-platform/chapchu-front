@@ -1,7 +1,9 @@
-'use client'
-
 import CommunityScreen from '@/components/screens/community-screen'
 
-export default function CommunityRoute() {
-  return <CommunityScreen />
+interface CommunityRouteProps {
+  initialPostId?: string
+}
+
+export default function CommunityRoute({ initialPostId }: CommunityRouteProps) {
+  return <CommunityScreen initialPostId={initialPostId} />
 }

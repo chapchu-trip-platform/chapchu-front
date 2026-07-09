@@ -2,12 +2,12 @@
 
 import Image from 'next/image'
 import { useState } from 'react'
-import { ThumbsUp, MessageCircle, Bookmark, Eye, ChevronLeft, Flag, Send, MoreHorizontal, Share2 } from 'lucide-react'
+import { ThumbsUp, MessageCircle, Bookmark, ChevronLeft, Flag, Send, MoreHorizontal, Share2 } from 'lucide-react'
 import TopBar from '@/components/top-bar'
 import { cn } from '@/lib/utils'
 
 interface CommunityScreenProps {
-  initialPostView?: boolean
+  initialPostId?: string
 }
 
 const tabs = ['HOT', '자유게시판', '여행 리뷰']
@@ -229,9 +229,11 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
   )
 }
 
-export default function CommunityScreen({ initialPostView }: CommunityScreenProps) {
+export default function CommunityScreen({ initialPostId }: CommunityScreenProps) {
   const [activeTab, setActiveTab] = useState(0)
-  const [selectedPost, setSelectedPost] = useState<typeof posts[0] | null>(null)
+  const [selectedPost, setSelectedPost] = useState<typeof posts[0] | null>(() =>
+    posts.find((post) => String(post.id) === initialPostId) ?? null
+  )
 
   if (selectedPost) {
     return <PostDetailView post={selectedPost} onBack={() => setSelectedPost(null)} />
