@@ -12,6 +12,14 @@ lib/api/errors.ts
 
 `client.ts` owns axios configuration, `endpoints.ts` owns endpoint constants, and `errors.ts` owns error normalization.
 
+The axios client currently uses:
+
+- `baseURL` from `NEXT_PUBLIC_API_BASE_URL`
+- `timeout: 10_000`
+- `allowAbsoluteUrls: false`
+- JSON request/response headers
+- response error normalization through `normalizeApiError`
+
 ## Environment Variables
 
 The API base URL must come from:
@@ -50,3 +58,12 @@ UI copy should stay separate from normalized API error types so screens can choo
 Endpoint paths are placeholders for frontend wiring and must be confirmed with backend developers before real integration.
 
 When backend response shapes are finalized, add typed response models and feature-level mapper functions instead of coupling screens directly to API payloads.
+
+Before integration, confirm:
+
+- login/session strategy
+- cookie vs header authentication
+- route recommendation request/response shape
+- travel note draft save API
+- album save API
+- community post/comment API

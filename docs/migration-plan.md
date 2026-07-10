@@ -52,6 +52,9 @@ Completed in this pass:
 - Moved layout entry points to `components/layout` and kept compatibility re-exports for existing imports.
 - Added minimal Zustand stores for travel flow and pet selection state.
 - Added axios API client boundaries under `lib/api`.
+- Restored Home HOT post deep-linking into community detail via `/community?post=...`.
+- Made map error-state UX reachable for validation via `/map?error=...`.
+- Replaced the checked-background logo asset with a transparent PNG and adjusted community detail spacing above bottom navigation.
 
 ## Remaining Work
 
@@ -59,5 +62,6 @@ Completed in this pass:
 - Add dedicated user setup and pet setup screens instead of reusing the current setup prototype screen.
 - Add route-level loading and error states when backend contracts are available.
 - Split the internal `/map` step state into subroutes or document recovery behavior before deep-linking is required.
-- Reconnect the approved error-state UX to route-level or map-flow error boundaries before backend integration.
 - Add tests for API error normalization and non-trivial state transitions after a test framework is approved.
+- Stabilize the login -> user setup -> pet setup -> home flow before API integration.
+- Stabilize route recommendation state, selected waypoint state, travel note draft saving, and album save behavior.

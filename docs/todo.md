@@ -1,13 +1,21 @@
 # TODO
 
-## Migration
+## Priority 1
+
+- Stabilize login -> user setup -> pet setup -> home navigation.
+- Stabilize home -> map -> origin/destination setup -> recommended route flow.
+- Add selected waypoint state for recommended route stops.
+- Add travel note draft saving tied to selected waypoints.
+- Persist trip completion into album save flow.
+
+## Priority 2
 
 - Split `components/screens` into feature-owned components once routes are stable.
 - Replace the setup placeholder flow with separate user setup and pet setup steps.
-- Add a route or modal for album course detail.
-- Add explicit travel note save flow tied to selected waypoints.
-- Decide whether map recommendation, progress, and completion should become `/map/route`, `/map/progress`, and `/map/end` subroutes.
-- Reconnect route planning error screens once real location, weather, and recommendation failures are wired.
+- Add album detail and course detail routes or modals.
+- Stabilize community post creation/detail/comment flow.
+- Complete profile sub-screens.
+- Add empty, API error, and permission-denied states where each feature needs them.
 
 ## API Integration
 
@@ -15,10 +23,12 @@
 - Add API response types and mapper functions per feature.
 - Decide auth strategy before adding credentials or authorization headers.
 - Replace mock data gradually after contracts are stable.
+- Prepare Korean Tourism Content Lab API integration after route planning models are agreed.
+- Prepare weather API integration after the weather UI model is finalized.
 
 ## Validation
 
 - Add tests for `normalizeApiError`.
 - Add tests for route helper logic if navigation rules become more complex.
 - Add state transition tests for travel and pet stores after a test framework is approved.
-- Resolve existing lint warnings for unused imports and unused local prototype state.
+- Add visual regression or screenshot checklist after the team approves a test tool.

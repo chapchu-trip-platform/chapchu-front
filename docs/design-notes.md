@@ -9,6 +9,7 @@ Preserve:
 - Warm Beige background
 - Sage Green primary actions
 - Soft Orange accents
+- transparent PawRoute logo asset without checkerboard or preview backgrounds
 - Mobile-first centered shell
 - Bottom navigation with map as the emphasized center action
 - Sticky top bar behavior
@@ -40,3 +41,5 @@ Do not redesign the approved visual system during migration.
 Avoid turning the app into an admin dashboard, generic map product, generic social feed, dark-mode-first app, or overly childish pet app.
 
 If a screen cannot be fully implemented immediately, keep the route and document the limitation instead of removing the flow.
+
+When adding detail screens inside the main shell, leave enough bottom spacing so fixed bottom navigation does not cover inputs, CTAs, or comment fields.
