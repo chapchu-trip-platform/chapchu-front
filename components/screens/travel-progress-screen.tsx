@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import { useState } from 'react'
-import { MapPin, Navigation, Clock, ChevronRight, X, Camera, Star, BookOpen, AlertTriangle } from 'lucide-react'
+import { MapPin, X, Camera, Star, BookOpen, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface TravelProgressScreenProps {

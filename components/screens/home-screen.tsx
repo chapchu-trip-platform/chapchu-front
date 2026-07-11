@@ -2,11 +2,10 @@
 
 import Image from 'next/image'
 import { MapPin, Wind, Droplets, Sun, CloudSun, ThumbsUp, MessageCircle, Bookmark, Eye, ChevronRight, Star } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
 interface HomeScreenProps {
   onStartTrip: () => void
-  onViewPost: () => void
+  onViewPost: (postId: number) => void
 }
 
 const nearbyPlaces = [
@@ -41,6 +40,7 @@ const nearbyPlaces = [
 
 const hotPosts = [
   {
+    id: 1,
     title: '제주 올레길 강아지와 4박 5일 코스 완전정복',
     author: '산책왕멍이',
     views: 3420,
@@ -51,6 +51,7 @@ const hotPosts = [
     image: '/images/album-cover.png',
   },
   {
+    id: 2,
     title: '가평 펫 캠핑장 후기 — 반려견과 함께 최고였어요',
     author: '캠핑러버루나',
     views: 1890,
@@ -61,6 +62,7 @@ const hotPosts = [
     image: '/images/place-park.png',
   },
   {
+    id: 3,
     title: '성수동 애견 카페 TOP 5 모음',
     author: '서울산책로',
     views: 2140,
@@ -226,8 +228,8 @@ export default function HomeScreen({ onStartTrip, onViewPost }: HomeScreenProps)
         <div className="flex flex-col gap-3 px-4">
           {hotPosts.map((post, i) => (
             <button
-              key={i}
-              onClick={onViewPost}
+              key={post.id}
+              onClick={() => onViewPost(post.id)}
               className="flex gap-3 bg-card-surface rounded-card border border-border p-3 text-left active:opacity-80"
             >
               <div className="relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0">

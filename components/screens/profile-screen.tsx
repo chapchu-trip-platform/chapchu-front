@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import { useState } from 'react'
 import {
-  ChevronRight, Star, MapPin, Bookmark, Heart, AlertTriangle, X,
+  ChevronRight, Star, Bookmark, Heart, AlertTriangle,
   Plus, Edit3, Trash2, Archive, Check, PawPrint, Stamp, FileText
 } from 'lucide-react'
 import TopBar from '@/components/top-bar'

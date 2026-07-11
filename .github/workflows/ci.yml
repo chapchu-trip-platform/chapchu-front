@@ -36,8 +36,15 @@ jobs:
           const fs = require('fs');
           const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
           const scripts = pkg.scripts || {};
-          for (const name of ['lint', 'typecheck', 'test', 'build']) {
-            console.log(`${name}=${Object.prototype.hasOwnProperty.call(scripts, name)}`);
+          const checks = {
+            lint: 'lint',
+            typecheck: 'typecheck',
+            test: 'test',
+            test_coverage: 'test:coverage',
+            build: 'build',
+          };
+          for (const [output, script] of Object.entries(checks)) {
+            console.log(`${output}=${Object.prototype.hasOwnProperty.call(scripts, script)}`);
           }
           NODE
 
@@ -49,9 +56,9 @@ jobs:
         if: steps.scripts.outputs.typecheck == 'true'
         run: npm run typecheck
 
-      - name: Test
-        if: steps.scripts.outputs.test == 'true'
-        run: npm run test
+      - name: Test coverage
+        if: steps.scripts.outputs.test_coverage == 'true'
+        run: npm run test:coverage
 
       - name: Build
         if: steps.scripts.outputs.build == 'true'

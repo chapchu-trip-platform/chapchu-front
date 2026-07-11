@@ -2,9 +2,8 @@
 
 import Image from 'next/image'
 import { useState } from 'react'
-import { Camera, MapPin, Navigation, CloudSun, Share2, Image as ImageIcon, BookOpen, Star, ChevronDown, ChevronUp } from 'lucide-react'
+import { Camera, Share2, Image as ImageIcon, BookOpen, Star, ChevronDown, ChevronUp } from 'lucide-react'
 import TopBar from '@/components/top-bar'
-import { cn } from '@/lib/utils'
 
 interface TripEndScreenProps {
   onSave: () => void

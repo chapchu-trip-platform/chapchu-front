@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, X, ChevronRight, Check } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import TopBar from '@/components/top-bar'
 import { cn } from '@/lib/utils'
 
