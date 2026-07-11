@@ -501,6 +501,10 @@ PRs should not target `main` unless the user explicitly says so.
 
 ## Subagent policy
 
+The `.codex/agents` directory is stable project infrastructure.
+
+During normal feature development, migration, refactoring, testing setup, bug fixing, documentation, or validation tasks, Codex must not create, modify, duplicate, rename, or delete files under `.codex/agents`.
+
 Use subagents for medium or large tasks when appropriate.
 
 Codex does not need to use subagents for small text-only or style-only changes.
@@ -521,6 +525,18 @@ Recommended subagents:
 * `next-migration-reviewer`
 * `api-security-reviewer`
 * `test-reviewer`
+
+Optional canonical subagent, only if already configured:
+
+* `pr-reviewer`
+
+When a task asks to "use subagents", this means:
+
+* use the existing configured canonical subagents
+* do not create new `.toml` files
+* do not modify `.codex/agents`
+* do not rename existing agent files
+* do not duplicate existing agent files
 
 Use `next-migration-reviewer` for:
 
@@ -556,6 +572,10 @@ Use `test-reviewer` for:
 * regression risk
 
 If a named subagent is unavailable, continue with main-agent review and report that the subagent was unavailable.
+
+If a requested subagent is unavailable, do not create a replacement agent file. Fallback to main-agent review and report: `Subagent unavailable; replaced by main-agent review.`
+
+New subagents may only be created when the user explicitly asks for a Codex agent setup, Codex agent policy update, or subagent infrastructure task.
 
 Wait for all available subagent review results before committing.
 
