@@ -43,6 +43,10 @@ yarn-error.log*
 pnpm-debug.log*
 bun-debug.log*
 
+# markdown policy
+*.md
+!README.md
+
 # testing
 coverage/
 
