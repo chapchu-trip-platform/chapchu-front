@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { MapPin, Navigation, Search, X, ChevronRight } from 'lucide-react'
 import TopBar from '@/components/top-bar'
+import TmapMap from '@/features/map/components/tmap-map'
 
 interface MapSetupScreenProps {
   onBack: () => void
@@ -88,19 +89,7 @@ export default function MapSetupScreen({ onBack, onNext }: MapSetupScreenProps) 
 
       {/* Map preview */}
       <div className="mx-4 rounded-card overflow-hidden relative flex-1 min-h-52 bg-sky-blue/20 shadow-sm">
-        {/* Fake map */}
-        <div className="absolute inset-0">
-          {[0,1,2,3,4,5,6].map(i => (
-            <div key={i} className="absolute w-full h-px bg-white/25" style={{ top: `${i * 16}%` }} />
-          ))}
-          {[0,1,2,3,4,5].map(i => (
-            <div key={i} className="absolute h-full w-px bg-white/25" style={{ left: `${i * 20}%` }} />
-          ))}
-          {/* Roads */}
-          <div className="absolute top-[40%] w-full h-2.5 bg-white/50 rounded" />
-          <div className="absolute left-[30%] h-full w-2.5 bg-white/50 rounded" />
-          <div className="absolute top-[70%] w-[60%] left-[20%] h-1.5 bg-white/40 rounded" />
-        </div>
+        <TmapMap />
 
         {/* Route path */}
         {origin && destination && (
@@ -123,10 +112,12 @@ export default function MapSetupScreen({ onBack, onNext }: MapSetupScreenProps) 
 
         {/* Empty state */}
         {(!origin || !destination) && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center">
-              <Search className="w-8 h-8 text-warm-gray/50 mx-auto mb-2" />
-              <p className="text-[13px] text-warm-gray/70">출발지와 도착지를 입력하면<br />지도에 경로가 표시됩니다</p>
+          <div className="pointer-events-none absolute inset-x-3 bottom-3 flex justify-center">
+            <div className="flex max-w-64 items-center gap-2 rounded-full bg-white/90 px-3 py-2 shadow-sm">
+              <Search className="h-4 w-4 flex-shrink-0 text-warm-gray/60" />
+              <p className="text-[12px] leading-snug text-warm-gray/80">
+                출발지와 도착지를 입력하면 지도에 경로가 표시됩니다
+              </p>
             </div>
           </div>
         )}
