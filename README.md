@@ -45,15 +45,15 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
 
 ## TMAP Configuration
 
-Do not expose TMAP keys through `NEXT_PUBLIC_*` variables or client components. If TMAP integration is added later, keep the real key in a local-only server-side environment variable and coordinate the backend/API proxy strategy before exposing map requests to the browser.
+TMAP API Key is read only from a local server-side environment variable. Do not expose TMAP keys through `NEXT_PUBLIC_*` variables, client components, or `next.config` env settings.
 
-Recommended placeholder name for local planning:
+Create `.env.local` yourself and keep it out of Git:
 
 ```env
-TMAP_API_KEY=replace-with-local-only-value
+T_MAP_APIKEY=your-tmap-api-key
 ```
 
-Keep `.env.local` on your machine only. It is ignored by Git.
+The map screen loads the TMAP SDK through the internal `/api/tmap/sdk` endpoint so client code does not build a public SDK URL with the key.
 
 ## Project Structure
 
