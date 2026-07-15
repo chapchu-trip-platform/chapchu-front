@@ -5,6 +5,8 @@ import { useState } from 'react'
 import { MapPin, Navigation, Star, Clock, ChevronRight, X, ThumbsUp } from 'lucide-react'
 import TopBar from '@/components/top-bar'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
+import { InteractiveCard } from '@/components/ui/interactive-card'
 import { cn } from '@/lib/utils'
 
 interface MapRouteScreenProps {
@@ -65,13 +67,15 @@ function PlaceDetailSheet({ place, onClose, onSelect }: PlaceDetailSheetProps) {
         <div className="flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 rounded-full bg-border" />
         </div>
-        <button
+        <IconButton
           onClick={onClose}
-          className="absolute top-3 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-muted transition-[filter,background-color] hover:brightness-[0.97] active:brightness-[0.94]"
+          variant="muted"
+          size="sm"
+          className="absolute top-3 right-4"
           aria-label="닫기"
         >
           <X className="w-4 h-4 text-warm-gray" />
-        </button>
+        </IconButton>
 
         <div className="overflow-y-auto no-scrollbar max-h-[80vh]">
           {/* Image */}
@@ -267,10 +271,12 @@ export default function MapRouteScreen({ onBack, onStartTrip }: MapRouteScreenPr
           <h4 className="text-[13px] font-semibold text-warm-gray mb-2">중간 거점</h4>
           <div className="flex flex-col gap-2">
             {waypoints.map((place, i) => (
-              <button
+              <InteractiveCard
                 key={i}
                 onClick={() => setSelectedPlace(place)}
-                className="flex items-center gap-3 p-3 bg-muted/60 rounded-xl text-left transition-[filter,background-color] hover:bg-muted/80 hover:brightness-[0.97] active:bg-muted active:brightness-[0.94]"
+                variant="muted"
+                padding="sm"
+                className="flex items-center gap-3"
               >
                 <div className="w-7 h-7 rounded-full bg-soft-orange flex items-center justify-center flex-shrink-0">
                   <span className="text-[12px] font-bold text-white">{i + 1}</span>
@@ -287,7 +293,7 @@ export default function MapRouteScreen({ onBack, onStartTrip }: MapRouteScreenPr
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-warm-gray flex-shrink-0" />
-              </button>
+              </InteractiveCard>
             ))}
           </div>
         </div>

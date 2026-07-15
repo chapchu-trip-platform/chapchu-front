@@ -2,6 +2,7 @@
 
 import Image from 'next/image'
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 
 interface LoginScreenProps {
   onLogin: () => void
@@ -50,10 +51,13 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         </p>
 
         {/* Google Login */}
-        <button
+        <Button
           onClick={handleLogin}
           disabled={loading}
-          className="w-full h-12 rounded-btn flex items-center justify-center gap-3 bg-white text-deep-brown font-semibold text-[15px] border border-border shadow-sm transition-[filter,background-color] hover:brightness-[0.97] active:brightness-[0.94]"
+          variant="outline"
+          size="lg"
+          fullWidth
+          className="gap-3 bg-white shadow-sm hover:bg-white/90"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -62,7 +66,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
           </svg>
           Google로 계속하기
-        </button>
+        </Button>
 
         <div className="flex items-center gap-3 my-1">
           <div className="flex-1 h-px bg-border" />
@@ -70,12 +74,14 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           <div className="flex-1 h-px bg-border" />
         </div>
 
-        <button
+        <Button
           onClick={handleLogin}
-          className="w-full h-11 rounded-btn border border-border text-warm-gray font-medium text-[14px] transition-[filter,background-color] hover:bg-muted/30 hover:brightness-[0.97] active:bg-muted/50 active:brightness-[0.94]"
+          variant="outline"
+          fullWidth
+          className="text-warm-gray"
         >
           테스트 계정으로 로그인
-        </button>
+        </Button>
       </div>
 
       <p className="safe-bottom-login mt-4 px-6 text-center text-[11px] leading-relaxed text-warm-gray">

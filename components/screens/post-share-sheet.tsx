@@ -96,10 +96,14 @@ export default function PostShareSheet({ onClose, onShare, tripTitle, tripImage,
                 className="object-cover"
               />
               <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                <button className="bg-white/90 backdrop-blur-sm rounded-full px-3 py-2 flex items-center gap-2 transition-[filter,background-color] hover:brightness-[0.97] active:brightness-[0.94]">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="rounded-full bg-white/90 text-deep-brown backdrop-blur-sm hover:bg-white/80"
+                >
                   <ImageIcon className="w-4 h-4 text-deep-brown" />
                   <span className="text-[12px] font-semibold text-deep-brown">변경</span>
-                </button>
+                </Button>
               </div>
             </div>
           </div>

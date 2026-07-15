@@ -3,14 +3,14 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const interactiveCardVariants = cva(
-  'text-left outline-none transition-[color,background-color,border-color,filter] hover:brightness-[0.97] active:brightness-[0.94] focus-visible:ring-2 focus-visible:ring-sage-green/50 focus-visible:ring-offset-2 focus-visible:ring-offset-warm-beige disabled:pointer-events-none disabled:opacity-40',
+  'text-left outline-none focus-visible:ring-2 focus-visible:ring-sage-green/50 focus-visible:ring-offset-2 focus-visible:ring-offset-warm-beige disabled:pointer-events-none disabled:opacity-40',
   {
     variants: {
       variant: {
         surface:
-          'rounded-card border border-border bg-card-surface shadow-sm hover:bg-muted/20 active:bg-muted/40',
-        muted: 'rounded-xl bg-muted/60 hover:bg-muted/75 active:bg-muted',
-        plain: 'rounded-card hover:bg-muted/35 active:bg-muted/55',
+          'rounded-card border border-border bg-card-surface shadow-sm transition-[background-color,filter] hover:bg-muted/20 hover:brightness-[0.97] active:bg-muted/40 active:brightness-[0.94]',
+        muted: 'rounded-xl bg-muted/60',
+        plain: 'rounded-card',
       },
       padding: {
         none: 'p-0',

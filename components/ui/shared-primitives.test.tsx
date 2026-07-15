@@ -56,17 +56,34 @@ describe('shared UI primitives', () => {
     expect(screen.getByRole('button', { name: /설정/ })).toHaveClass('w-full')
   })
 
-  it('darkens clickable surfaces on hover and press', () => {
+  it('only adds click feedback to controls with a visible border', () => {
     render(
       <>
-        <Button>저장</Button>
-        <InteractiveCard>산책 코스</InteractiveCard>
+        <Button variant="outline">테두리 버튼</Button>
+        <InteractiveCard>테두리 카드</InteractiveCard>
         <MenuRow label="설정" />
+        <Button>기본 버튼</Button>
+        <Button variant="ghost">텍스트 버튼</Button>
+        <IconButton aria-label="아이콘 버튼">×</IconButton>
+        <InteractiveCard variant="plain">플레인 카드</InteractiveCard>
       </>
     )
 
-    for (const button of screen.getAllByRole('button')) {
+    for (const button of [
+      screen.getByRole('button', { name: '테두리 버튼' }),
+      screen.getByRole('button', { name: '테두리 카드' }),
+      screen.getByRole('button', { name: /설정/ }),
+    ]) {
       expect(button).toHaveClass('hover:brightness-[0.97]', 'active:brightness-[0.94]')
+    }
+
+    for (const button of [
+      screen.getByRole('button', { name: '기본 버튼' }),
+      screen.getByRole('button', { name: '텍스트 버튼' }),
+      screen.getByRole('button', { name: '아이콘 버튼' }),
+      screen.getByRole('button', { name: '플레인 카드' }),
+    ]) {
+      expect(button).not.toHaveClass('hover:brightness-[0.97]', 'active:brightness-[0.94]')
     }
   })
 })

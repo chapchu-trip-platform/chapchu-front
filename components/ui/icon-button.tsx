@@ -3,14 +3,14 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const iconButtonVariants = cva(
-  'inline-flex shrink-0 items-center justify-center rounded-full border border-transparent outline-none transition-[color,background-color,border-color,filter] hover:brightness-[0.97] active:brightness-[0.94] focus-visible:ring-2 focus-visible:ring-sage-green/50 focus-visible:ring-offset-2 focus-visible:ring-offset-warm-beige disabled:pointer-events-none disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0',
+  'inline-flex shrink-0 items-center justify-center rounded-full border border-transparent outline-none focus-visible:ring-2 focus-visible:ring-sage-green/50 focus-visible:ring-offset-2 focus-visible:ring-offset-warm-beige disabled:pointer-events-none disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0',
   {
     variants: {
       variant: {
-        ghost: 'text-warm-gray hover:bg-muted/50 active:bg-muted',
-        muted: 'bg-muted text-warm-gray hover:bg-muted/70 active:bg-muted/90',
-        primary: 'bg-sage-green text-white hover:bg-sage-green/90 active:bg-sage-green/80',
-        danger: 'text-danger hover:bg-danger/10 active:bg-danger/15 focus-visible:ring-danger/40',
+        ghost: 'text-warm-gray',
+        muted: 'bg-muted text-warm-gray',
+        primary: 'bg-sage-green text-white',
+        danger: 'text-danger focus-visible:ring-danger/40',
       },
       size: {
         sm: 'size-8 [&_svg]:size-3.5',

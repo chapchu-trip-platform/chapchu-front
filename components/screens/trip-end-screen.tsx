@@ -6,6 +6,7 @@ import { Camera, Share2, Image as ImageIcon, BookOpen, Star, ChevronDown, Chevro
 import TopBar from '@/components/top-bar'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/input'
+import { InteractiveCard } from '@/components/ui/interactive-card'
 import { ModalActions } from '@/components/ui/modal-actions'
 
 interface TripEndScreenProps {
@@ -90,12 +91,14 @@ export default function TripEndScreen({ onSave, onShare }: TripEndScreenProps) {
                 key={wp.name}
                 className="isolate overflow-hidden rounded-card border border-border bg-card-surface"
               >
-                <button
+                <InteractiveCard
                   id={`waypoint-note-trigger-${i}`}
                   type="button"
                   aria-expanded={expandedNotes.includes(i)}
                   aria-controls={`waypoint-note-panel-${i}`}
-                  className="relative z-10 flex min-h-[68px] w-full items-center gap-3 bg-card-surface p-3 text-left transition-[filter,background-color] hover:bg-muted/30 hover:brightness-[0.97] active:bg-muted/50 active:brightness-[0.94]"
+                  variant="plain"
+                  padding="sm"
+                  className="relative z-10 flex min-h-[68px] items-center gap-3 rounded-none bg-card-surface"
                   onClick={() => toggleNote(i)}
                 >
                   <div className="relative w-11 h-11 rounded-xl overflow-hidden flex-shrink-0">
@@ -114,7 +117,7 @@ export default function TripEndScreen({ onSave, onShare }: TripEndScreenProps) {
                   ) : (
                     <ChevronDown className="w-4 h-4 text-warm-gray flex-shrink-0" />
                   )}
-                </button>
+                </InteractiveCard>
                 {expandedNotes.includes(i) && (
                   <div
                     id={`waypoint-note-panel-${i}`}

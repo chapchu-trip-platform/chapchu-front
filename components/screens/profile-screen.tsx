@@ -170,10 +170,10 @@ function PetsSubScreen({ onBack }: { onBack: () => void }) {
             </div>
           </div>
         ))}
-        <button className="w-full h-12 rounded-card border-2 border-dashed border-border flex items-center justify-center gap-2 text-warm-gray transition-[filter,background-color] hover:bg-muted/30 hover:brightness-[0.97] active:bg-muted/50 active:brightness-[0.94]">
+        <Button variant="outline" fullWidth size="lg" className="rounded-card border-2 border-dashed text-warm-gray">
           <Plus className="w-4 h-4" />
           <span className="text-[14px] font-medium">반려동물 추가하기</span>
-        </button>
+        </Button>
       </div>
 
       {showDeleteModal && selectedPet && (
@@ -321,7 +321,14 @@ export default function ProfileScreen({ onOpenSettings }: ProfileScreenProps) {
         <div className="mx-4 mt-4 p-4 bg-card-surface rounded-card border border-border shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <p className="text-[14px] font-semibold text-deep-brown">나의 반려동물</p>
-            <button onClick={() => setSubScreen('pets')} className="text-[12px] text-sage-green font-medium">관리</button>
+            <Button
+              onClick={() => setSubScreen('pets')}
+              variant="link"
+              size="sm"
+              className="h-auto p-0 text-[12px] no-underline"
+            >
+              관리
+            </Button>
           </div>
           {pets.map((pet, i) => (
             <div key={i} className="flex items-center gap-3">
@@ -363,12 +370,14 @@ export default function ProfileScreen({ onOpenSettings }: ProfileScreenProps) {
 
         {/* Withdraw */}
         <div className="mx-4 mt-4 mb-4">
-          <button
+          <Button
             onClick={() => setShowWithdraw(true)}
-            className="text-[13px] text-warm-gray/60 underline underline-offset-2"
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-[13px] text-warm-gray/60 underline underline-offset-2"
           >
             회원 탈퇴
-          </button>
+          </Button>
         </div>
       </div>
 

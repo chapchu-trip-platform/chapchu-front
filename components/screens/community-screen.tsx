@@ -16,6 +16,7 @@ import {
   Route,
 } from 'lucide-react'
 import TopBar from '@/components/top-bar'
+import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { InteractiveCard } from '@/components/ui/interactive-card'
@@ -204,28 +205,32 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
 
           {/* Actions */}
           <div className="flex gap-4 py-3 border-b border-border">
-            <button
+            <Button
               onClick={() => setLiked(!liked)}
-              className={cn('flex items-center gap-1.5', liked ? 'text-sage-green' : 'text-warm-gray')}
+              variant="ghost"
+              size="sm"
+              className={cn('h-auto px-0 py-1', liked ? 'text-sage-green' : 'text-warm-gray')}
             >
               <ThumbsUp className={cn('w-5 h-5', liked ? 'fill-sage-green' : '')} />
               <span className="text-[13px] font-medium">{post.likes + (liked ? 1 : 0)}</span>
-            </button>
-            <button className="flex items-center gap-1.5 text-warm-gray">
+            </Button>
+            <Button variant="ghost" size="sm" className="h-auto px-0 py-1 text-warm-gray">
               <MessageCircle className="w-5 h-5" />
               <span className="text-[13px] font-medium">{post.comments}</span>
-            </button>
-            <button className="flex items-center gap-1.5 text-warm-gray">
+            </Button>
+            <Button variant="ghost" size="sm" className="h-auto px-0 py-1 text-warm-gray">
               <Share2 className="w-5 h-5" />
               <span className="text-[13px] font-medium">공유</span>
-            </button>
-            <button
-              className="flex items-center gap-1.5 text-warm-gray ml-auto"
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-auto px-0 py-1 text-warm-gray"
               onClick={() => alert('신고가 접수되었습니다.')}
             >
               <Flag className="w-4 h-4" />
               <span className="text-[12px]">신고</span>
-            </button>
+            </Button>
           </div>
 
           {/* Comments */}
@@ -244,11 +249,11 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
                     </div>
                     <p className="text-[13px] text-deep-brown mt-0.5 leading-relaxed">{c.text}</p>
                     <div className="flex items-center gap-3 mt-1.5">
-                      <button className="flex items-center gap-1 text-warm-gray">
+                      <Button variant="ghost" size="sm" className="h-auto gap-1 p-0 text-warm-gray">
                         <ThumbsUp className="w-3.5 h-3.5" />
                         <span className="text-[11px]">{c.likes}</span>
-                      </button>
-                      <button className="text-[11px] text-warm-gray">답글</button>
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-auto p-0 text-[11px] text-warm-gray">답글</Button>
                     </div>
                     {/* Replies */}
                     {c.replies.map((r, j) => (
@@ -327,18 +332,20 @@ export default function CommunityScreen({ initialPostId }: CommunityScreenProps)
       {/* Tabs */}
       <div className="flex border-b border-border bg-card-surface">
         {tabs.map((tab, i) => (
-          <button
+          <Button
             key={i}
             onClick={() => setActiveTab(i)}
+            variant="ghost"
+            aria-pressed={activeTab === i}
             className={cn(
-              'flex-1 py-3 text-[13px] font-medium transition-[color,background-color,border-color,filter] hover:bg-muted/30 hover:brightness-[0.97] active:bg-muted/50 active:brightness-[0.94]',
+              'h-auto flex-1 rounded-none py-3 text-[13px] font-medium',
               activeTab === i
                 ? 'text-sage-green border-b-2 border-sage-green'
                 : 'text-warm-gray'
             )}
           >
             {tab}
-          </button>
+          </Button>
         ))}
       </div>
 

@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { ChevronRight, MapPin, Navigation, Search, Trash2, X } from 'lucide-react'
 import TopBar from '@/components/top-bar'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
+import { InteractiveCard } from '@/components/ui/interactive-card'
 import TmapMap from '@/features/map/components/tmap-map'
 
 interface MapSetupScreenProps {
@@ -53,13 +55,15 @@ export default function MapSetupScreen({ onBack, onNext }: MapSetupScreenProps) 
 
       <div className="flex flex-col gap-3 p-4">
         {/* Use current location */}
-        <button
+        <Button
           onClick={() => { setOrigin('현재 위치'); setActiveField(null); setQuery('') }}
-          className="ml-2 flex items-center gap-2 self-start"
+          variant="link"
+          size="sm"
+          className="ml-2 h-auto self-start p-0 no-underline"
         >
           <MapPin className="h-4 w-4 text-sage-green" />
           <span className="text-[13px] font-medium text-sage-green">현재 위치 사용</span>
-        </button>
+        </Button>
 
         {/* Origin and destination */}
         <div className="overflow-hidden rounded-card border border-border bg-card-surface shadow-sm">
@@ -76,9 +80,9 @@ export default function MapSetupScreen({ onBack, onNext }: MapSetupScreenProps) 
               className="flex-1 bg-transparent text-[14px] text-deep-brown placeholder:text-warm-gray focus:outline-none"
             />
             {origin && (
-              <button onClick={() => setOrigin('')} aria-label="출발지 지우기">
+              <IconButton onClick={() => setOrigin('')} size="sm" aria-label="출발지 지우기">
                 <X className="h-4 w-4 text-warm-gray" />
-              </button>
+              </IconButton>
             )}
           </div>
           <div className="mx-4 h-px bg-border" />
@@ -95,9 +99,9 @@ export default function MapSetupScreen({ onBack, onNext }: MapSetupScreenProps) 
               className="flex-1 bg-transparent text-[14px] text-deep-brown placeholder:text-warm-gray focus:outline-none"
             />
             {destination && (
-              <button onClick={() => setDestination('')} aria-label="도착지 지우기">
+              <IconButton onClick={() => setDestination('')} size="sm" aria-label="도착지 지우기">
                 <X className="h-4 w-4 text-warm-gray" />
-              </button>
+              </IconButton>
             )}
           </div>
         </div>
@@ -118,20 +122,22 @@ export default function MapSetupScreen({ onBack, onNext }: MapSetupScreenProps) 
               </div>
               <div className="flex items-center gap-2">
                 {!query && recentSearches.length > 0 && (
-                  <button
+                  <Button
                     onClick={() => setRecentSearches([])}
-                    className="px-2 py-1 text-[12px] font-medium text-warm-gray"
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto px-2 py-1 text-[12px] text-warm-gray"
                   >
                     전체 삭제
-                  </button>
+                  </Button>
                 )}
-                <button
+                <IconButton
                   onClick={() => { setActiveField(null); setQuery('') }}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-muted transition-[filter,background-color] hover:brightness-[0.97] active:brightness-[0.94]"
+                  variant="muted"
                   aria-label="위치 검색 닫기"
                 >
                   <X className="h-4 w-4 text-warm-gray" />
-                </button>
+                </IconButton>
               </div>
             </div>
 
@@ -173,10 +179,12 @@ export default function MapSetupScreen({ onBack, onNext }: MapSetupScreenProps) 
               )}
 
               {query && filteredSearchResults.map((result) => (
-                <button
+                <InteractiveCard
                   key={result.name}
                   onClick={() => handleSelect(result.name)}
-                  className="flex w-full items-center gap-3 border-b border-border/70 px-4 py-3 text-left transition-[filter,background-color] last:border-b-0 hover:bg-muted hover:brightness-[0.97] active:bg-muted/90 active:brightness-[0.94]"
+                  variant="plain"
+                  padding="none"
+                  className="flex items-center gap-3 rounded-none border-b border-border/70 px-4 py-3 last:border-b-0"
                 >
                   <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-sage-green/15">
                     <MapPin className="h-4 w-4 text-sage-green" />
@@ -186,7 +194,7 @@ export default function MapSetupScreen({ onBack, onNext }: MapSetupScreenProps) 
                     <p className="mt-0.5 truncate text-[12px] text-warm-gray">{result.address}</p>
                   </div>
                   <ChevronRight className="h-4 w-4 flex-shrink-0 text-warm-gray/60" />
-                </button>
+                </InteractiveCard>
               ))}
 
               {query && filteredSearchResults.length === 0 && (
