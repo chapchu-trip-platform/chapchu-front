@@ -172,7 +172,7 @@ export default function SignupScreen({ onDone }: SignupScreenProps) {
                 </div>
                 <button
                   onClick={() => removePet(activePetIdx)}
-                  className="h-8 px-2.5 rounded-full flex items-center gap-1 flex-shrink-0 text-[12px] font-medium text-danger hover:bg-danger/10 active:bg-danger/15 transition-colors"
+                  className="h-8 px-2.5 rounded-full flex items-center gap-1 flex-shrink-0 text-[12px] font-medium text-danger transition-[filter,background-color] hover:bg-danger/10 hover:brightness-[0.97] active:bg-danger/15 active:brightness-[0.94]"
                   aria-label={`${pet.name || `반려동물 ${activePetIdx + 1}`} 추가 취소`}
                 >
                   <Trash2 className="w-3.5 h-3.5" />

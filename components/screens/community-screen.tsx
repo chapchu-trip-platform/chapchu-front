@@ -331,7 +331,7 @@ export default function CommunityScreen({ initialPostId }: CommunityScreenProps)
             key={i}
             onClick={() => setActiveTab(i)}
             className={cn(
-              'flex-1 py-3 text-[13px] font-medium transition-colors',
+              'flex-1 py-3 text-[13px] font-medium transition-[color,background-color,border-color,filter] hover:bg-muted/30 hover:brightness-[0.97] active:bg-muted/50 active:brightness-[0.94]',
               activeTab === i
                 ? 'text-sage-green border-b-2 border-sage-green'
                 : 'text-warm-gray'

@@ -67,7 +67,7 @@ function PlaceDetailSheet({ place, onClose, onSelect }: PlaceDetailSheetProps) {
         </div>
         <button
           onClick={onClose}
-          className="absolute top-3 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-muted"
+          className="absolute top-3 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-muted transition-[filter,background-color] hover:brightness-[0.97] active:brightness-[0.94]"
           aria-label="닫기"
         >
           <X className="w-4 h-4 text-warm-gray" />
@@ -200,7 +200,7 @@ export default function MapRouteScreen({ onBack, onStartTrip }: MapRouteScreenPr
           <button
             key={i}
             onClick={() => setSelectedPlace(waypoints[i])}
-            className="absolute flex flex-col items-center"
+            className="absolute flex flex-col items-center transition-[filter] hover:brightness-[0.97] active:brightness-[0.94]"
             style={{ top: m.top, left: m.left }}
           >
             <div className="w-7 h-7 rounded-full bg-soft-orange flex items-center justify-center shadow-md border-2 border-white">
@@ -270,7 +270,7 @@ export default function MapRouteScreen({ onBack, onStartTrip }: MapRouteScreenPr
               <button
                 key={i}
                 onClick={() => setSelectedPlace(place)}
-                className="flex items-center gap-3 p-3 bg-muted/60 rounded-xl text-left active:opacity-80"
+                className="flex items-center gap-3 p-3 bg-muted/60 rounded-xl text-left transition-[filter,background-color] hover:bg-muted/80 hover:brightness-[0.97] active:bg-muted active:brightness-[0.94]"
               >
                 <div className="w-7 h-7 rounded-full bg-soft-orange flex items-center justify-center flex-shrink-0">
                   <span className="text-[12px] font-bold text-white">{i + 1}</span>

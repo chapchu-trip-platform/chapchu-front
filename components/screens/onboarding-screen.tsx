@@ -145,7 +145,7 @@ export default function OnboardingScreen({ onDone }: OnboardingScreenProps) {
               disabled={isAnimating}
               aria-label={`슬라이드 ${i + 1}`}
               className={cn(
-                'rounded-full transition-all duration-300',
+                'rounded-full transition-[width,background-color,filter] duration-300 hover:brightness-[0.97] active:brightness-[0.94]',
                 i === idx
                   ? 'w-6 h-2.5 bg-sage-green'
                   : 'w-2.5 h-2.5 bg-border'

@@ -170,7 +170,7 @@ function PetsSubScreen({ onBack }: { onBack: () => void }) {
             </div>
           </div>
         ))}
-        <button className="w-full h-12 rounded-card border-2 border-dashed border-border flex items-center justify-center gap-2 text-warm-gray">
+        <button className="w-full h-12 rounded-card border-2 border-dashed border-border flex items-center justify-center gap-2 text-warm-gray transition-[filter,background-color] hover:bg-muted/30 hover:brightness-[0.97] active:bg-muted/50 active:brightness-[0.94]">
           <Plus className="w-4 h-4" />
           <span className="text-[14px] font-medium">반려동물 추가하기</span>
         </button>

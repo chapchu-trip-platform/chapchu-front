@@ -3,7 +3,7 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const interactiveCardVariants = cva(
-  'text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sage-green/50 focus-visible:ring-offset-2 focus-visible:ring-offset-warm-beige disabled:pointer-events-none disabled:opacity-40',
+  'text-left outline-none transition-[color,background-color,border-color,filter] hover:brightness-[0.97] active:brightness-[0.94] focus-visible:ring-2 focus-visible:ring-sage-green/50 focus-visible:ring-offset-2 focus-visible:ring-offset-warm-beige disabled:pointer-events-none disabled:opacity-40',
   {
     variants: {
       variant: {

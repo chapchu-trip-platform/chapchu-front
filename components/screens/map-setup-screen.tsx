@@ -127,7 +127,7 @@ export default function MapSetupScreen({ onBack, onNext }: MapSetupScreenProps) 
                 )}
                 <button
                   onClick={() => { setActiveField(null); setQuery('') }}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-muted"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-muted transition-[filter,background-color] hover:brightness-[0.97] active:brightness-[0.94]"
                   aria-label="위치 검색 닫기"
                 >
                   <X className="h-4 w-4 text-warm-gray" />
@@ -141,7 +141,7 @@ export default function MapSetupScreen({ onBack, onNext }: MapSetupScreenProps) 
               {!query && recentSearches.map((recent) => (
                 <div
                   key={recent}
-                  className="flex items-center border-b border-border/70 transition-colors last:border-b-0 hover:bg-muted/50"
+                  className="flex items-center border-b border-border/70 transition-[filter,background-color] last:border-b-0 hover:bg-muted/50 hover:brightness-[0.97] has-[button:active]:bg-muted has-[button:active]:brightness-[0.94]"
                 >
                   <button
                     onClick={() => handleSelect(recent)}
@@ -154,8 +154,9 @@ export default function MapSetupScreen({ onBack, onNext }: MapSetupScreenProps) 
                     <ChevronRight className="ml-auto h-4 w-4 flex-shrink-0 text-warm-gray/60" />
                   </button>
                   <button
+                    type="button"
                     onClick={() => removeRecentSearch(recent)}
-                    className="mr-3 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-warm-gray"
+                    className="mr-3 flex size-9 flex-shrink-0 items-center justify-center text-warm-gray"
                     aria-label={`${recent} 최근 검색 삭제`}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -175,7 +176,7 @@ export default function MapSetupScreen({ onBack, onNext }: MapSetupScreenProps) 
                 <button
                   key={result.name}
                   onClick={() => handleSelect(result.name)}
-                  className="flex w-full items-center gap-3 border-b border-border/70 px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-muted"
+                  className="flex w-full items-center gap-3 border-b border-border/70 px-4 py-3 text-left transition-[filter,background-color] last:border-b-0 hover:bg-muted hover:brightness-[0.97] active:bg-muted/90 active:brightness-[0.94]"
                 >
                   <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-sage-green/15">
                     <MapPin className="h-4 w-4 text-sage-green" />

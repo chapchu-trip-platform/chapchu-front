@@ -86,9 +86,16 @@ export default function TripEndScreen({ onSave, onShare }: TripEndScreenProps) {
           <p className="text-[14px] font-semibold text-deep-brown mb-3">거점별 여행 노트</p>
           <div className="flex flex-col gap-2">
             {waypoints.map((wp, i) => (
-              <div key={i} className="bg-card-surface rounded-card border border-border overflow-hidden">
+              <div
+                key={wp.name}
+                className="isolate overflow-hidden rounded-card border border-border bg-card-surface"
+              >
                 <button
-                  className="w-full flex items-center gap-3 p-3 text-left"
+                  id={`waypoint-note-trigger-${i}`}
+                  type="button"
+                  aria-expanded={expandedNotes.includes(i)}
+                  aria-controls={`waypoint-note-panel-${i}`}
+                  className="relative z-10 flex min-h-[68px] w-full items-center gap-3 bg-card-surface p-3 text-left transition-[filter,background-color] hover:bg-muted/30 hover:brightness-[0.97] active:bg-muted/50 active:brightness-[0.94]"
                   onClick={() => toggleNote(i)}
                 >
                   <div className="relative w-11 h-11 rounded-xl overflow-hidden flex-shrink-0">
@@ -109,8 +116,15 @@ export default function TripEndScreen({ onSave, onShare }: TripEndScreenProps) {
                   )}
                 </button>
                 {expandedNotes.includes(i) && (
-                  <div className="px-4 pb-3 pt-0 border-t border-border">
-                    <p className="text-[13px] text-warm-gray leading-relaxed">{wp.note}</p>
+                  <div
+                    id={`waypoint-note-panel-${i}`}
+                    role="region"
+                    aria-labelledby={`waypoint-note-trigger-${i}`}
+                    className="relative z-0 bg-card-surface px-4 py-3"
+                  >
+                    <p className="break-words text-[13px] leading-relaxed text-warm-gray">
+                      {wp.note}
+                    </p>
                   </div>
                 )}
               </div>

@@ -53,7 +53,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         <button
           onClick={handleLogin}
           disabled={loading}
-          className="w-full h-12 rounded-btn flex items-center justify-center gap-3 bg-white text-deep-brown font-semibold text-[15px] border border-border active:opacity-80 transition-opacity shadow-sm"
+          className="w-full h-12 rounded-btn flex items-center justify-center gap-3 bg-white text-deep-brown font-semibold text-[15px] border border-border shadow-sm transition-[filter,background-color] hover:brightness-[0.97] active:brightness-[0.94]"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -72,7 +72,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
 
         <button
           onClick={handleLogin}
-          className="w-full h-11 rounded-btn border border-border text-warm-gray font-medium text-[14px] active:opacity-80 transition-opacity"
+          className="w-full h-11 rounded-btn border border-border text-warm-gray font-medium text-[14px] transition-[filter,background-color] hover:bg-muted/30 hover:brightness-[0.97] active:bg-muted/50 active:brightness-[0.94]"
         >
           테스트 계정으로 로그인
         </button>

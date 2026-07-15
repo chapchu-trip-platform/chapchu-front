@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ChoiceChip } from '@/components/ui/choice-chip'
+import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input, Textarea } from '@/components/ui/input'
 import { InteractiveCard } from '@/components/ui/interactive-card'
@@ -53,5 +54,19 @@ describe('shared UI primitives', () => {
       'rounded-card'
     )
     expect(screen.getByRole('button', { name: /설정/ })).toHaveClass('w-full')
+  })
+
+  it('darkens clickable surfaces on hover and press', () => {
+    render(
+      <>
+        <Button>저장</Button>
+        <InteractiveCard>산책 코스</InteractiveCard>
+        <MenuRow label="설정" />
+      </>
+    )
+
+    for (const button of screen.getAllByRole('button')) {
+      expect(button).toHaveClass('hover:brightness-[0.97]', 'active:brightness-[0.94]')
+    }
   })
 })
