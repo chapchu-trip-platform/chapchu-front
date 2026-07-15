@@ -5,6 +5,8 @@ import Image from 'next/image'
 import { Heart, Bookmark } from 'lucide-react'
 import TopBar from '@/components/top-bar'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
+import { Input, Textarea } from '@/components/ui/input'
 import { mockMyPosts, mockWishlist, mockBookmarks, mockUserProfile } from '@/data/mock'
 
 export type SettingsTab = 'nickname' | 'info' | 'posts' | 'wishlist' | 'bookmarks'
@@ -54,12 +56,11 @@ export default function ProfileSettings({ initialTab, onBack }: ProfileSettingsP
               <label className="text-[13px] font-semibold text-deep-brown mb-2 block">
                 현재 닉네임
               </label>
-              <input
+              <Input
                 type="text"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 maxLength={20}
-                className="w-full h-12 px-4 rounded-card border border-border bg-card text-[14px] text-deep-brown focus:outline-none focus:ring-2 focus:ring-sage-green/50"
               />
               <p className="text-[11px] text-warm-gray mt-1 text-right">{nickname.length}/20</p>
             </div>
@@ -82,11 +83,10 @@ export default function ProfileSettings({ initialTab, onBack }: ProfileSettingsP
               <label className="text-[13px] font-semibold text-deep-brown mb-2 block">
                 이메일
               </label>
-              <input
+              <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full h-12 px-4 rounded-card border border-border bg-card text-[14px] text-deep-brown focus:outline-none focus:ring-2 focus:ring-sage-green/50"
               />
             </div>
 
@@ -94,12 +94,11 @@ export default function ProfileSettings({ initialTab, onBack }: ProfileSettingsP
               <label className="text-[13px] font-semibold text-deep-brown mb-2 block">
                 소개
               </label>
-              <textarea
+              <Textarea
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 maxLength={100}
                 rows={3}
-                className="w-full p-4 rounded-card border border-border bg-card text-[14px] text-deep-brown focus:outline-none focus:ring-2 focus:ring-sage-green/50 resize-none"
               />
               <p className="text-[11px] text-warm-gray mt-1 text-right">{bio.length}/100</p>
             </div>
@@ -172,9 +171,9 @@ export default function ProfileSettings({ initialTab, onBack }: ProfileSettingsP
                         <span>{place.distance}</span>
                       </div>
                     </div>
-                    <button className="p-2 hover:bg-muted rounded-full transition-colors">
+                    <IconButton aria-label={`${place.name} 위시리스트에서 제거`}>
                       <Heart className="w-5 h-5 text-soft-orange fill-soft-orange" />
-                    </button>
+                    </IconButton>
                   </div>
                 ))}
               </div>
@@ -204,9 +203,9 @@ export default function ProfileSettings({ initialTab, onBack }: ProfileSettingsP
                         <span>{bookmark.date}</span>
                       </div>
                     </div>
-                    <button className="p-2 hover:bg-muted rounded-full transition-colors">
+                    <IconButton aria-label={`${bookmark.title} 북마크 해제`}>
                       <Bookmark className="w-5 h-5 text-soft-orange fill-soft-orange" />
-                    </button>
+                    </IconButton>
                   </div>
                 ))}
               </div>

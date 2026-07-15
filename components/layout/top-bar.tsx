@@ -1,6 +1,8 @@
 'use client'
 
-import { ArrowLeft, Bell } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
+import { IconButton } from '@/components/ui/icon-button'
+import { NotificationButton } from '@/components/ui/notification-button'
 import { cn } from '@/lib/utils'
 
 interface TopBarProps {
@@ -8,6 +10,8 @@ interface TopBarProps {
   showBack?: boolean
   onBack?: () => void
   rightAction?: React.ReactNode
+  hasUnreadNotifications?: boolean
+  onNotificationClick?: () => void
   transparent?: boolean
   className?: string
 }
@@ -17,6 +21,8 @@ export default function TopBar({
   showBack,
   onBack,
   rightAction,
+  hasUnreadNotifications = true,
+  onNotificationClick,
   transparent,
   className,
 }: TopBarProps) {
@@ -32,13 +38,12 @@ export default function TopBar({
       >
         <div className="w-10 flex items-center">
           {showBack && (
-            <button
+            <IconButton
               onClick={onBack}
               aria-label="뒤로 가기"
-              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
             >
               <ArrowLeft className="w-5 h-5 text-deep-brown" />
-            </button>
+            </IconButton>
           )}
         </div>
 
@@ -50,13 +55,10 @@ export default function TopBar({
 
         <div className="w-10 flex items-center justify-end">
           {rightAction ?? (
-            <button
-              aria-label="알림"
-              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors relative"
-            >
-              <Bell className="w-5 h-5 text-deep-brown" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-soft-orange rounded-full" />
-            </button>
+            <NotificationButton
+              hasUnread={hasUnreadNotifications}
+              onClick={onNotificationClick}
+            />
           )}
         </div>
       </header>

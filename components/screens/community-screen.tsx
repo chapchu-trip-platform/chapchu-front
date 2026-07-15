@@ -16,6 +16,9 @@ import {
   Route,
 } from 'lucide-react'
 import TopBar from '@/components/top-bar'
+import { IconButton } from '@/components/ui/icon-button'
+import { Input } from '@/components/ui/input'
+import { InteractiveCard } from '@/components/ui/interactive-card'
 import { cn } from '@/lib/utils'
 
 interface CommunityScreenProps {
@@ -103,24 +106,22 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
   return (
     <div className="flex flex-col flex-1 bg-warm-beige overflow-hidden">
       <div className="sticky top-0 z-40 flex h-14 flex-shrink-0 items-center justify-between border-b border-border bg-card-surface px-4">
-        <button onClick={onBack} className="w-9 h-9 flex items-center justify-center" aria-label="뒤로가기">
+        <IconButton onClick={onBack} aria-label="뒤로가기">
           <ChevronLeft className="w-5 h-5 text-deep-brown" />
-        </button>
+        </IconButton>
         <div className="flex gap-1">
-          <button
+          <IconButton
             onClick={() => setBookmarked(!bookmarked)}
-            className="w-9 h-9 flex items-center justify-center"
             aria-label="북마크"
           >
             <Bookmark className={cn('w-5 h-5', bookmarked ? 'text-soft-orange fill-soft-orange' : 'text-deep-brown')} />
-          </button>
-          <button
+          </IconButton>
+          <IconButton
             onClick={() => setShowReport(!showReport)}
-            className="w-9 h-9 flex items-center justify-center"
             aria-label="더보기"
           >
             <MoreHorizontal className="w-5 h-5 text-deep-brown" />
-          </button>
+          </IconButton>
         </div>
       </div>
 
@@ -274,21 +275,21 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
 
       {/* Comment input */}
       <div className="border-t border-border bg-card-surface px-4 py-3 mb-20 flex gap-2">
-        <input
+        <Input
           type="text"
           value={commentText}
           onChange={(e) => setCommentText(e.target.value)}
           placeholder="댓글을 입력하세요..."
-          className="flex-1 h-10 px-3 rounded-full bg-muted text-[13px] text-deep-brown placeholder:text-warm-gray focus:outline-none focus:ring-2 focus:ring-sage-green/50"
+          size="compact"
+          className="h-10 flex-1 rounded-full border-transparent bg-muted"
         />
-        <button
-          className={cn('w-10 h-10 rounded-full flex items-center justify-center transition-colors',
-            commentText.trim() ? 'bg-sage-green' : 'bg-muted'
-          )}
+        <IconButton
+          variant={commentText.trim() ? 'primary' : 'muted'}
+          size="lg"
           aria-label="댓글 전송"
         >
           <Send className={cn('w-4 h-4', commentText.trim() ? 'text-white' : 'text-warm-gray')} />
-        </button>
+        </IconButton>
       </div>
     </div>
   )
@@ -344,10 +345,11 @@ export default function CommunityScreen({ initialPostId }: CommunityScreenProps)
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
         <div className="flex flex-col gap-3 p-4">
           {filteredPosts.map((post, i) => (
-            <button
+            <InteractiveCard
               key={post.id}
               onClick={() => setSelectedPost(post)}
-              className="bg-card-surface rounded-card border border-border overflow-hidden text-left active:opacity-80 shadow-sm"
+              padding="none"
+              className="overflow-hidden"
             >
               <div className="relative h-36">
                 <Image src={post.image} alt={post.title} fill className="object-cover" />
@@ -395,7 +397,7 @@ export default function CommunityScreen({ initialPostId }: CommunityScreenProps)
                   </div>
                 </div>
               </div>
-            </button>
+            </InteractiveCard>
           ))}
         </div>
       </div>

@@ -4,6 +4,9 @@ import { useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import TopBar from '@/components/top-bar'
 import { Button } from '@/components/ui/button'
+import { ChoiceChip } from '@/components/ui/choice-chip'
+import { IconButton } from '@/components/ui/icon-button'
+import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
 interface SignupScreenProps {
@@ -84,12 +87,11 @@ export default function SignupScreen({ onDone }: SignupScreenProps) {
             {/* Nickname */}
             <div>
               <label className="text-[13px] font-semibold text-deep-brown mb-2 block">닉네임</label>
-              <input
+              <Input
                 type="text"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 placeholder="사용할 닉네임을 입력하세요"
-                className="w-full h-12 px-4 rounded-card border border-border bg-card text-deep-brown text-[14px] placeholder:text-warm-gray focus:outline-none focus:ring-2 focus:ring-sage-green/50"
               />
             </div>
 
@@ -98,18 +100,13 @@ export default function SignupScreen({ onDone }: SignupScreenProps) {
               <label className="text-[13px] font-semibold text-deep-brown mb-3 block">선호 테마</label>
               <div className="flex flex-wrap gap-2">
                 {themes.map((t) => (
-                  <button
+                  <ChoiceChip
                     key={t}
                     onClick={() => toggleArr(selectedThemes, t, setSelectedThemes)}
-                    className={cn(
-                      'px-4 py-2 rounded-full text-[13px] font-medium border transition-all',
-                      selectedThemes.includes(t)
-                        ? 'bg-sage-green text-white border-sage-green'
-                        : 'bg-card text-warm-gray border-border'
-                    )}
+                    selected={selectedThemes.includes(t)}
                   >
                     {t}
-                  </button>
+                  </ChoiceChip>
                 ))}
               </div>
             </div>
@@ -119,18 +116,13 @@ export default function SignupScreen({ onDone }: SignupScreenProps) {
               <label className="text-[13px] font-semibold text-deep-brown mb-3 block">선호 지역</label>
               <div className="flex flex-wrap gap-2">
                 {regions.map((r) => (
-                  <button
+                  <ChoiceChip
                     key={r}
                     onClick={() => toggleArr(selectedRegions, r, setSelectedRegions)}
-                    className={cn(
-                      'px-4 py-2 rounded-full text-[13px] font-medium border transition-all',
-                      selectedRegions.includes(r)
-                        ? 'bg-sage-green text-white border-sage-green'
-                        : 'bg-card text-warm-gray border-border'
-                    )}
+                    selected={selectedRegions.includes(r)}
                   >
                     {r}
-                  </button>
+                  </ChoiceChip>
                 ))}
               </div>
             </div>
@@ -140,18 +132,14 @@ export default function SignupScreen({ onDone }: SignupScreenProps) {
               <label className="text-[13px] font-semibold text-deep-brown mb-3 block">선호 이동수단</label>
               <div className="flex gap-2 flex-wrap">
                 {transports.map((t) => (
-                  <button
+                  <ChoiceChip
                     key={t}
                     onClick={() => setSelectedTransport(t)}
-                    className={cn(
-                      'px-4 py-2 rounded-full text-[13px] font-medium border transition-all',
-                      selectedTransport === t
-                        ? 'bg-soft-orange text-white border-soft-orange'
-                        : 'bg-card text-warm-gray border-border'
-                    )}
+                    selected={selectedTransport === t}
+                    tone="orange"
                   >
                     {t}
-                  </button>
+                  </ChoiceChip>
                 ))}
               </div>
             </div>
@@ -163,26 +151,24 @@ export default function SignupScreen({ onDone }: SignupScreenProps) {
               <div className="flex items-center gap-2">
                 <div className="flex flex-1 gap-2 overflow-x-auto no-scrollbar">
                   {pets.map((p, i) => (
-                    <button
+                    <ChoiceChip
                       key={i}
                       onClick={() => setActivePetIdx(i)}
-                      className={cn(
-                        'px-3 py-1.5 rounded-full text-[12px] font-medium whitespace-nowrap border transition-all',
-                        activePetIdx === i
-                          ? 'bg-sage-green text-white border-sage-green'
-                          : 'bg-card text-warm-gray border-border'
-                      )}
+                      selected={activePetIdx === i}
+                      size="sm"
+                      className="whitespace-nowrap"
                     >
                       {p.name || `반려동물 ${i + 1}`}
-                    </button>
+                    </ChoiceChip>
                   ))}
-                  <button
+                  <IconButton
                     onClick={addPet}
-                    className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0"
+                    variant="muted"
+                    size="sm"
                     aria-label="반려동물 추가"
                   >
                     <Plus className="w-4 h-4 text-warm-gray" />
-                  </button>
+                  </IconButton>
                 </div>
                 <button
                   onClick={() => removePet(activePetIdx)}
@@ -198,12 +184,11 @@ export default function SignupScreen({ onDone }: SignupScreenProps) {
             {/* Pet name */}
             <div>
               <label className="text-[13px] font-semibold text-deep-brown mb-2 block">이름</label>
-              <input
+              <Input
                 type="text"
                 value={pet.name}
                 onChange={(e) => updatePet(activePetIdx, 'name', e.target.value)}
                 placeholder="반려동물 이름"
-                className="w-full h-12 px-4 rounded-card border border-border bg-card text-deep-brown text-[14px] placeholder:text-warm-gray focus:outline-none focus:ring-2 focus:ring-sage-green/50"
               />
             </div>
 
@@ -211,22 +196,22 @@ export default function SignupScreen({ onDone }: SignupScreenProps) {
             <div className="flex gap-3">
               <div className="flex-1">
                 <label className="text-[13px] font-semibold text-deep-brown mb-2 block">견종</label>
-                <input
+                <Input
                   type="text"
                   value={pet.breed}
                   onChange={(e) => updatePet(activePetIdx, 'breed', e.target.value)}
                   placeholder="골든 리트리버"
-                  className="w-full h-12 px-3 rounded-card border border-border bg-card text-deep-brown text-[14px] placeholder:text-warm-gray focus:outline-none focus:ring-2 focus:ring-sage-green/50"
+                  className="px-3"
                 />
               </div>
               <div className="w-24">
                 <label className="text-[13px] font-semibold text-deep-brown mb-2 block">나이</label>
-                <input
+                <Input
                   type="text"
                   value={pet.age}
                   onChange={(e) => updatePet(activePetIdx, 'age', e.target.value)}
                   placeholder="3살"
-                  className="w-full h-12 px-3 rounded-card border border-border bg-card text-deep-brown text-[14px] placeholder:text-warm-gray focus:outline-none focus:ring-2 focus:ring-sage-green/50"
+                  className="px-3"
                 />
               </div>
             </div>
@@ -236,18 +221,15 @@ export default function SignupScreen({ onDone }: SignupScreenProps) {
               <label className="text-[13px] font-semibold text-deep-brown mb-2 block">크기</label>
               <div className="flex gap-2">
                 {sizes.map((s) => (
-                  <button
+                  <ChoiceChip
                     key={s}
                     onClick={() => updatePet(activePetIdx, 'size', s)}
-                    className={cn(
-                      'flex-1 h-11 rounded-card text-[13px] font-medium border transition-all',
-                      pet.size === s
-                        ? 'bg-sage-green text-white border-sage-green'
-                        : 'bg-card text-warm-gray border-border'
-                    )}
+                    selected={pet.size === s}
+                    size="segment"
+                    shape="card"
                   >
                     {s}
-                  </button>
+                  </ChoiceChip>
                 ))}
               </div>
             </div>
@@ -257,7 +239,7 @@ export default function SignupScreen({ onDone }: SignupScreenProps) {
               <label className="text-[13px] font-semibold text-deep-brown mb-2 block">선호 활동</label>
               <div className="flex flex-wrap gap-2">
                 {activities.map((a) => (
-                  <button
+                  <ChoiceChip
                     key={a}
                     onClick={() => {
                       const current = pet.activities
@@ -266,15 +248,11 @@ export default function SignupScreen({ onDone }: SignupScreenProps) {
                         : [...current, a]
                       updatePet(activePetIdx, 'activities', next)
                     }}
-                    className={cn(
-                      'px-4 py-2 rounded-full text-[13px] font-medium border transition-all',
-                      pet.activities.includes(a)
-                        ? 'bg-soft-orange text-white border-soft-orange'
-                        : 'bg-card text-warm-gray border-border'
-                    )}
+                    selected={pet.activities.includes(a)}
+                    tone="orange"
                   >
                     {a}
-                  </button>
+                  </ChoiceChip>
                 ))}
               </div>
             </div>
