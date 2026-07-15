@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import { useState } from 'react'
 import { MapPin, Compass, BookImage } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 interface OnboardingScreenProps {
@@ -36,10 +37,66 @@ const slides = [
   },
 ]
 
+interface OnboardingSlideContentProps {
+  slide: (typeof slides)[number]
+  className?: string
+  onAnimationEnd?: () => void
+}
+
+function OnboardingSlideContent({
+  slide,
+  className,
+  onAnimationEnd,
+}: OnboardingSlideContentProps) {
+  const Icon = slide.icon
+
+  return (
+    <div
+      className={cn('absolute inset-0 flex flex-col', className)}
+      onAnimationEnd={onAnimationEnd}
+    >
+      <div className="relative mx-4 mt-2 h-[clamp(13rem,44dvh,26rem)] flex-shrink-0 overflow-hidden rounded-[20px]">
+        <Image
+          src={slide.image}
+          alt={slide.title.replace('\n', ' ')}
+          fill
+          className="object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+        <div
+          className={cn(
+            'absolute bottom-4 left-4 flex h-10 w-10 items-center justify-center rounded-full',
+            slide.color
+          )}
+        >
+          <Icon className={cn('h-5 w-5', slide.iconColor)} />
+        </div>
+      </div>
+
+      <div className="flex flex-1 flex-col gap-3 px-6 pt-[clamp(1.5rem,4dvh,2.5rem)]">
+        <h2 className="whitespace-pre-line text-balance text-[22px] font-bold leading-snug text-deep-brown">
+          {slide.title}
+        </h2>
+        <p className="text-[14px] leading-relaxed text-warm-gray">{slide.desc}</p>
+      </div>
+    </div>
+  )
+}
+
 export default function OnboardingScreen({ onDone }: OnboardingScreenProps) {
   const [idx, setIdx] = useState(0)
+  const [previousIdx, setPreviousIdx] = useState<number | null>(null)
+  const [direction, setDirection] = useState<'next' | 'previous'>('next')
   const slide = slides[idx]
-  const Icon = slide.icon
+  const isAnimating = previousIdx !== null
+
+  const changeSlide = (nextIdx: number) => {
+    if (nextIdx === idx || isAnimating) return
+
+    setDirection(nextIdx > idx ? 'next' : 'previous')
+    setPreviousIdx(idx)
+    setIdx(nextIdx)
+  }
 
   return (
     <div className="flex flex-col flex-1 bg-warm-beige">
@@ -53,42 +110,39 @@ export default function OnboardingScreen({ onDone }: OnboardingScreenProps) {
         </button>
       </div>
 
-      {/* Image area */}
-      <div className="relative mx-4 rounded-[20px] overflow-hidden h-52 mt-2">
-        <Image
-          src={slide.image}
-          alt={slide.title.replace('\n', ' ')}
-          fill
-          className="object-cover transition-all duration-500"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-        {/* Icon badge */}
-        <div
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        {previousIdx !== null && (
+          <OnboardingSlideContent
+            slide={slides[previousIdx]}
+            className={cn(
+              'pointer-events-none',
+              direction === 'next'
+                ? 'onboarding-slide-out-left'
+                : 'onboarding-slide-out-right'
+            )}
+          />
+        )}
+        <OnboardingSlideContent
+          slide={slide}
           className={cn(
-            'absolute bottom-4 left-4 w-10 h-10 rounded-full flex items-center justify-center',
-            slide.color
+            previousIdx !== null &&
+              (direction === 'next'
+                ? 'onboarding-slide-in-right'
+                : 'onboarding-slide-in-left')
           )}
-        >
-          <Icon className={cn('w-5 h-5', slide.iconColor)} />
-        </div>
-      </div>
-
-      {/* Text */}
-      <div className="flex-1 flex flex-col px-6 pt-8 gap-3">
-        <h2 className="text-[22px] font-bold text-deep-brown leading-snug text-balance whitespace-pre-line">
-          {slide.title}
-        </h2>
-        <p className="text-[14px] text-warm-gray leading-relaxed">{slide.desc}</p>
+          onAnimationEnd={() => setPreviousIdx(null)}
+        />
       </div>
 
       {/* Dots + CTA */}
-      <div className="px-6 pb-10 flex flex-col gap-6">
+      <div className="safe-bottom-onboarding flex flex-col gap-6 px-6 pt-4">
         {/* Dots */}
         <div className="flex justify-center gap-2">
           {slides.map((_, i) => (
             <button
               key={i}
-              onClick={() => setIdx(i)}
+              onClick={() => changeSlide(i)}
+              disabled={isAnimating}
               aria-label={`슬라이드 ${i + 1}`}
               className={cn(
                 'rounded-full transition-all duration-300',
@@ -101,19 +155,22 @@ export default function OnboardingScreen({ onDone }: OnboardingScreenProps) {
         </div>
 
         {idx < slides.length - 1 ? (
-          <button
-            onClick={() => setIdx((p) => p + 1)}
-            className="w-full h-12 rounded-btn bg-sage-green text-white font-semibold text-[15px] active:opacity-80 transition-opacity"
+          <Button
+            onClick={() => changeSlide(idx + 1)}
+            disabled={isAnimating}
+            fullWidth
+            size="lg"
           >
             다음
-          </button>
+          </Button>
         ) : (
-          <button
+          <Button
             onClick={onDone}
-            className="w-full h-12 rounded-btn bg-sage-green text-white font-semibold text-[15px] active:opacity-80 transition-opacity"
+            fullWidth
+            size="lg"
           >
             시작하기
-          </button>
+          </Button>
         )}
       </div>
     </div>

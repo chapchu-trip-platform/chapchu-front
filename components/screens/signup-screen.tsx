@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import TopBar from '@/components/top-bar'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 interface SignupScreenProps {
@@ -45,6 +46,17 @@ export default function SignupScreen({ onDone }: SignupScreenProps) {
   const addPet = () => {
     setPets((prev) => [...prev, { name: '', breed: '', size: '소형', age: '', activities: [] }])
     setActivePetIdx(pets.length)
+  }
+
+  const removePet = (idx: number) => {
+    if (pets.length === 1) return
+
+    setPets((prev) => prev.filter((_, i) => i !== idx))
+    setActivePetIdx((currentIdx) => {
+      if (currentIdx > idx) return currentIdx - 1
+      if (currentIdx === idx) return Math.min(idx, pets.length - 2)
+      return currentIdx
+    })
   }
 
   const pet = pets[activePetIdx]
@@ -148,27 +160,37 @@ export default function SignupScreen({ onDone }: SignupScreenProps) {
           <div className="flex flex-col gap-5 pt-4">
             {/* Pet tabs */}
             {pets.length > 1 && (
-              <div className="flex gap-2 overflow-x-auto no-scrollbar">
-                {pets.map((p, i) => (
+              <div className="flex items-center gap-2">
+                <div className="flex flex-1 gap-2 overflow-x-auto no-scrollbar">
+                  {pets.map((p, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setActivePetIdx(i)}
+                      className={cn(
+                        'px-3 py-1.5 rounded-full text-[12px] font-medium whitespace-nowrap border transition-all',
+                        activePetIdx === i
+                          ? 'bg-sage-green text-white border-sage-green'
+                          : 'bg-card text-warm-gray border-border'
+                      )}
+                    >
+                      {p.name || `반려동물 ${i + 1}`}
+                    </button>
+                  ))}
                   <button
-                    key={i}
-                    onClick={() => setActivePetIdx(i)}
-                    className={cn(
-                      'px-3 py-1.5 rounded-full text-[12px] font-medium whitespace-nowrap border transition-all',
-                      activePetIdx === i
-                        ? 'bg-sage-green text-white border-sage-green'
-                        : 'bg-card text-warm-gray border-border'
-                    )}
+                    onClick={addPet}
+                    className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0"
+                    aria-label="반려동물 추가"
                   >
-                    {p.name || `반려동물 ${i + 1}`}
+                    <Plus className="w-4 h-4 text-warm-gray" />
                   </button>
-                ))}
+                </div>
                 <button
-                  onClick={addPet}
-                  className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0"
-                  aria-label="반려동물 추가"
+                  onClick={() => removePet(activePetIdx)}
+                  className="h-8 px-2.5 rounded-full flex items-center gap-1 flex-shrink-0 text-[12px] font-medium text-danger hover:bg-danger/10 active:bg-danger/15 transition-colors"
+                  aria-label={`${pet.name || `반려동물 ${activePetIdx + 1}`} 추가 취소`}
                 >
-                  <Plus className="w-4 h-4 text-warm-gray" />
+                  <Trash2 className="w-3.5 h-3.5" />
+                  추가 취소
                 </button>
               </div>
             )}
@@ -271,22 +293,24 @@ export default function SignupScreen({ onDone }: SignupScreenProps) {
       </div>
 
       {/* CTA */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[390px] px-4 pb-8 pt-4 bg-warm-beige border-t border-border">
+      <div className="safe-bottom-cta fixed bottom-0 left-1/2 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-warm-beige px-4 pt-4">
         {step === 'user' ? (
-          <button
+          <Button
             onClick={() => setStep('pet')}
             disabled={!nickname.trim()}
-            className="w-full h-12 rounded-btn bg-sage-green text-white font-semibold text-[15px] disabled:opacity-40 active:opacity-80 transition-opacity"
+            fullWidth
+            size="lg"
           >
             다음 — 반려동물 등록
-          </button>
+          </Button>
         ) : (
-          <button
+          <Button
             onClick={onDone}
-            className="w-full h-12 rounded-btn bg-sage-green text-white font-semibold text-[15px] active:opacity-80 transition-opacity"
+            fullWidth
+            size="lg"
           >
             완료 — 여행 시작하기
-          </button>
+          </Button>
         )}
       </div>
     </div>
