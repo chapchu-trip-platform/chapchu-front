@@ -10,6 +10,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "dist/**",
+    "storybook-static/**",
     "coverage/**",
     ".npm-cache/**",
     "next-env.d.ts",
