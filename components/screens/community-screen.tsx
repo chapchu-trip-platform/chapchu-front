@@ -3,7 +3,18 @@
 import Image from 'next/image'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ThumbsUp, MessageCircle, Bookmark, ChevronLeft, Flag, Send, MoreHorizontal, Share2 } from 'lucide-react'
+import {
+  ThumbsUp,
+  MessageCircle,
+  Bookmark,
+  ChevronLeft,
+  Flag,
+  Send,
+  MoreHorizontal,
+  Share2,
+  PawPrint,
+  Route,
+} from 'lucide-react'
 import TopBar from '@/components/top-bar'
 import { cn } from '@/lib/utils'
 
@@ -26,8 +37,13 @@ const posts = [
     date: '2024.07.02',
     image: '/images/album-cover.png',
     tab: 'HOT',
-    petName: '봄이 · 비글',
-    course: '제주 올레 7코스',
+    pet: { name: '봄이', breed: '비글', size: '중형견', age: '4살' },
+    course: {
+      name: '제주 올레 7코스',
+      distance: '17.6km',
+      duration: '5시간 30분',
+      places: ['제주올레 여행자센터', '법환포구', '월평포구', '월평 아왜낭목 쉼터'],
+    },
   },
   {
     id: 2,
@@ -41,8 +57,13 @@ const posts = [
     date: '2024.06.30',
     image: '/images/place-park.png',
     tab: 'HOT',
-    petName: '루나 · 말라뮤트',
-    course: '가평 자라섬 코스',
+    pet: { name: '루나', breed: '알래스칸 말라뮤트', size: '대형견', age: '5살' },
+    course: {
+      name: '가평 자라섬 캠핑 코스',
+      distance: '8.3km',
+      duration: '3시간 10분',
+      places: ['가평역', '자라섬 남도 꽃정원', '자라섬 반려동물 놀이터', '자라섬 오토캠핑장'],
+    },
   },
   {
     id: 3,
@@ -56,8 +77,13 @@ const posts = [
     date: '2024.06.28',
     image: '/images/place-cafe.png',
     tab: '자유게시판',
-    petName: '코코 · 포메라니안',
-    course: '성수동 애견 카페',
+    pet: { name: '코코', breed: '포메라니안', size: '소형견', age: '3살' },
+    course: {
+      name: '성수동 애견 카페 투어',
+      distance: '4.2km',
+      duration: '2시간 40분',
+      places: ['서울숲', '성수 펫 카페', '뚝섬 산책로', '서울숲 반려견 놀이터', '성수 수제간식 공방'],
+    },
   },
 ]
 
@@ -76,7 +102,7 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
 
   return (
     <div className="flex flex-col flex-1 bg-warm-beige overflow-hidden">
-      <div className="flex items-center justify-between px-4 h-14 bg-card-surface border-b border-border sticky top-0 z-40">
+      <div className="sticky top-0 z-40 flex h-14 flex-shrink-0 items-center justify-between border-b border-border bg-card-surface px-4">
         <button onClick={onBack} className="w-9 h-9 flex items-center justify-center" aria-label="뒤로가기">
           <ChevronLeft className="w-5 h-5 text-deep-brown" />
         </button>
@@ -125,15 +151,53 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
           {/* Body */}
           <p className="text-[14px] text-deep-brown leading-relaxed py-4 border-b border-border">{post.body}</p>
 
-          {/* Course info */}
-          <div className="py-3 border-b border-border flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-[12px] font-semibold text-warm-gray">동행 반려동물</span>
-              <span className="text-[12px] text-deep-brown">{post.petName}</span>
+          {/* Pet and course info */}
+          <div className="py-4 border-b border-border flex flex-col gap-3">
+            <div className="rounded-card border border-border bg-card-surface p-3.5">
+              <div className="mb-3 flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sage-green-light">
+                  <PawPrint className="h-4 w-4 text-sage-green" />
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-warm-gray">동행 반려동물</p>
+                  <p className="text-[15px] font-bold text-deep-brown">{post.pet.name}</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-sage-green/10 px-2.5 py-1 text-[12px] font-semibold text-sage-green">
+                  견종 · {post.pet.breed}
+                </span>
+                <span className="rounded-full bg-muted px-2.5 py-1 text-[12px] text-deep-brown">{post.pet.size}</span>
+                <span className="rounded-full bg-muted px-2.5 py-1 text-[12px] text-deep-brown">{post.pet.age}</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[12px] font-semibold text-warm-gray">코스 정보</span>
-              <span className="text-[12px] text-deep-brown">{post.course}</span>
+
+            <div className="rounded-card border border-border bg-card-surface p-3.5">
+              <div className="mb-3 flex items-start gap-2">
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-soft-orange/15">
+                  <Route className="h-4 w-4 text-soft-orange" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium text-warm-gray">코스 정보</p>
+                  <p className="text-[14px] font-bold text-deep-brown">{post.course.name}</p>
+                  <p className="mt-0.5 text-[11px] text-warm-gray">
+                    총 {post.course.distance} · {post.course.duration} · {post.course.places.length}개 장소
+                  </p>
+                </div>
+              </div>
+              <ol aria-label={`${post.course.name} 경유 장소`} className="pl-1">
+                {post.course.places.map((place, index) => (
+                  <li key={place} className="relative flex min-h-9 gap-2.5 last:min-h-0">
+                    {index < post.course.places.length - 1 && (
+                      <span className="absolute left-[11px] top-5 h-[calc(100%-4px)] w-px bg-sage-green/30" />
+                    )}
+                    <span className="relative z-10 flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full bg-sage-green text-[10px] font-bold text-white">
+                      {index + 1}
+                    </span>
+                    <span className="pt-0.5 text-[12px] font-medium text-deep-brown">{place}</span>
+                  </li>
+                ))}
+              </ol>
             </div>
           </div>
 
@@ -297,6 +361,18 @@ export default function CommunityScreen({ initialPostId }: CommunityScreenProps)
                 <h3 className="text-[14px] font-semibold text-deep-brown leading-snug line-clamp-2 text-balance mb-2">
                   {post.title}
                 </h3>
+                <div className="mb-2.5 flex flex-col gap-1 rounded-xl bg-muted/55 px-2.5 py-2">
+                  <p className="flex items-center gap-1.5 text-[11px] text-deep-brown">
+                    <PawPrint className="h-3 w-3 flex-shrink-0 text-sage-green" />
+                    <span className="truncate">
+                      {post.pet.name} · {post.pet.breed} · {post.pet.size} · {post.pet.age}
+                    </span>
+                  </p>
+                  <p className="flex items-center gap-1.5 text-[11px] text-deep-brown">
+                    <Route className="h-3 w-3 flex-shrink-0 text-soft-orange" />
+                    <span className="truncate">{post.course.name} · 경유 {post.course.places.length}곳</span>
+                  </p>
+                </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <div className="w-5 h-5 rounded-full bg-sage-green/20 flex items-center justify-center">
