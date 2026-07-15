@@ -3,6 +3,7 @@
 import { MapPin, AlertCircle, Zap, ZapOff, Upload, Clock, Lightbulb } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import TopBar from '@/components/top-bar'
+import { Button } from '@/components/ui/button'
 
 interface ErrorScreenProps {
   type: 'location-denied' | 'location-request' | 'weather-failed' | 'no-routes' | 'no-places' | 'upload-failed' | 'session-expired'
@@ -105,20 +106,23 @@ export default function ErrorScreen({ type, onBack, onRetry, onProceed }: ErrorS
 
         {/* Actions */}
         <div className="w-full flex flex-col gap-3">
-          <button
+          <Button
             onClick={onRetry || onProceed}
-            className="w-full h-12 bg-sage-green text-white rounded-card font-semibold text-[14px] active:bg-sage-green/90 transition-colors"
+            fullWidth
+            size="lg"
           >
             {config.primaryAction}
-          </button>
+          </Button>
 
           {config.secondaryAction && (
-            <button
+            <Button
               onClick={onBack}
-              className="w-full h-12 bg-card-surface text-deep-brown rounded-card font-semibold text-[14px] border border-border active:bg-card transition-colors"
+              fullWidth
+              size="lg"
+              variant="outline"
             >
               {config.secondaryAction}
-            </button>
+            </Button>
           )}
         </div>
 

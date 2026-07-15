@@ -8,10 +8,10 @@ interface MobileShellProps {
 
 export default function MobileShell({ children, className, noPadding }: MobileShellProps) {
   return (
-    <div className="min-h-screen bg-warm-beige flex justify-center">
+    <div className="flex min-h-dvh justify-center bg-warm-beige">
       <div
         className={cn(
-          'relative w-full max-w-[390px] min-h-screen bg-background flex flex-col shadow-2xl',
+          'relative flex min-h-dvh w-full max-w-[430px] flex-col overflow-x-hidden bg-background shadow-2xl',
           noPadding ? 'p-0' : undefined,
           className
         )}

@@ -76,9 +76,9 @@ const hotPosts = [
 
 export default function HomeScreen({ onStartTrip, onViewPost }: HomeScreenProps) {
   return (
-    <div className="flex flex-col flex-1 overflow-y-auto no-scrollbar pb-24">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* Top bar — home variant */}
-      <header className="flex items-center justify-between px-4 h-14 bg-card-surface border-b border-border sticky top-0 z-40">
+      <header className="z-40 flex h-14 flex-shrink-0 items-center justify-between border-b border-border bg-card-surface px-4">
         <div className="flex items-center gap-1.5">
           <div className="relative w-6 h-6">
             <Image src="/images/paw-logo.png" alt="PawRoute" fill className="object-contain" />
@@ -95,6 +95,7 @@ export default function HomeScreen({ onStartTrip, onViewPost }: HomeScreenProps)
         </div>
       </header>
 
+      <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
       {/* Current Location Map Card */}
       <div className="mx-4 mt-4 rounded-card overflow-hidden shadow-sm relative h-44 bg-sky-blue/30">
         {/* Fake map background */}
@@ -185,9 +186,8 @@ export default function HomeScreen({ onStartTrip, onViewPost }: HomeScreenProps)
 
       {/* Nearby Places */}
       <div className="mt-6">
-        <div className="flex items-center justify-between px-4 mb-3">
+        <div className="px-4 mb-3">
           <h3 className="text-[16px] font-semibold text-deep-brown">주변 추천 장소</h3>
-          <button className="text-[12px] text-sage-green font-medium">전체보기</button>
         </div>
         <div className="flex gap-3 px-4 overflow-x-auto no-scrollbar pb-1">
           {nearbyPlaces.map((place, i) => (
@@ -263,6 +263,7 @@ export default function HomeScreen({ onStartTrip, onViewPost }: HomeScreenProps)
             </button>
           ))}
         </div>
+      </div>
       </div>
     </div>
   )

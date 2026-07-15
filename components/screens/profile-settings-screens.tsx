@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { Heart, Bookmark } from 'lucide-react'
 import TopBar from '@/components/top-bar'
+import { Button } from '@/components/ui/button'
 import { mockMyPosts, mockWishlist, mockBookmarks, mockUserProfile } from '@/data/mock'
 
 export type SettingsTab = 'nickname' | 'info' | 'posts' | 'wishlist' | 'bookmarks'
@@ -63,13 +64,14 @@ export default function ProfileSettings({ initialTab, onBack }: ProfileSettingsP
               <p className="text-[11px] text-warm-gray mt-1 text-right">{nickname.length}/20</p>
             </div>
 
-            <button
+            <Button
               onClick={handleSave}
               disabled={isSaving}
-              className="w-full h-12 bg-sage-green text-white rounded-card font-semibold text-[14px] active:bg-sage-green/90 disabled:opacity-60"
+              fullWidth
+              size="lg"
             >
               {isSaving ? '저장 중...' : '변경하기'}
-            </button>
+            </Button>
           </div>
         )}
 
@@ -102,13 +104,14 @@ export default function ProfileSettings({ initialTab, onBack }: ProfileSettingsP
               <p className="text-[11px] text-warm-gray mt-1 text-right">{bio.length}/100</p>
             </div>
 
-            <button
+            <Button
               onClick={handleSave}
               disabled={isSaving}
-              className="w-full h-12 bg-sage-green text-white rounded-card font-semibold text-[14px] active:bg-sage-green/90 disabled:opacity-60"
+              fullWidth
+              size="lg"
             >
               {isSaving ? '저장 중...' : '저장하기'}
-            </button>
+            </Button>
           </div>
         )}
 

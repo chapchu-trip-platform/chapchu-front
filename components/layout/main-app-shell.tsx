@@ -27,7 +27,7 @@ export default function MainAppShell({ children }: { children: React.ReactNode }
   const showBottomNav = !pathname.startsWith('/map')
 
   return (
-    <MobileShell>
+    <MobileShell className="h-dvh min-h-0 overflow-hidden">
       {children}
       {showBottomNav && (
         <BottomNav
