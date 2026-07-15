@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { useState } from 'react'
 import { MapPin, Navigation, Star, Clock, ChevronRight, X, ThumbsUp } from 'lucide-react'
 import TopBar from '@/components/top-bar'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 interface MapRouteScreenProps {
@@ -134,12 +135,13 @@ function PlaceDetailSheet({ place, onClose, onSelect }: PlaceDetailSheetProps) {
           </div>
 
           <div className="px-4 pb-8">
-            <button
+            <Button
               onClick={onSelect}
-              className="w-full h-12 rounded-btn bg-sage-green text-white font-semibold text-[15px] active:opacity-80 transition-opacity"
+              fullWidth
+              size="lg"
             >
               이 장소 선택하기
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -291,12 +293,13 @@ export default function MapRouteScreen({ onBack, onStartTrip }: MapRouteScreenPr
         </div>
 
         <div className="px-4 pb-8 pt-2">
-          <button
+          <Button
             onClick={onStartTrip}
-            className="w-full h-12 rounded-btn bg-sage-green text-white font-semibold text-[15px] active:opacity-80 transition-opacity"
+            fullWidth
+            size="lg"
           >
             이 경로로 여행 시작
-          </button>
+          </Button>
         </div>
       </div>
 
