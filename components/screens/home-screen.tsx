@@ -2,10 +2,15 @@
 
 import Image from 'next/image'
 import { MapPin, Wind, Droplets, Sun, CloudSun, ThumbsUp, MessageCircle, Bookmark, Eye, ChevronRight, Star } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { InteractiveCard } from '@/components/ui/interactive-card'
+import { NotificationButton } from '@/components/ui/notification-button'
 
 interface HomeScreenProps {
   onStartTrip: () => void
   onViewPost: (postId: number) => void
+  hasUnreadNotifications?: boolean
+  onNotificationClick?: () => void
 }
 
 const nearbyPlaces = [
@@ -74,7 +79,12 @@ const hotPosts = [
   },
 ]
 
-export default function HomeScreen({ onStartTrip, onViewPost }: HomeScreenProps) {
+export default function HomeScreen({
+  onStartTrip,
+  onViewPost,
+  hasUnreadNotifications = true,
+  onNotificationClick,
+}: HomeScreenProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* Top bar — home variant */}
@@ -86,12 +96,10 @@ export default function HomeScreen({ onStartTrip, onViewPost }: HomeScreenProps)
           <span className="text-[17px] font-bold text-deep-brown">PawRoute</span>
         </div>
         <div className="flex items-center gap-1">
-          <button aria-label="알림" className="w-9 h-9 flex items-center justify-center rounded-full relative">
-            <svg className="w-5 h-5 text-deep-brown" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-            </svg>
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-soft-orange rounded-full" />
-          </button>
+          <NotificationButton
+            hasUnread={hasUnreadNotifications}
+            onClick={onNotificationClick}
+          />
         </div>
       </header>
 
@@ -176,12 +184,14 @@ export default function HomeScreen({ onStartTrip, onViewPost }: HomeScreenProps)
             />
           </div>
         </div>
-        <button
+        <Button
           onClick={onStartTrip}
-          className="mt-3 w-full h-11 rounded-btn bg-white text-sage-green font-bold text-[14px] active:opacity-80 transition-opacity"
+          variant="outline"
+          fullWidth
+          className="mt-3 border-white bg-white text-sage-green hover:bg-white/90"
         >
           여행 시작하기
-        </button>
+        </Button>
       </div>
 
       {/* Nearby Places */}
@@ -191,9 +201,11 @@ export default function HomeScreen({ onStartTrip, onViewPost }: HomeScreenProps)
         </div>
         <div className="flex gap-3 px-4 overflow-x-auto no-scrollbar pb-1">
           {nearbyPlaces.map((place, i) => (
-            <button
+            <InteractiveCard
               key={i}
-              className="flex-shrink-0 w-44 bg-card-surface rounded-card border border-border shadow-sm overflow-hidden text-left active:opacity-80"
+              padding="none"
+              fullWidth={false}
+              className="w-44 flex-shrink-0 overflow-hidden"
             >
               <div className="relative h-28">
                 <Image src={place.image} alt={place.name} fill className="object-cover" />
@@ -214,7 +226,7 @@ export default function HomeScreen({ onStartTrip, onViewPost }: HomeScreenProps)
                   <span className="text-[11px] text-warm-gray">({place.reviews})</span>
                 </div>
               </div>
-            </button>
+            </InteractiveCard>
           ))}
         </div>
       </div>
@@ -223,14 +235,15 @@ export default function HomeScreen({ onStartTrip, onViewPost }: HomeScreenProps)
       <div className="mt-6 pb-4">
         <div className="flex items-center justify-between px-4 mb-3">
           <h3 className="text-[16px] font-semibold text-deep-brown">HOT 게시글</h3>
-          <button className="text-[12px] text-sage-green font-medium">더보기</button>
+          <Button variant="link" size="sm" className="h-auto p-0 text-[12px] font-medium">더보기</Button>
         </div>
         <div className="flex flex-col gap-3 px-4">
           {hotPosts.map((post, i) => (
-            <button
+            <InteractiveCard
               key={post.id}
               onClick={() => onViewPost(post.id)}
-              className="flex gap-3 bg-card-surface rounded-card border border-border p-3 text-left active:opacity-80"
+              padding="sm"
+              className="flex gap-3"
             >
               <div className="relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0">
                 <Image src={post.image} alt={post.title} fill className="object-cover" />
@@ -260,7 +273,7 @@ export default function HomeScreen({ onStartTrip, onViewPost }: HomeScreenProps)
                   </span>
                 </div>
               </div>
-            </button>
+            </InteractiveCard>
           ))}
         </div>
       </div>

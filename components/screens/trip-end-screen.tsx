@@ -4,6 +4,10 @@ import Image from 'next/image'
 import { useState } from 'react'
 import { Camera, Share2, Image as ImageIcon, BookOpen, Star, ChevronDown, ChevronUp } from 'lucide-react'
 import TopBar from '@/components/top-bar'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/input'
+import { InteractiveCard } from '@/components/ui/interactive-card'
+import { ModalActions } from '@/components/ui/modal-actions'
 
 interface TripEndScreenProps {
   onSave: () => void
@@ -83,9 +87,18 @@ export default function TripEndScreen({ onSave, onShare }: TripEndScreenProps) {
           <p className="text-[14px] font-semibold text-deep-brown mb-3">거점별 여행 노트</p>
           <div className="flex flex-col gap-2">
             {waypoints.map((wp, i) => (
-              <div key={i} className="bg-card-surface rounded-card border border-border overflow-hidden">
-                <button
-                  className="w-full flex items-center gap-3 p-3 text-left"
+              <div
+                key={wp.name}
+                className="isolate overflow-hidden rounded-card border border-border bg-card-surface"
+              >
+                <InteractiveCard
+                  id={`waypoint-note-trigger-${i}`}
+                  type="button"
+                  aria-expanded={expandedNotes.includes(i)}
+                  aria-controls={`waypoint-note-panel-${i}`}
+                  variant="plain"
+                  padding="sm"
+                  className="relative z-10 flex min-h-[68px] items-center gap-3 rounded-none bg-card-surface"
                   onClick={() => toggleNote(i)}
                 >
                   <div className="relative w-11 h-11 rounded-xl overflow-hidden flex-shrink-0">
@@ -104,10 +117,17 @@ export default function TripEndScreen({ onSave, onShare }: TripEndScreenProps) {
                   ) : (
                     <ChevronDown className="w-4 h-4 text-warm-gray flex-shrink-0" />
                   )}
-                </button>
+                </InteractiveCard>
                 {expandedNotes.includes(i) && (
-                  <div className="px-4 pb-3 pt-0 border-t border-border">
-                    <p className="text-[13px] text-warm-gray leading-relaxed">{wp.note}</p>
+                  <div
+                    id={`waypoint-note-panel-${i}`}
+                    role="region"
+                    aria-labelledby={`waypoint-note-trigger-${i}`}
+                    className="relative z-0 bg-card-surface px-4 py-3"
+                  >
+                    <p className="break-words text-[13px] leading-relaxed text-warm-gray">
+                      {wp.note}
+                    </p>
                   </div>
                 )}
               </div>
@@ -118,40 +138,41 @@ export default function TripEndScreen({ onSave, onShare }: TripEndScreenProps) {
         {/* Overall review */}
         <div className="mx-4 mt-4">
           <p className="text-[14px] font-semibold text-deep-brown mb-2">전체 후기 작성</p>
-          <textarea
+          <Textarea
             value={review}
             onChange={(e) => setReview(e.target.value)}
             placeholder="오늘 여행을 어떠셨나요? 소중한 기억을 기록해보세요..."
             rows={4}
-            className="w-full px-3 py-2.5 rounded-card border border-border bg-card text-[14px] text-deep-brown placeholder:text-warm-gray focus:outline-none focus:ring-2 focus:ring-sage-green/50 resize-none"
+            className="px-3 py-2.5"
           />
         </div>
 
         {/* Share options */}
         <div className="mx-4 mt-4 flex flex-col gap-2">
-          <button
+          <Button
             onClick={onSave}
-            className="w-full h-12 rounded-btn bg-sage-green text-white font-semibold text-[15px] flex items-center justify-center gap-2 active:opacity-80"
+            fullWidth
+            size="lg"
           >
             <BookOpen className="w-4 h-4" />
             앨범에 저장하기
-          </button>
-          <div className="flex gap-2">
-            <button
+          </Button>
+          <ModalActions>
+            <Button
               onClick={onShare}
-              className="flex-1 h-11 rounded-btn border border-border bg-card-surface text-deep-brown font-medium text-[13px] flex items-center justify-center gap-1.5 active:opacity-80"
+              variant="outline"
             >
               <Share2 className="w-4 h-4 text-sage-green" />
               게시판 공유
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => setShowSNSModal(true)}
-              className="flex-1 h-11 rounded-btn border border-border bg-card-surface text-deep-brown font-medium text-[13px] flex items-center justify-center gap-1.5 active:opacity-80"
+              variant="outline"
             >
               <ImageIcon className="w-4 h-4 text-soft-orange" />
               SNS 카드 생성
-            </button>
-          </div>
+            </Button>
+          </ModalActions>
         </div>
       </div>
 
@@ -178,14 +199,14 @@ export default function TripEndScreen({ onSave, onShare }: TripEndScreenProps) {
                 </div>
               </div>
             </div>
-            <div className="flex gap-2 mt-4">
-              <button onClick={() => setShowSNSModal(false)} className="flex-1 h-11 rounded-btn border border-border text-warm-gray font-semibold text-[14px]">
+            <ModalActions className="mt-4">
+              <Button onClick={() => setShowSNSModal(false)} variant="outline">
                 닫기
-              </button>
-              <button className="flex-1 h-11 rounded-btn bg-sage-green text-white font-semibold text-[14px]">
+              </Button>
+              <Button>
                 저장하기
-              </button>
-            </div>
+              </Button>
+            </ModalActions>
           </div>
         </div>
       )}

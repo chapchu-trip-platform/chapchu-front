@@ -102,12 +102,14 @@ export default function OnboardingScreen({ onDone }: OnboardingScreenProps) {
     <div className="flex flex-col flex-1 bg-warm-beige">
       {/* Skip */}
       <div className="flex justify-end px-4 pt-4">
-        <button
+        <Button
           onClick={onDone}
-          className="text-warm-gray text-[13px] font-medium py-1 px-3"
+          variant="ghost"
+          size="sm"
+          className="h-auto px-3 py-1 text-[13px] text-warm-gray"
         >
           건너뛰기
-        </button>
+        </Button>
       </div>
 
       <div className="relative min-h-0 flex-1 overflow-hidden">
@@ -145,7 +147,7 @@ export default function OnboardingScreen({ onDone }: OnboardingScreenProps) {
               disabled={isAnimating}
               aria-label={`슬라이드 ${i + 1}`}
               className={cn(
-                'rounded-full transition-all duration-300',
+                'rounded-full transition-[width,background-color] duration-300',
                 i === idx
                   ? 'w-6 h-2.5 bg-sage-green'
                   : 'w-2.5 h-2.5 bg-border'

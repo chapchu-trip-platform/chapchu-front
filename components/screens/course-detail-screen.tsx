@@ -7,6 +7,7 @@ import {
   Star, MapPin, ChevronDown, ChevronUp, Car, Footprints, ThumbsUp,
 } from 'lucide-react'
 import TopBar from '@/components/top-bar'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -134,9 +135,11 @@ function WaypointCard({ stop, isLast }: { stop: WaypointData; isLast: boolean })
           <div className="px-3 pt-2.5 pb-2">
             <div className="flex items-center justify-between mb-1.5">
               <StarRow rating={stop.rating} />
-              <button
+              <Button
                 onClick={() => setExpanded((v) => !v)}
-                className="flex items-center gap-0.5 text-[11px] text-warm-gray"
+                variant="ghost"
+                size="sm"
+                className="h-auto gap-0.5 p-0 text-[11px] text-warm-gray"
                 aria-label={expanded ? '접기' : '메모 더 보기'}
               >
                 {expanded ? '접기' : '더보기'}
@@ -145,7 +148,7 @@ function WaypointCard({ stop, isLast }: { stop: WaypointData; isLast: boolean })
                 ) : (
                   <ChevronDown className="w-3.5 h-3.5" />
                 )}
-              </button>
+              </Button>
             </div>
             <p className={cn('text-[12px] text-warm-gray leading-relaxed', !expanded && 'line-clamp-2')}>
               {stop.note}

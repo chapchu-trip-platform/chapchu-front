@@ -3,6 +3,11 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import { X, Image as ImageIcon, Lock } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { ChoiceChip } from '@/components/ui/choice-chip'
+import { IconButton } from '@/components/ui/icon-button'
+import { Input, Textarea } from '@/components/ui/input'
+import { ModalActions } from '@/components/ui/modal-actions'
 import { cn } from '@/lib/utils'
 
 type LocationPrivacy = 'precise' | 'approximate' | 'none'
@@ -70,12 +75,12 @@ export default function PostShareSheet({ onClose, onShare, tripTitle, tripImage,
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h3 className="text-[16px] font-bold text-deep-brown">여행 후기 공유</h3>
-          <button
+          <IconButton
             onClick={onClose}
-            className="p-2 hover:bg-muted rounded-full transition-colors"
+            aria-label="공유 창 닫기"
           >
             <X className="w-5 h-5 text-deep-brown" />
-          </button>
+          </IconButton>
         </div>
 
         {/* Content */}
@@ -91,10 +96,14 @@ export default function PostShareSheet({ onClose, onShare, tripTitle, tripImage,
                 className="object-cover"
               />
               <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                <button className="bg-white/90 backdrop-blur-sm rounded-full px-3 py-2 flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="rounded-full bg-white/90 text-deep-brown backdrop-blur-sm hover:bg-white/80"
+                >
                   <ImageIcon className="w-4 h-4 text-deep-brown" />
                   <span className="text-[12px] font-semibold text-deep-brown">변경</span>
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -102,13 +111,13 @@ export default function PostShareSheet({ onClose, onShare, tripTitle, tripImage,
           {/* Title */}
           <div className="mb-4">
             <label className="text-[12px] font-semibold text-warm-gray mb-2 block">제목</label>
-            <input
+            <Input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="여행의 제목을 입력하세요"
               maxLength={80}
-              className="w-full h-11 px-3 rounded-card border border-border bg-card text-[14px] text-deep-brown placeholder:text-warm-gray focus:outline-none focus:ring-2 focus:ring-sage-green/50"
+              size="compact"
             />
             <p className="text-[11px] text-warm-gray mt-1 text-right">
               {title.length}/80
@@ -118,13 +127,13 @@ export default function PostShareSheet({ onClose, onShare, tripTitle, tripImage,
           {/* Content */}
           <div className="mb-4">
             <label className="text-[12px] font-semibold text-warm-gray mb-2 block">후기</label>
-            <textarea
+            <Textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="여행의 경험을 공유해주세요"
               maxLength={1000}
               rows={5}
-              className="w-full p-3 rounded-card border border-border bg-card text-[14px] text-deep-brown placeholder:text-warm-gray focus:outline-none focus:ring-2 focus:ring-sage-green/50 resize-none"
+              className="p-3"
             />
             <p className="text-[11px] text-warm-gray mt-1 text-right">
               {content.length}/1000
@@ -144,18 +153,14 @@ export default function PostShareSheet({ onClose, onShare, tripTitle, tripImage,
             <p className="text-[12px] font-semibold text-warm-gray mb-2">게시판</p>
             <div className="flex flex-wrap gap-2">
               {boards.map((board) => (
-                <button
+                <ChoiceChip
                   key={board}
                   onClick={() => setSelectedBoard(board)}
-                  className={cn(
-                    'px-4 py-2 rounded-full text-[12px] font-medium border transition-all',
-                    selectedBoard === board
-                      ? 'bg-sage-green text-white border-sage-green'
-                      : 'bg-card text-warm-gray border-border'
-                  )}
+                  selected={selectedBoard === board}
+                  size="sm"
                 >
                   {board}
-                </button>
+                </ChoiceChip>
               ))}
             </div>
           </div>
@@ -196,21 +201,22 @@ export default function PostShareSheet({ onClose, onShare, tripTitle, tripImage,
         </div>
 
         {/* Actions */}
-        <div className="p-4 border-t border-border bg-card-surface flex gap-3">
-          <button
+        <ModalActions className="p-4 border-t border-border bg-card-surface gap-3">
+          <Button
             onClick={onClose}
-            className="flex-1 h-12 bg-card border border-border text-deep-brown rounded-card font-semibold text-[14px] active:bg-muted transition-colors"
+            variant="outline"
+            size="lg"
           >
             취소
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleShare}
             disabled={isSharing}
-            className="flex-1 h-12 bg-sage-green text-white rounded-card font-semibold text-[14px] active:bg-sage-green/90 transition-colors disabled:opacity-60"
+            size="lg"
           >
             {isSharing ? '공유 중...' : '공유하기'}
-          </button>
-        </div>
+          </Button>
+        </ModalActions>
       </div>
     </div>
   )

@@ -3,10 +3,15 @@
 import Image from 'next/image'
 import { useState } from 'react'
 import {
-  ChevronRight, Star, Bookmark, Heart, AlertTriangle,
+  Star, Bookmark, Heart, AlertTriangle,
   Plus, Edit3, Trash2, Archive, Check, PawPrint, Stamp, FileText
 } from 'lucide-react'
 import TopBar from '@/components/top-bar'
+import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
+import { InteractiveCard } from '@/components/ui/interactive-card'
+import { MenuRow } from '@/components/ui/menu-row'
+import { ModalActions } from '@/components/ui/modal-actions'
 import { cn } from '@/lib/utils'
 import type { SettingsTab } from '@/components/screens/profile-settings-screens'
 
@@ -52,29 +57,29 @@ function DeletePetModal({ petName, onClose, onDelete, onMemory }: {
           삭제 방법을 선택해주세요.
         </p>
         <div className="flex flex-col gap-2">
-          <button
+          <InteractiveCard
             onClick={onMemory}
-            className="w-full p-4 rounded-card border border-sage-green bg-sage-green-light text-left"
+            className="border-sage-green bg-sage-green-light hover:bg-sage-green-light/75"
           >
             <p className="text-[14px] font-semibold text-sage-green flex items-center gap-2">
               <Archive className="w-4 h-4" />
               추억으로 보관하기
             </p>
             <p className="text-[12px] text-warm-gray mt-0.5">소중한 추억을 앨범에 보관해드려요</p>
-          </button>
-          <button
+          </InteractiveCard>
+          <InteractiveCard
             onClick={onDelete}
-            className="w-full p-4 rounded-card border border-danger/30 bg-danger/5 text-left"
+            className="border-danger/30 bg-danger/5 hover:bg-danger/10"
           >
             <p className="text-[14px] font-semibold text-danger flex items-center gap-2">
               <Trash2 className="w-4 h-4" />
               완전히 삭제하기
             </p>
             <p className="text-[12px] text-warm-gray mt-0.5">모든 데이터가 영구 삭제되며 되돌릴 수 없어요</p>
-          </button>
-          <button onClick={onClose} className="w-full h-11 text-[14px] text-warm-gray font-medium">
+          </InteractiveCard>
+          <Button onClick={onClose} variant="ghost" fullWidth>
             취소
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -107,19 +112,18 @@ function WithdrawModal({ onClose, onConfirm }: { onClose: () => void; onConfirm:
           </div>
           <span className="text-[13px] text-deep-brown">위 내용을 확인했습니다</span>
         </button>
-        <div className="flex gap-2">
-          <button onClick={onClose} className="flex-1 h-11 rounded-btn border border-border text-warm-gray font-semibold text-[14px]">
+        <ModalActions>
+          <Button onClick={onClose} variant="outline">
             취소
-          </button>
-          <button
-            onClick={agreed ? onConfirm : undefined}
-            className={cn('flex-1 h-11 rounded-btn font-semibold text-[14px] transition-opacity',
-              agreed ? 'bg-danger text-white' : 'bg-danger/30 text-white/60 cursor-not-allowed'
-            )}
+          </Button>
+          <Button
+            onClick={onConfirm}
+            disabled={!agreed}
+            variant="destructive"
           >
             탈퇴하기
-          </button>
-        </div>
+          </Button>
+        </ModalActions>
       </div>
     </div>
   )
@@ -143,16 +147,17 @@ function PetsSubScreen({ onBack }: { onBack: () => void }) {
                 <div className="flex items-center justify-between">
                   <p className="text-[16px] font-bold text-deep-brown">{pet.name}</p>
                   <div className="flex gap-1">
-                    <button aria-label="수정" className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-muted">
+                    <IconButton aria-label="수정" size="sm">
                       <Edit3 className="w-4 h-4 text-warm-gray" />
-                    </button>
-                    <button
+                    </IconButton>
+                    <IconButton
                       aria-label="삭제"
-                      className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-muted"
+                      size="sm"
+                      variant="danger"
                       onClick={() => { setSelectedPet(pet.name); setShowDeleteModal(true) }}
                     >
                       <Trash2 className="w-4 h-4 text-danger" />
-                    </button>
+                    </IconButton>
                   </div>
                 </div>
                 <p className="text-[13px] text-warm-gray">{pet.breed} · {pet.size} · {pet.age}</p>
@@ -165,10 +170,10 @@ function PetsSubScreen({ onBack }: { onBack: () => void }) {
             </div>
           </div>
         ))}
-        <button className="w-full h-12 rounded-card border-2 border-dashed border-border flex items-center justify-center gap-2 text-warm-gray">
+        <Button variant="outline" fullWidth size="lg" className="rounded-card border-2 border-dashed text-warm-gray">
           <Plus className="w-4 h-4" />
           <span className="text-[14px] font-medium">반려동물 추가하기</span>
-        </button>
+        </Button>
       </div>
 
       {showDeleteModal && selectedPet && (
@@ -248,10 +253,10 @@ function MemoryAlbumSubScreen({ onBack }: { onBack: () => void }) {
               <div className="flex items-center gap-2 mt-3">
                 <span className="text-[12px] text-warm-gray">{album.albumCount}개의 여행 앨범</span>
               </div>
-              <button className="mt-3 w-full h-11 rounded-btn bg-sage-green-light text-sage-green font-semibold text-[13px] flex items-center justify-center gap-2">
+              <Button className="mt-3" variant="soft" fullWidth>
                 <Heart className="w-4 h-4" />
                 추억 앨범 보기
-              </button>
+              </Button>
             </div>
           </div>
         ))}
@@ -291,9 +296,9 @@ export default function ProfileScreen({ onOpenSettings }: ProfileScreenProps) {
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <h2 className="text-[18px] font-bold text-deep-brown">산책러버골든</h2>
-                <button aria-label="닉네임 수정">
+                <IconButton aria-label="닉네임 수정" size="sm">
                   <Edit3 className="w-4 h-4 text-warm-gray" />
-                </button>
+                </IconButton>
               </div>
               <p className="text-[12px] text-warm-gray">골든이맘 · 서울</p>
               <div className="flex gap-4 mt-2">
@@ -316,7 +321,14 @@ export default function ProfileScreen({ onOpenSettings }: ProfileScreenProps) {
         <div className="mx-4 mt-4 p-4 bg-card-surface rounded-card border border-border shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <p className="text-[14px] font-semibold text-deep-brown">나의 반려동물</p>
-            <button onClick={() => setSubScreen('pets')} className="text-[12px] text-sage-green font-medium">관리</button>
+            <Button
+              onClick={() => setSubScreen('pets')}
+              variant="link"
+              size="sm"
+              className="h-auto p-0 text-[12px] no-underline"
+            >
+              관리
+            </Button>
           </div>
           {pets.map((pet, i) => (
             <div key={i} className="flex items-center gap-3">
@@ -334,8 +346,11 @@ export default function ProfileScreen({ onOpenSettings }: ProfileScreenProps) {
         {/* Menu items */}
         <div className="mx-4 mt-4 bg-card-surface rounded-card border border-border shadow-sm overflow-hidden">
           {menuItems.map((item, i) => (
-            <button
+            <MenuRow
               key={i}
+              label={item.label}
+              description={item.desc}
+              icon={<item.icon className={cn('w-5 h-5', item.iconColor)} />}
               onClick={() => {
                 if (item.sub) {
                   setSubScreen(item.sub)
@@ -349,26 +364,20 @@ export default function ProfileScreen({ onOpenSettings }: ProfileScreenProps) {
                   if (tab) onOpenSettings(tab)
                 }
               }}
-              className="w-full flex items-center gap-3 px-4 py-3.5 text-left border-b border-border last:border-0 hover:bg-muted/50 transition-colors"
-            >
-              <span className="w-7 flex items-center justify-center">
-                <item.icon className={cn('w-5 h-5', item.iconColor)} />
-              </span>
-              <span className="flex-1 text-[14px] font-medium text-deep-brown">{item.label}</span>
-              <span className="text-[12px] text-warm-gray">{item.desc}</span>
-              <ChevronRight className="w-4 h-4 text-warm-gray" />
-            </button>
+            />
           ))}
         </div>
 
         {/* Withdraw */}
         <div className="mx-4 mt-4 mb-4">
-          <button
+          <Button
             onClick={() => setShowWithdraw(true)}
-            className="text-[13px] text-warm-gray/60 underline underline-offset-2"
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-[13px] text-warm-gray/60 underline underline-offset-2"
           >
             회원 탈퇴
-          </button>
+          </Button>
         </div>
       </div>
 

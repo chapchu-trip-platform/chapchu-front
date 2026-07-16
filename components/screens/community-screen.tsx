@@ -16,6 +16,10 @@ import {
   Route,
 } from 'lucide-react'
 import TopBar from '@/components/top-bar'
+import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
+import { Input } from '@/components/ui/input'
+import { InteractiveCard } from '@/components/ui/interactive-card'
 import { cn } from '@/lib/utils'
 
 interface CommunityScreenProps {
@@ -103,24 +107,22 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
   return (
     <div className="flex flex-col flex-1 bg-warm-beige overflow-hidden">
       <div className="sticky top-0 z-40 flex h-14 flex-shrink-0 items-center justify-between border-b border-border bg-card-surface px-4">
-        <button onClick={onBack} className="w-9 h-9 flex items-center justify-center" aria-label="뒤로가기">
+        <IconButton onClick={onBack} aria-label="뒤로가기">
           <ChevronLeft className="w-5 h-5 text-deep-brown" />
-        </button>
+        </IconButton>
         <div className="flex gap-1">
-          <button
+          <IconButton
             onClick={() => setBookmarked(!bookmarked)}
-            className="w-9 h-9 flex items-center justify-center"
             aria-label="북마크"
           >
             <Bookmark className={cn('w-5 h-5', bookmarked ? 'text-soft-orange fill-soft-orange' : 'text-deep-brown')} />
-          </button>
-          <button
+          </IconButton>
+          <IconButton
             onClick={() => setShowReport(!showReport)}
-            className="w-9 h-9 flex items-center justify-center"
             aria-label="더보기"
           >
             <MoreHorizontal className="w-5 h-5 text-deep-brown" />
-          </button>
+          </IconButton>
         </div>
       </div>
 
@@ -203,28 +205,32 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
 
           {/* Actions */}
           <div className="flex gap-4 py-3 border-b border-border">
-            <button
+            <Button
               onClick={() => setLiked(!liked)}
-              className={cn('flex items-center gap-1.5', liked ? 'text-sage-green' : 'text-warm-gray')}
+              variant="ghost"
+              size="sm"
+              className={cn('h-auto px-0 py-1', liked ? 'text-sage-green' : 'text-warm-gray')}
             >
               <ThumbsUp className={cn('w-5 h-5', liked ? 'fill-sage-green' : '')} />
               <span className="text-[13px] font-medium">{post.likes + (liked ? 1 : 0)}</span>
-            </button>
-            <button className="flex items-center gap-1.5 text-warm-gray">
+            </Button>
+            <Button variant="ghost" size="sm" className="h-auto px-0 py-1 text-warm-gray">
               <MessageCircle className="w-5 h-5" />
               <span className="text-[13px] font-medium">{post.comments}</span>
-            </button>
-            <button className="flex items-center gap-1.5 text-warm-gray">
+            </Button>
+            <Button variant="ghost" size="sm" className="h-auto px-0 py-1 text-warm-gray">
               <Share2 className="w-5 h-5" />
               <span className="text-[13px] font-medium">공유</span>
-            </button>
-            <button
-              className="flex items-center gap-1.5 text-warm-gray ml-auto"
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-auto px-0 py-1 text-warm-gray"
               onClick={() => alert('신고가 접수되었습니다.')}
             >
               <Flag className="w-4 h-4" />
               <span className="text-[12px]">신고</span>
-            </button>
+            </Button>
           </div>
 
           {/* Comments */}
@@ -243,11 +249,11 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
                     </div>
                     <p className="text-[13px] text-deep-brown mt-0.5 leading-relaxed">{c.text}</p>
                     <div className="flex items-center gap-3 mt-1.5">
-                      <button className="flex items-center gap-1 text-warm-gray">
+                      <Button variant="ghost" size="sm" className="h-auto gap-1 p-0 text-warm-gray">
                         <ThumbsUp className="w-3.5 h-3.5" />
                         <span className="text-[11px]">{c.likes}</span>
-                      </button>
-                      <button className="text-[11px] text-warm-gray">답글</button>
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-auto p-0 text-[11px] text-warm-gray">답글</Button>
                     </div>
                     {/* Replies */}
                     {c.replies.map((r, j) => (
@@ -274,21 +280,21 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
 
       {/* Comment input */}
       <div className="border-t border-border bg-card-surface px-4 py-3 mb-20 flex gap-2">
-        <input
+        <Input
           type="text"
           value={commentText}
           onChange={(e) => setCommentText(e.target.value)}
           placeholder="댓글을 입력하세요..."
-          className="flex-1 h-10 px-3 rounded-full bg-muted text-[13px] text-deep-brown placeholder:text-warm-gray focus:outline-none focus:ring-2 focus:ring-sage-green/50"
+          size="compact"
+          className="h-10 flex-1 rounded-full border-transparent bg-muted"
         />
-        <button
-          className={cn('w-10 h-10 rounded-full flex items-center justify-center transition-colors',
-            commentText.trim() ? 'bg-sage-green' : 'bg-muted'
-          )}
+        <IconButton
+          variant={commentText.trim() ? 'primary' : 'muted'}
+          size="lg"
           aria-label="댓글 전송"
         >
           <Send className={cn('w-4 h-4', commentText.trim() ? 'text-white' : 'text-warm-gray')} />
-        </button>
+        </IconButton>
       </div>
     </div>
   )
@@ -326,28 +332,31 @@ export default function CommunityScreen({ initialPostId }: CommunityScreenProps)
       {/* Tabs */}
       <div className="flex border-b border-border bg-card-surface">
         {tabs.map((tab, i) => (
-          <button
+          <Button
             key={i}
             onClick={() => setActiveTab(i)}
+            variant="ghost"
+            aria-pressed={activeTab === i}
             className={cn(
-              'flex-1 py-3 text-[13px] font-medium transition-colors',
+              'h-auto flex-1 rounded-none py-3 text-[13px] font-medium',
               activeTab === i
                 ? 'text-sage-green border-b-2 border-sage-green'
                 : 'text-warm-gray'
             )}
           >
             {tab}
-          </button>
+          </Button>
         ))}
       </div>
 
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
         <div className="flex flex-col gap-3 p-4">
           {filteredPosts.map((post, i) => (
-            <button
+            <InteractiveCard
               key={post.id}
               onClick={() => setSelectedPost(post)}
-              className="bg-card-surface rounded-card border border-border overflow-hidden text-left active:opacity-80 shadow-sm"
+              padding="none"
+              className="overflow-hidden"
             >
               <div className="relative h-36">
                 <Image src={post.image} alt={post.title} fill className="object-cover" />
@@ -395,7 +404,7 @@ export default function CommunityScreen({ initialPostId }: CommunityScreenProps)
                   </div>
                 </div>
               </div>
-            </button>
+            </InteractiveCard>
           ))}
         </div>
       </div>

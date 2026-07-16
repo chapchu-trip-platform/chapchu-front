@@ -4,19 +4,19 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap rounded-btn border border-transparent font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sage-green/50 focus-visible:ring-offset-2 focus-visible:ring-offset-warm-beige disabled:pointer-events-none disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap rounded-btn border border-transparent font-semibold outline-none focus-visible:ring-2 focus-visible:ring-sage-green/50 focus-visible:ring-offset-2 focus-visible:ring-offset-warm-beige disabled:pointer-events-none disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: 'bg-sage-green text-white hover:bg-sage-green/90 active:bg-sage-green/80',
-        outline: 'border-border bg-card-surface text-deep-brown hover:bg-muted/50 active:bg-muted',
-        secondary: 'border-border bg-muted text-deep-brown hover:bg-muted/70 active:bg-muted/90',
-        ghost: 'bg-transparent text-warm-gray hover:bg-muted/50 active:bg-muted',
-        destructive:
-          'bg-danger text-white hover:bg-danger/90 active:bg-danger/80 focus-visible:ring-danger/40',
-        soft:
-          'bg-sage-green-light text-sage-green hover:bg-sage-green-light/75 active:bg-sage-green-light/60',
-        link: 'text-sage-green underline-offset-4 hover:underline',
+        default: 'bg-sage-green text-white',
+        outline:
+          'border-border bg-card-surface text-deep-brown transition-[background-color,filter] hover:bg-muted/50 hover:brightness-[0.97] active:bg-muted active:brightness-[0.94]',
+        secondary:
+          'border-border bg-muted text-deep-brown transition-[background-color,filter] hover:bg-muted/70 hover:brightness-[0.97] active:bg-muted/90 active:brightness-[0.94]',
+        ghost: 'bg-transparent text-warm-gray',
+        destructive: 'bg-danger text-white focus-visible:ring-danger/40',
+        soft: 'bg-sage-green-light text-sage-green',
+        link: 'text-sage-green underline-offset-4',
       },
       size: {
         default: 'h-11 gap-2 px-4 text-[14px]',
