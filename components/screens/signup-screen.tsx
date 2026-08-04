@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+
+import { isNicknameAvailable, registerNickname, SessionExpiredError } from '@/lib/auth'
 import { Plus, X, ChevronRight, Check } from 'lucide-react'
 import TopBar from '@/components/top-bar'
 import { cn } from '@/lib/utils'
@@ -26,6 +28,8 @@ interface Pet {
 export default function SignupScreen({ onDone }: SignupScreenProps) {
   const [step, setStep] = useState<'user' | 'pet'>('user')
   const [nickname, setNickname] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [nicknameError, setNicknameError] = useState<string | null>(null)
   const [selectedThemes, setSelectedThemes] = useState<string[]>([])
   const [selectedRegions, setSelectedRegions] = useState<string[]>([])
   const [selectedTransport, setSelectedTransport] = useState<string>('')
@@ -33,6 +37,35 @@ export default function SignupScreen({ onDone }: SignupScreenProps) {
     { name: '', breed: '', size: '소형', age: '', activities: [] },
   ])
   const [activePetIdx, setActivePetIdx] = useState(0)
+
+  /**
+   * 닉네임을 실제로 등록한다. 구글 첫 로그인으로 자동 회원등록된 계정은 nickname이 비어 있어서
+   * 이 단계를 통과해야 서비스를 쓸 수 있다.
+   *
+   * 중복 확인(GET)은 조회 시점 기준이라 예약 효과가 없다. 그 사이 다른 유저가 선점할 수 있으므로
+   * 최종 판정은 등록 요청의 409 응답이다 — 그래서 둘 다 처리한다.
+   */
+  const handleSubmitNickname = async () => {
+    const value = nickname.trim()
+    setSubmitting(true)
+    setNicknameError(null)
+    try {
+      if (!(await isNicknameAvailable(value))) {
+        setNicknameError('이미 사용 중인 닉네임입니다.')
+        return
+      }
+      await registerNickname(value)
+      setStep('pet')
+    } catch (e) {
+      if (e instanceof SessionExpiredError) {
+        setNicknameError('세션이 만료되었습니다. 다시 로그인해주세요.')
+        return
+      }
+      setNicknameError(e instanceof Error ? e.message : '닉네임 등록에 실패했습니다.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   const toggleArr = (arr: string[], val: string, setter: (v: string[]) => void) => {
     setter(arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val])
@@ -77,8 +110,12 @@ export default function SignupScreen({ onDone }: SignupScreenProps) {
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 placeholder="사용할 닉네임을 입력하세요"
+                maxLength={30}
                 className="w-full h-12 px-4 rounded-card border border-border bg-card text-deep-brown text-[14px] placeholder:text-warm-gray focus:outline-none focus:ring-2 focus:ring-sage-green/50"
               />
+              {nicknameError !== null && (
+                <p className="text-[12px] text-red-600 mt-2">{nicknameError}</p>
+              )}
             </div>
 
             {/* Theme */}
@@ -274,11 +311,11 @@ export default function SignupScreen({ onDone }: SignupScreenProps) {
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[390px] px-4 pb-8 pt-4 bg-warm-beige border-t border-border">
         {step === 'user' ? (
           <button
-            onClick={() => setStep('pet')}
-            disabled={!nickname.trim()}
+            onClick={handleSubmitNickname}
+            disabled={!nickname.trim() || submitting}
             className="w-full h-12 rounded-btn bg-sage-green text-white font-semibold text-[15px] disabled:opacity-40 active:opacity-80 transition-opacity"
           >
-            다음 — 반려동물 등록
+            {submitting ? '등록 중…' : '다음 — 반려동물 등록'}
           </button>
         ) : (
           <button

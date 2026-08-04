@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+
+import { fetchMe, getAccessToken, logout, needsOnboarding } from '@/lib/auth'
 
 import MobileShell from '@/components/mobile-shell'
 import BottomNav, { NavTab } from '@/components/bottom-nav'
@@ -35,6 +37,36 @@ export default function Page() {
   const [tripTitle, setTripTitle] = useState('골든이와의 서울 성수 여행')
   const [tripImage, setTripImage] = useState('/images/album-cover.png')
   const [petName, setPetName] = useState('골든이')
+
+  /**
+   * 로그인 콜백에서 돌아오면 sessionStorage에 access token이 들어 있다.
+   * 닉네임이 비어 있으면(= 구글 첫 로그인으로 방금 자동 회원등록된 상태) 닉네임 등록 화면으로 보낸다.
+   */
+  useEffect(() => {
+    if (getAccessToken() === null) return
+
+    let cancelled = false
+    fetchMe()
+      .then((me) => {
+        if (cancelled) return
+        if (needsOnboarding(me)) {
+          setScreen('signup')
+          return
+        }
+        setScreen('main')
+        setActiveTab('home')
+      })
+      .catch(() => {
+        // 토큰이 만료됐거나 조회에 실패했다. 로그인부터 다시 시작한다.
+        if (cancelled) return
+        logout()
+        setScreen('login')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleTabChange = useCallback((tab: NavTab) => {
     if (tab === 'map') {

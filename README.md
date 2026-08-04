@@ -13,6 +13,31 @@ PawRoute는 반려동물 주인들이 여행을 계획하고, 기록하고, 공�
 - 사용자 기본 정보(닉네임, 선호 테마, 지역) 입력
 - 반려동물 등록 및 관리
 
+### 1-1. 로그인 (chapchu-auth 연동)
+
+구글 로그인 한 번으로 가입까지 끝난다. **별도의 회원가입 API는 없다.** 처음 로그인하는 계정은
+인증 서버가 그 자리에서 `users`에 등록하며, 이때 닉네임은 비어 있다.
+
+```
+로그인 버튼 → auth.chapchu.site/oauth2/authorize (전체 페이지 이동)
+            → 구글 로그인 → (미가입이면 자동 등록)
+            → /login/callback?code=... → 토큰 교환
+            → GET /users/me
+               · nickname 없음 → Signup(닉네임 등록)
+               · nickname 있음 → Home
+```
+
+관련 코드는 `lib/auth.ts` 한 곳에 모여 있다. 서버 명세는
+[auth.chapchu.site/docs](https://auth.chapchu.site/docs/index.html) 참고.
+
+**주의**
+- `redirect_uri`는 인증 서버에 등록된 값과 **정확히 일치**해야 한다. 다르면 에러 없이 구글 로그인만
+  거친 뒤 콜백까지 오지 못한다. 새 주소에서 쓰려면 chapchu-auth의 `FRONT_REDIRECT_URI`에 먼저 추가하라.
+- 현재 refresh token이 발급되지 않는다 (chapchu-auth 이슈 #9). access token 30분이 지나면
+  다시 로그인해야 한다.
+- 카카오/애플 버튼은 서버 연동이 없어 비활성 상태다.
+- "로그인 없이 둘러보기"는 목업 화면 확인용 경로이며 실제 인증이 아니다.
+
 ### 2. 여행 계획 (지도 플로우)
 - **Route Setup**: 출발지/목적지 선택 또는 주소 직접 입력
 - **Recommended Route**: 중간 거점 선택 (반려동물/날씨 적합도 표시)

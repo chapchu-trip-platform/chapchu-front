@@ -3,14 +3,30 @@
 import Image from 'next/image'
 import { useState } from 'react'
 
+import { beginLogin } from '@/lib/auth'
+
 interface LoginScreenProps {
+  /** 인증 없이 목업 화면만 둘러보는 경로. 실제 로그인이 아니다. */
   onLogin: () => void
 }
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleLogin = () => {
+  /** 구글 로그인. 현재 탭이 인증 서버로 이동하므로 여기서 화면 전환을 하지 않는다. */
+  const handleGoogleLogin = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      await beginLogin()
+    } catch (e) {
+      setLoading(false)
+      setError(e instanceof Error ? e.message : '로그인을 시작하지 못했습니다.')
+    }
+  }
+
+  const handleMockLogin = () => {
     setLoading(true)
     setTimeout(() => {
       setLoading(false)
@@ -51,9 +67,9 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
 
         {/* Social Login Buttons */}
         <button
-          onClick={handleLogin}
-          disabled={loading}
-          className="w-full h-12 rounded-btn flex items-center justify-center gap-3 bg-[#FEE500] text-[#3C1E1E] font-semibold text-[15px] active:opacity-80 transition-opacity shadow-sm"
+          disabled
+          title="아직 지원하지 않습니다"
+          className="w-full h-12 rounded-btn flex items-center justify-center gap-3 bg-[#FEE500] text-[#3C1E1E] font-semibold text-[15px] opacity-40 cursor-not-allowed shadow-sm"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M12 2C6.477 2 2 6.077 2 11.1c0 3.16 1.657 5.953 4.204 7.712-.184.683-.667 2.469-.765 2.852 0 0-.015.12.065.167.079.047.173.008.173.008.228-.032 2.638-1.73 3.047-2.006A11.3 11.3 0 0 0 12 20.2c5.523 0 10-4.077 10-9.1C22 6.077 17.523 2 12 2Z" fill="#3C1E1E"/>
@@ -62,7 +78,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         </button>
 
         <button
-          onClick={handleLogin}
+          onClick={handleGoogleLogin}
           disabled={loading}
           className="w-full h-12 rounded-btn flex items-center justify-center gap-3 bg-white text-deep-brown font-semibold text-[15px] border border-border active:opacity-80 transition-opacity shadow-sm"
         >
@@ -76,9 +92,9 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         </button>
 
         <button
-          onClick={handleLogin}
-          disabled={loading}
-          className="w-full h-12 rounded-btn flex items-center justify-center gap-3 bg-deep-brown text-white font-semibold text-[15px] active:opacity-80 transition-opacity shadow-sm"
+          disabled
+          title="아직 지원하지 않습니다"
+          className="w-full h-12 rounded-btn flex items-center justify-center gap-3 bg-deep-brown text-white font-semibold text-[15px] opacity-40 cursor-not-allowed shadow-sm"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="white" aria-hidden="true">
             <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.7 9.05 7.4c1.32.07 2.22.72 2.98.76 1.13-.19 2.2-.9 3.43-.77 1.47.18 2.58.75 3.31 1.88-3.03 1.83-2.52 5.85.37 6.98-.69 1.93-1.62 3.83-3.09 4.03zM13 3.5c.07 1.7-1.28 3.1-2.96 3.23-2.07-1.15-.38-3.65 2.96-3.23z"/>
@@ -93,11 +109,15 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         </div>
 
         <button
-          onClick={handleLogin}
+          onClick={handleMockLogin}
           className="w-full h-11 rounded-btn border border-border text-warm-gray font-medium text-[14px] active:opacity-80 transition-opacity"
         >
-          테스트 계정으로 로그인
+          로그인 없이 둘러보기 (목업)
         </button>
+
+        {error !== null && (
+          <p className="text-[12px] text-red-600 text-center mt-1">{error}</p>
+        )}
       </div>
 
       <p className="text-center text-[11px] text-warm-gray px-6 mt-4 pb-8 leading-relaxed">
