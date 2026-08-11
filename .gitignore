@@ -47,6 +47,7 @@ bun-debug.log*
 # markdown policy
 *.md
 !README.md
+!docs/api-policy.md
 
 # testing
 coverage/

@@ -55,6 +55,23 @@ T_MAP_APIKEY=your-tmap-api-key
 
 The map screen loads the TMAP SDK through the internal `/api/tmap/sdk` endpoint so client code does not build a public SDK URL with the key.
 
+## Google OAuth
+
+Google login is handled by the `chapchu-api` BFF. The browser navigates to
+`{NEXT_PUBLIC_API_BASE_URL}/auth/login`; frontend code does not exchange the
+Google authorization code or contain an OAuth client secret.
+
+The BFF must be configured with these frontend destinations for each allowed
+environment:
+
+```txt
+FE_CALLBACK_URL={frontend-origin}/auth/callback
+FE_ONBOARDING_URL={frontend-origin}/setup
+```
+
+Access tokens are kept only in non-persisted client memory. The BFF refresh
+token remains in an HttpOnly cookie and is used through `/auth/refresh`.
+
 ## Project Structure
 
 ```txt

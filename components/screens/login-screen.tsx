@@ -5,18 +5,25 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 
 interface LoginScreenProps {
-  onLogin: () => void
+  notice?: string
+  onLogin?: () => void
+  onGoogleLogin: () => void | Promise<void>
 }
 
-export default function LoginScreen({ onLogin }: LoginScreenProps) {
+export default function LoginScreen({ notice, onGoogleLogin, onLogin }: LoginScreenProps) {
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleLogin = () => {
+  const handleGoogleLogin = async () => {
     setLoading(true)
-    setTimeout(() => {
+    setError(null)
+
+    try {
+      await onGoogleLogin?.()
+    } catch {
       setLoading(false)
-      onLogin()
-    }, 800)
+      setError('Google 로그인을 시작하지 못했습니다. 잠시 후 다시 시도해주세요.')
+    }
   }
 
   return (
@@ -52,7 +59,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
 
         {/* Google Login */}
         <Button
-          onClick={handleLogin}
+          onClick={handleGoogleLogin}
           disabled={loading}
           variant="outline"
           size="lg"
@@ -68,20 +75,32 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           Google로 계속하기
         </Button>
 
-        <div className="flex items-center gap-3 my-1">
-          <div className="flex-1 h-px bg-border" />
-          <span className="text-[12px] text-warm-gray">또는</span>
-          <div className="flex-1 h-px bg-border" />
-        </div>
+        {onLogin && (
+          <>
+            <div className="flex items-center gap-3 my-1">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-[12px] text-warm-gray">또는</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
 
-        <Button
-          onClick={handleLogin}
-          variant="outline"
-          fullWidth
-          className="text-warm-gray"
-        >
-          테스트 계정으로 로그인
-        </Button>
+            <Button
+              onClick={onLogin}
+              variant="outline"
+              fullWidth
+              className="text-warm-gray"
+            >
+              테스트 계정으로 로그인
+            </Button>
+          </>
+        )}
+
+        {notice && <p role="status" className="mt-1 text-center text-[12px] text-danger">{notice}</p>}
+
+        {error && (
+          <p role="alert" className="mt-1 text-center text-[12px] text-danger">
+            {error}
+          </p>
+        )}
       </div>
 
       <p className="safe-bottom-login mt-4 px-6 text-center text-[11px] leading-relaxed text-warm-gray">

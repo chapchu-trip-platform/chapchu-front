@@ -3,6 +3,8 @@ import React from 'react'
 import { vi } from 'vitest'
 import { getMockPathname, mockRouter, mockSearchParams } from '@/test/mocks/next-navigation'
 
+process.env.NEXT_PUBLIC_API_BASE_URL ??= 'http://localhost:8080'
+
 vi.mock('next/image', () => ({
   default: ({ alt, src, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) =>
     React.createElement('img', { alt: alt ?? '', src, ...props }),

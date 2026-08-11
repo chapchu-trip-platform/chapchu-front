@@ -11,6 +11,8 @@ import { cn } from '@/lib/utils'
 
 interface SignupScreenProps {
   onDone: () => void
+  initialStep?: 'user' | 'pet'
+  onUserSubmit?: (nickname: string) => Promise<boolean>
 }
 
 const themes = ['자연', '도심', '해변', '산악', '역사', '힐링']
@@ -27,9 +29,11 @@ interface Pet {
   activities: string[]
 }
 
-export default function SignupScreen({ onDone }: SignupScreenProps) {
-  const [step, setStep] = useState<'user' | 'pet'>('user')
+export default function SignupScreen({ initialStep = 'user', onDone, onUserSubmit }: SignupScreenProps) {
+  const [step, setStep] = useState<'user' | 'pet'>(initialStep)
   const [nickname, setNickname] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const [selectedThemes, setSelectedThemes] = useState<string[]>([])
   const [selectedRegions, setSelectedRegions] = useState<string[]>([])
   const [selectedTransport, setSelectedTransport] = useState<string>('')
@@ -64,11 +68,30 @@ export default function SignupScreen({ onDone }: SignupScreenProps) {
 
   const pet = pets[activePetIdx]
 
+  const handleUserContinue = async () => {
+    if (!onUserSubmit) {
+      setStep('pet')
+      return
+    }
+
+    setSubmitting(true)
+    setSubmitError(null)
+
+    try {
+      const shouldContinue = await onUserSubmit(nickname.trim())
+      if (shouldContinue) setStep('pet')
+    } catch {
+      setSubmitError('회원 등록을 완료하지 못했습니다. 닉네임을 확인하고 다시 시도해주세요.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   return (
     <div className="flex flex-col flex-1 bg-warm-beige overflow-hidden">
       <TopBar
         title={step === 'user' ? '기본 정보 입력' : '반려동물 정보'}
-        showBack={step === 'pet'}
+        showBack={step === 'pet' && initialStep !== 'pet'}
         onBack={() => setStep('user')}
         rightAction={<span className="text-[12px] text-warm-gray">{step === 'user' ? '1/2' : '2/2'}</span>}
       />
@@ -92,7 +115,13 @@ export default function SignupScreen({ onDone }: SignupScreenProps) {
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 placeholder="사용할 닉네임을 입력하세요"
+                maxLength={30}
               />
+              {submitError && (
+                <p role="alert" className="mt-2 text-[12px] text-danger">
+                  {submitError}
+                </p>
+              )}
             </div>
 
             {/* Theme */}
@@ -278,12 +307,12 @@ export default function SignupScreen({ onDone }: SignupScreenProps) {
       <div className="safe-bottom-cta fixed bottom-0 left-1/2 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-warm-beige px-4 pt-4">
         {step === 'user' ? (
           <Button
-            onClick={() => setStep('pet')}
-            disabled={!nickname.trim()}
+            onClick={handleUserContinue}
+            disabled={!nickname.trim() || submitting}
             fullWidth
             size="lg"
           >
-            다음 — 반려동물 등록
+            {submitting ? '등록 중…' : '다음 — 반려동물 등록'}
           </Button>
         ) : (
           <Button

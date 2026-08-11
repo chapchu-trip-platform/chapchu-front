@@ -17,6 +17,7 @@ import type { SettingsTab } from '@/components/screens/profile-settings-screens'
 
 interface ProfileScreenProps {
   onOpenSettings?: (tab: SettingsTab) => void
+  onLogout?: () => void | Promise<void>
 }
 
 type SubScreen = null | 'pets' | 'stamps' | 'memory-album'
@@ -274,7 +275,7 @@ const menuItems: { icon: React.ElementType; iconColor: string; label: string; su
   { icon: Bookmark, iconColor: 'text-sky-blue', label: '북마크', sub: null, desc: '12개' },
 ]
 
-export default function ProfileScreen({ onOpenSettings }: ProfileScreenProps) {
+export default function ProfileScreen({ onLogout, onOpenSettings }: ProfileScreenProps) {
   const [subScreen, setSubScreen] = useState<SubScreen>(null)
   const [showWithdraw, setShowWithdraw] = useState(false)
 
@@ -369,7 +370,17 @@ export default function ProfileScreen({ onOpenSettings }: ProfileScreenProps) {
         </div>
 
         {/* Withdraw */}
-        <div className="mx-4 mt-4 mb-4">
+        <div className="mx-4 mt-4 mb-4 flex items-center gap-4">
+          {onLogout && (
+            <Button
+              onClick={onLogout}
+              variant="link"
+              size="sm"
+              className="h-auto p-0 text-[13px] text-warm-gray underline underline-offset-2"
+            >
+              로그아웃
+            </Button>
+          )}
           <Button
             onClick={() => setShowWithdraw(true)}
             variant="link"
