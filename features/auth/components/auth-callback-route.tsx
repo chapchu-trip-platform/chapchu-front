@@ -3,12 +3,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { readAccessTokenFromHash } from '@/features/auth/lib/callback-params'
+import { readAuthCallback } from '@/features/auth/lib/callback-params'
 import {
   clearPostLoginDestination,
   consumePostLoginDestination,
 } from '@/features/auth/lib/post-login-destination'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
+import { consumeOAuthTransaction } from '@/features/auth/lib/oauth-transaction'
 
 export default function AuthCallbackRoute() {
   const router = useRouter()
@@ -19,13 +20,24 @@ export default function AuthCallbackRoute() {
     if (handled.current) return
     handled.current = true
 
-    const result = readAccessTokenFromHash(window.location.hash)
+    const result = readAuthCallback(window.location.hash, window.location.search)
     window.history.replaceState(null, '', '/auth/callback')
+    const hasOAuthTransaction = consumeOAuthTransaction()
 
-    if (!result.ok) {
+    if (!hasOAuthTransaction || result.type === 'invalid') {
       useAuthStore.getState().clearSession()
       clearPostLoginDestination()
       queueMicrotask(() => setFailed(true))
+      return
+    }
+
+    if (result.type === 'registration') {
+      useAuthStore.getState().clearSession()
+      useAuthStore.getState().setAuthNotice(null)
+      useAuthStore.getState().setRegistrationToken(result.token)
+      useAuthStore.getState().setSetupStage('registration')
+      clearPostLoginDestination()
+      router.replace('/setup')
       return
     }
 

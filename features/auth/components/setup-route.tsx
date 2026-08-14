@@ -4,7 +4,6 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import SignupScreen from '@/components/screens/signup-screen'
 import { navigateToGoogleLogin, registerMember } from '@/features/auth/api/auth-api'
-import { readRegistrationToken } from '@/features/auth/lib/callback-params'
 import { rememberPetSetupDestination } from '@/features/auth/lib/post-login-destination'
 import { refreshAccessToken } from '@/lib/api/client'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
@@ -19,14 +18,10 @@ export default function SetupRoute() {
     const params = new URLSearchParams(window.location.search)
     const isDemo = params.get('mode') === 'demo'
     const isPetStep = params.get('step') === 'pet'
-    const hasRegistrationToken = params.has('registration_token')
-    const registrationResult = readRegistrationToken(window.location.search)
 
-    if (hasRegistrationToken) window.history.replaceState(null, '', '/setup')
-
-    if (registrationResult.ok) {
-      useAuthStore.getState().setRegistrationToken(registrationResult.token)
-      useAuthStore.getState().setSetupStage('registration')
+    if (params.has('registration_token')) {
+      window.history.replaceState(null, '', '/setup')
+      router.replace('/login')
       return
     }
 

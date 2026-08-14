@@ -10,17 +10,20 @@ afterEach(() => {
     setupStage: null,
     status: 'idle',
   })
+  localStorage.clear()
+  sessionStorage.clear()
 })
 
 describe('auth store', () => {
-  it('keeps access and registration tokens only in memory state', () => {
-    useAuthStore.getState().setAccessToken('access-token')
+  it('accepts an access token and clears stale registration state', () => {
     useAuthStore.getState().setRegistrationToken('registration-token')
+    useAuthStore.getState().setSetupStage('registration')
+    useAuthStore.getState().setAccessToken('access-token')
 
     expect(useAuthStore.getState()).toMatchObject({
       accessToken: 'access-token',
       authNotice: null,
-      registrationToken: 'registration-token',
+      registrationToken: null,
       sessionEpoch: 0,
       setupStage: null,
       status: 'authenticated',

@@ -58,19 +58,25 @@ The map screen loads the TMAP SDK through the internal `/api/tmap/sdk` endpoint 
 ## Google OAuth
 
 Google login is handled by the `chapchu-api` BFF. The browser navigates to
-`{NEXT_PUBLIC_API_BASE_URL}/auth/login`; frontend code does not exchange the
-Google authorization code or contain an OAuth client secret.
+`{NEXT_PUBLIC_API_BASE_URL}/auth/login?redirect={frontend-origin}/auth/callback`.
+The redirect is built from `window.location.origin`, so localhost and deployed
+frontends use the same code. Frontend code does not exchange the Google
+authorization code or contain an OAuth client secret.
 
-The BFF must be configured with these frontend destinations for each allowed
-environment:
+The BFF must validate the complete supplied callback URL (scheme, host, port,
+and `/auth/callback` path) against an exact allowlist. Wildcard preview domains
+must not be accepted. Both OAuth outcomes return to the single callback:
 
 ```txt
-FE_CALLBACK_URL={frontend-origin}/auth/callback
-FE_ONBOARDING_URL={frontend-origin}/setup
+existing user: {frontend-origin}/auth/callback#access_token={JWT}
+new user:      {frontend-origin}/auth/callback?registration_token={token}
 ```
 
 Access tokens are kept only in non-persisted client memory. The BFF refresh
 token remains in an HttpOnly cookie and is used through `/auth/refresh`.
+The frontend keeps only a short-lived, one-time, non-credential transaction
+marker in the initiating tab's `sessionStorage` and rejects unsolicited callback
+links that do not have that marker.
 
 ## Project Structure
 

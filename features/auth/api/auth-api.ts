@@ -8,16 +8,26 @@ import {
 } from '@/lib/api/client'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
 import { clearPostLoginDestination } from '@/features/auth/lib/post-login-destination'
+import { beginOAuthTransaction } from '@/features/auth/lib/oauth-transaction'
+import { navigateBrowser } from '@/features/auth/lib/auth-navigation'
 
 interface RegisterRequest {
   registrationToken: string
   nickname: string
 }
 
+export function buildGoogleLoginUrl() {
+  const callbackUrl = new URL('/auth/callback', window.location.origin)
+  const loginUrl = new URL(buildApiUrl(API_ENDPOINTS.auth.login))
+  loginUrl.searchParams.set('redirect', callbackUrl.toString())
+  return loginUrl.toString()
+}
+
 export function navigateToGoogleLogin(options?: { preservePostLoginDestination?: boolean }) {
   if (!options?.preservePostLoginDestination) clearPostLoginDestination()
   useAuthStore.getState().setAuthNotice(null)
-  window.location.assign(buildApiUrl(API_ENDPOINTS.auth.login))
+  beginOAuthTransaction()
+  navigateBrowser(buildGoogleLoginUrl())
 }
 
 export async function registerMember(registrationToken: string, nickname: string) {

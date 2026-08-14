@@ -1,10 +1,41 @@
 import { describe, expect, it } from 'vitest'
 import {
+  readAuthCallback,
   readAccessTokenFromHash,
   readRegistrationToken,
 } from '@/features/auth/lib/callback-params'
 
 describe('OAuth callback parameter parsing', () => {
+  it('distinguishes existing and new user callback results', () => {
+    expect(readAuthCallback('#access_token=jwt', '')).toEqual({
+      type: 'authenticated',
+      token: 'jwt',
+    })
+    expect(readAuthCallback('', '?registration_token=registration-token')).toEqual({
+      type: 'registration',
+      token: 'registration-token',
+    })
+  })
+
+  it('rejects missing, duplicate, or mixed callback results', () => {
+    expect(readAuthCallback('', '')).toEqual({ type: 'invalid' })
+    expect(
+      readAuthCallback(
+        '#access_token=jwt',
+        '?registration_token=registration-token'
+      )
+    ).toEqual({ type: 'invalid' })
+    expect(
+      readAuthCallback('', '?registration_token=one&registration_token=two')
+    ).toEqual({ type: 'invalid' })
+    expect(
+      readAuthCallback('', '?registration_token=valid&access_token=misplaced')
+    ).toEqual({ type: 'invalid' })
+    expect(
+      readAuthCallback('#access_token=valid&registration_token=misplaced', '')
+    ).toEqual({ type: 'invalid' })
+  })
+
   it('reads one access token from a URL fragment', () => {
     expect(readAccessTokenFromHash('#access_token=header.payload.signature')).toEqual({
       ok: true,

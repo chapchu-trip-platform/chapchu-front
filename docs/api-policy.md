@@ -36,9 +36,12 @@ Do not store access tokens in `localStorage` or `sessionStorage`.
 
 Google OAuth is delegated to the `chapchu-api` BFF:
 
-- browser login starts at `GET /auth/login`
+- browser login starts at `GET /auth/login?redirect={frontend-origin}/auth/callback`
 - existing users return to `/auth/callback#access_token={JWT}`
-- new users return to `/setup?registration_token={token}`
+- new users return to `/auth/callback?registration_token={token}`
+- the callback scrubs either credential from the address before routing to `/home` or `/setup`
+- a short-lived, one-time, non-credential transaction marker in the initiating tab's
+  `sessionStorage` is required and consumed before either callback result is accepted
 - registration uses `POST /auth/register`
 - refresh uses `POST /auth/refresh`
 - logout uses `POST /auth/logout`
@@ -78,10 +81,14 @@ When backend response shapes are finalized, add typed response models and featur
 
 Backend coordination still needs to confirm:
 
-- local and production `FE_CALLBACK_URL` / `FE_ONBOARDING_URL` allowlists
+- exact localhost, production, and optional preview callback URL allowlists, including
+  scheme, host, port, and `/auth/callback` path; wildcard preview domains are not allowed
+- the response for a missing or disallowed `redirect`
 - credentialed CORS origins
+- temporary OAuth redirect cookie `Secure`, `HttpOnly`, `SameSite`, and expiry settings
 - refresh cookie `Secure`, `SameSite`, domain, and path settings
-- production log redaction for the token-bearing `/setup?registration_token=...` request;
+- registration token expiry and one-time-use behavior
+- production log redaction for the token-bearing `/auth/callback?registration_token=...` request;
   client-side URL cleanup cannot remove it from upstream access logs
 - route recommendation request/response shape
 - travel note draft save API

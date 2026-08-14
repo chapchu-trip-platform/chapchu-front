@@ -33,7 +33,13 @@ export const useAuthStore = create<AuthState>((set) => ({
   setupStage: null,
   status: 'idle',
   setAccessToken: (accessToken) =>
-    set({ accessToken, authNotice: null, status: 'authenticated' }),
+    set({
+      accessToken,
+      authNotice: null,
+      registrationToken: null,
+      setupStage: null,
+      status: 'authenticated',
+    }),
   setAuthNotice: (authNotice) => set({ authNotice }),
   setRegistrationToken: (registrationToken) => set({ registrationToken }),
   setSetupStage: (setupStage) => set({ setupStage }),

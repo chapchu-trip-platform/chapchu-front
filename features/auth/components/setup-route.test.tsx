@@ -38,10 +38,15 @@ afterEach(() => {
 })
 
 describe('SetupRoute', () => {
-  it('scrubs and consumes a registration token before registering a nickname', async () => {
+  it('consumes callback registration state before registering a nickname', async () => {
     const user = userEvent.setup()
     vi.mocked(registerMember).mockResolvedValue()
-    window.history.replaceState(null, '', '/setup?registration_token=registration-token')
+    window.history.replaceState(null, '', '/setup')
+    useAuthStore.setState({
+      registrationToken: 'registration-token',
+      setupStage: 'registration',
+      status: 'unauthenticated',
+    })
 
     render(<SetupRoute />)
 
@@ -65,7 +70,12 @@ describe('SetupRoute', () => {
   it('keeps registration context when registration fails so the user can retry', async () => {
     const user = userEvent.setup()
     vi.mocked(registerMember).mockRejectedValue(new Error('backend details'))
-    window.history.replaceState(null, '', '/setup?registration_token=registration-token')
+    window.history.replaceState(null, '', '/setup')
+    useAuthStore.setState({
+      registrationToken: 'registration-token',
+      setupStage: 'registration',
+      status: 'unauthenticated',
+    })
 
     render(<SetupRoute />)
 
@@ -90,16 +100,17 @@ describe('SetupRoute', () => {
     await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/login'))
   })
 
-  it('scrubs malformed duplicate registration tokens before redirecting', async () => {
+  it('scrubs a legacy registration token before returning to login', async () => {
     window.history.replaceState(
       null,
       '',
-      '/setup?registration_token=valid&registration_token='
+      '/setup?registration_token=legacy-registration-token'
     )
 
     render(<SetupRoute />)
 
     await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/login'))
+    expect(window.location.pathname).toBe('/setup')
     expect(window.location.search).toBe('')
     expect(useAuthStore.getState().registrationToken).toBeNull()
   })
