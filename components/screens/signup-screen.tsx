@@ -8,6 +8,7 @@ import { ChoiceChip } from '@/components/ui/choice-chip'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { BreedCombobox } from '@/features/auth/components/breed-combobox'
+import { RequiredFieldsModal } from '@/features/auth/components/required-fields-modal'
 import type {
   PetSize,
   NicknameAvailabilityResponse,
@@ -51,24 +52,11 @@ const createEmptyPet = (): PetDraft => ({
   activityIds: [],
 })
 
-function hasPetInput(pet: PetDraft) {
+function RequiredMark() {
   return (
-    Boolean(pet.petName.trim()) ||
-    pet.breedId !== null ||
-    Boolean(pet.age.trim()) ||
-    pet.activityIds.length > 0
-  )
-}
-
-function isCompletePet(pet: PetDraft, options: SignupOptions) {
-  const age = Number(pet.age)
-  return (
-    Boolean(pet.petName.trim()) &&
-    pet.breedId !== null &&
-    options.breeds.some((breed) => breed.id === pet.breedId) &&
-    pet.age.trim() !== '' &&
-    Number.isInteger(age) &&
-    age >= 0
+    <span aria-hidden="true" className="ml-1 text-danger">
+      *
+    </span>
   )
 }
 
@@ -94,6 +82,7 @@ export default function SignupScreen({
   const [activePetIdx, setActivePetIdx] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [missingRequiredFields, setMissingRequiredFields] = useState<string[]>([])
 
   const toggleId = (
     current: string[],
@@ -138,8 +127,36 @@ export default function SignupScreen({
   }
 
   const handleUserContinue = () => {
-    if (nicknameCheckStatus !== 'available') {
-      setFormError('닉네임 중복 확인을 완료해주세요.')
+    const missingFields: string[] = []
+    if (!nickname.trim()) missingFields.push('닉네임')
+    else if (nicknameCheckStatus !== 'available') {
+      missingFields.push('닉네임 중복 확인')
+    }
+    if (
+      !selectedThemeIds.some((id) =>
+        options.themes.some((option) => option.id === id)
+      )
+    ) {
+      missingFields.push('선호 테마')
+    }
+    if (
+      !selectedRegionIds.some((id) =>
+        options.regions.some((option) => option.id === id)
+      )
+    ) {
+      missingFields.push('선호 지역')
+    }
+    if (
+      !selectedTransportMethodIds.some((id) =>
+        options.transportMethods.some((option) => option.id === id)
+      )
+    ) {
+      missingFields.push('선호 이동수단')
+    }
+
+    if (missingFields.length > 0) {
+      setFormError(null)
+      setMissingRequiredFields(missingFields)
       return
     }
     setFormError(null)
@@ -200,9 +217,48 @@ export default function SignupScreen({
   }
 
   const handleComplete = async () => {
-    const enteredPets = pets.filter(hasPetInput)
-    if (enteredPets.some((pet) => !isCompletePet(pet, options))) {
-      setFormError('입력 중인 반려동물의 이름, 견종, 나이를 모두 확인해주세요.')
+    const missingFields: string[] = []
+    let firstIncompletePetIndex = -1
+
+    pets.forEach((currentPet, index) => {
+      const petLabel = currentPet.petName.trim() || `반려동물 ${index + 1}`
+      const age = Number(currentPet.age)
+      const petMissingFields: string[] = []
+
+      if (!currentPet.petName.trim()) petMissingFields.push(`${petLabel} 이름`)
+      if (
+        currentPet.breedId === null ||
+        !options.breeds.some((breed) => breed.id === currentPet.breedId)
+      ) {
+        petMissingFields.push(`${petLabel} 견종`)
+      }
+      if (
+        currentPet.age.trim() === '' ||
+        !Number.isInteger(age) ||
+        age < 0
+      ) {
+        petMissingFields.push(`${petLabel} 나이 (0 이상의 정수)`)
+      }
+      if (
+        !currentPet.activityIds.some((id) =>
+          options.activities.some((activity) => activity.id === id)
+        )
+      ) {
+        petMissingFields.push(`${petLabel} 선호 활동`)
+      }
+
+      if (petMissingFields.length > 0 && firstIncompletePetIndex < 0) {
+        firstIncompletePetIndex = index
+      }
+      missingFields.push(...petMissingFields)
+    })
+
+    if (missingFields.length > 0) {
+      if (firstIncompletePetIndex >= 0) {
+        setActivePetIdx(firstIncompletePetIndex)
+      }
+      setFormError(null)
+      setMissingRequiredFields(missingFields)
       return
     }
 
@@ -223,7 +279,7 @@ export default function SignupScreen({
             options.transportMethods.some((option) => option.id === id)
           ),
         },
-        pets: enteredPets.map((pet) => ({
+        pets: pets.map((pet) => ({
           petName: pet.petName.trim(),
           breedId: pet.breedId as number,
           size: pet.size,
@@ -294,6 +350,7 @@ export default function SignupScreen({
                 className="mb-2 block text-[13px] font-semibold text-deep-brown"
               >
                 닉네임
+                <RequiredMark />
               </label>
               <div className="flex items-center gap-2">
                 <Input
@@ -303,6 +360,7 @@ export default function SignupScreen({
                   onChange={(event) => handleNicknameChange(event.target.value)}
                   placeholder="사용할 닉네임을 입력하세요"
                   maxLength={30}
+                  required
                   aria-describedby="nickname-check-message"
                   aria-invalid={
                     nicknameCheckStatus === 'unavailable' ||
@@ -355,8 +413,13 @@ export default function SignupScreen({
             <div>
               <label className="mb-3 block text-[13px] font-semibold text-deep-brown">
                 선호 테마
+                <RequiredMark />
               </label>
-              <div className="flex flex-wrap gap-2">
+              <div
+                role="group"
+                aria-label="선호 테마 (필수)"
+                className="flex flex-wrap gap-2"
+              >
                 {options.themes.map((theme) => (
                   <ChoiceChip
                     key={theme.id}
@@ -378,8 +441,13 @@ export default function SignupScreen({
             <div>
               <label className="mb-3 block text-[13px] font-semibold text-deep-brown">
                 선호 지역
+                <RequiredMark />
               </label>
-              <div className="flex flex-wrap gap-2">
+              <div
+                role="group"
+                aria-label="선호 지역 (필수)"
+                className="flex flex-wrap gap-2"
+              >
                 {options.regions.map((region) => (
                   <ChoiceChip
                     key={region.id}
@@ -401,8 +469,13 @@ export default function SignupScreen({
             <div>
               <label className="mb-3 block text-[13px] font-semibold text-deep-brown">
                 선호 이동수단
+                <RequiredMark />
               </label>
-              <div className="flex flex-wrap gap-2">
+              <div
+                role="group"
+                aria-label="선호 이동수단 (필수)"
+                className="flex flex-wrap gap-2"
+              >
                 {options.transportMethods.map((transportMethod) => (
                   <ChoiceChip
                     key={transportMethod.id}
@@ -427,7 +500,7 @@ export default function SignupScreen({
         ) : (
           <div className="flex flex-col gap-5 pt-4">
             <p className="text-[12px] leading-relaxed text-warm-gray">
-              반려동물 정보는 선택 사항입니다. 등록하지 않으려면 비워두고 완료할 수 있어요.
+              반려동물 정보는 필수 사항입니다. 모든 항목을 입력한 후 완료해주세요.
             </p>
 
             {pets.length > 1 && (
@@ -467,26 +540,37 @@ export default function SignupScreen({
             )}
 
             <div>
-              <label className="mb-2 block text-[13px] font-semibold text-deep-brown">
+              <label
+                htmlFor={`signup-pet-name-${activePetIdx}`}
+                className="mb-2 block text-[13px] font-semibold text-deep-brown"
+              >
                 이름
+                <RequiredMark />
               </label>
               <Input
                 type="text"
+                id={`signup-pet-name-${activePetIdx}`}
                 value={pet.petName}
                 onChange={(event) =>
                   updatePet(activePetIdx, 'petName', event.target.value)
                 }
                 placeholder="반려동물 이름"
+                required
               />
             </div>
 
             <div className="flex gap-3">
               <div className="min-w-0 flex-1">
-                <label className="mb-2 block text-[13px] font-semibold text-deep-brown">
+                <label
+                  htmlFor={`signup-pet-breed-${activePetIdx}`}
+                  className="mb-2 block text-[13px] font-semibold text-deep-brown"
+                >
                   견종
+                  <RequiredMark />
                 </label>
                 <BreedCombobox
                   key={activePetIdx}
+                  id={`signup-pet-breed-${activePetIdx}`}
                   breeds={options.breeds}
                   value={pet.breedId}
                   onChange={(breedId) =>
@@ -495,11 +579,16 @@ export default function SignupScreen({
                 />
               </div>
               <div className="w-24">
-                <label className="mb-2 block text-[13px] font-semibold text-deep-brown">
+                <label
+                  htmlFor={`signup-pet-age-${activePetIdx}`}
+                  className="mb-2 block text-[13px] font-semibold text-deep-brown"
+                >
                   나이
+                  <RequiredMark />
                 </label>
                 <Input
                   type="number"
+                  id={`signup-pet-age-${activePetIdx}`}
                   min={0}
                   step={1}
                   inputMode="numeric"
@@ -508,6 +597,7 @@ export default function SignupScreen({
                     updatePet(activePetIdx, 'age', event.target.value)
                   }
                   placeholder="3"
+                  required
                   className="px-3"
                 />
               </div>
@@ -516,8 +606,13 @@ export default function SignupScreen({
             <div>
               <label className="mb-2 block text-[13px] font-semibold text-deep-brown">
                 크기
+                <RequiredMark />
               </label>
-              <div className="flex gap-2">
+              <div
+                role="group"
+                aria-label="반려동물 크기 (필수)"
+                className="flex gap-2"
+              >
                 {sizes.map((size) => (
                   <ChoiceChip
                     key={size.value}
@@ -537,8 +632,13 @@ export default function SignupScreen({
             <div>
               <label className="mb-2 block text-[13px] font-semibold text-deep-brown">
                 선호 활동
+                <RequiredMark />
               </label>
-              <div className="flex flex-wrap gap-2">
+              <div
+                role="group"
+                aria-label="선호 활동 (필수)"
+                className="flex flex-wrap gap-2"
+              >
                 {options.activities.map((activity) => (
                   <ChoiceChip
                     key={activity.id}
@@ -584,7 +684,7 @@ export default function SignupScreen({
         {step === 'user' ? (
           <Button
             onClick={handleUserContinue}
-            disabled={nicknameCheckStatus !== 'available' || submitting}
+            disabled={submitting}
             fullWidth
             size="lg"
           >
@@ -601,6 +701,13 @@ export default function SignupScreen({
           </Button>
         )}
       </div>
+
+      {missingRequiredFields.length > 0 && (
+        <RequiredFieldsModal
+          fields={missingRequiredFields}
+          onConfirm={() => setMissingRequiredFields([])}
+        />
+      )}
     </div>
   )
 }

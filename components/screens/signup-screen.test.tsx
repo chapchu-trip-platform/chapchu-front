@@ -39,6 +39,35 @@ async function selectBreed(
   await user.click(screen.getByRole('option', { name: breedName }))
 }
 
+async function completeRequiredUserStep(
+  user: ReturnType<typeof userEvent.setup>,
+  nickname = '테스터'
+) {
+  await user.type(screen.getByPlaceholderText('사용할 닉네임을 입력하세요'), nickname)
+  await confirmCurrentNickname(user)
+  await user.click(screen.getByRole('button', { name: '자연' }))
+  await user.click(screen.getByRole('button', { name: '서울' }))
+  await user.click(screen.getByRole('button', { name: '자가용' }))
+}
+
+async function continueToPetStep(
+  user: ReturnType<typeof userEvent.setup>,
+  nickname = '테스터'
+) {
+  await completeRequiredUserStep(user, nickname)
+  await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
+}
+
+async function completeRequiredPet(
+  user: ReturnType<typeof userEvent.setup>,
+  petName = '초코'
+) {
+  await user.type(screen.getByPlaceholderText('반려동물 이름'), petName)
+  await selectBreed(user, '골든', '골든리트리버')
+  await user.type(screen.getByPlaceholderText('3'), '3')
+  await user.click(screen.getByRole('button', { name: '산책' }))
+}
+
 afterEach(cleanup)
 
 describe('SignupScreen', () => {
@@ -53,9 +82,7 @@ describe('SignupScreen', () => {
       />
     )
 
-    await user.type(screen.getByPlaceholderText('사용할 닉네임을 입력하세요'), '테스터')
-    await confirmCurrentNickname(user)
-    await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
+    await continueToPetStep(user)
 
     await user.click(screen.getByRole('button', { name: '반려동물 추가하기' }))
     await user.type(screen.getByPlaceholderText('반려동물 이름'), '두리')
@@ -80,9 +107,7 @@ describe('SignupScreen', () => {
       />
     )
 
-    await user.type(screen.getByPlaceholderText('사용할 닉네임을 입력하세요'), '테스터')
-    await confirmCurrentNickname(user)
-    await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
+    await continueToPetStep(user)
 
     expect(screen.queryByRole('button', { name: /추가 취소/ })).not.toBeInTheDocument()
   })
@@ -134,7 +159,7 @@ describe('SignupScreen', () => {
     )
   })
 
-  it('omits an untouched optional pet draft', async () => {
+  it('requires the first pet and shows every missing field in a modal', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     render(
@@ -145,22 +170,16 @@ describe('SignupScreen', () => {
       />
     )
 
-    await user.type(screen.getByPlaceholderText('사용할 닉네임을 입력하세요'), '테스터')
-    await confirmCurrentNickname(user)
-    await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
+    await continueToPetStep(user)
     await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
 
-    await waitFor(() =>
-      expect(onSubmit).toHaveBeenCalledWith({
-        user: {
-          nickname: '테스터',
-          regionIds: [],
-          themeIds: [],
-          transportMethodIds: [],
-        },
-        pets: [],
-      })
-    )
+    const modal = await screen.findByRole('alertdialog')
+    expect(modal).toHaveTextContent('반려동물 1 이름')
+    expect(modal).toHaveTextContent('반려동물 1 견종')
+    expect(modal).toHaveTextContent('반려동물 1 나이')
+    expect(modal).toHaveTextContent('반려동물 1 선호 활동')
+    expect(screen.getByRole('button', { name: '확인' })).toBeInTheDocument()
+    expect(onSubmit).not.toHaveBeenCalled()
   })
 
   it('blocks a partially filled pet until all required fields are complete', async () => {
@@ -174,25 +193,52 @@ describe('SignupScreen', () => {
       />
     )
 
-    await user.type(screen.getByPlaceholderText('사용할 닉네임을 입력하세요'), '테스터')
-    await confirmCurrentNickname(user)
-    await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
+    await continueToPetStep(user)
     await user.type(screen.getByPlaceholderText('반려동물 이름'), '초코')
     await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      '입력 중인 반려동물의 이름, 견종, 나이를 모두 확인해주세요.'
-    )
+    const modal = await screen.findByRole('alertdialog')
+    expect(modal).toHaveTextContent('초코 견종')
+    expect(modal).toHaveTextContent('초코 나이')
+    expect(modal).toHaveTextContent('초코 선호 활동')
     expect(onSubmit).not.toHaveBeenCalled()
 
+    await user.click(screen.getByRole('button', { name: '확인' }))
     await selectBreed(user, '골든', '골든리트리버')
     await user.type(screen.getByPlaceholderText('3'), '3')
+    await user.click(screen.getByRole('button', { name: '산책' }))
     await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce())
   })
 
-  it('keeps the next step disabled until the current nickname is available', async () => {
+  it('requires every added pet and opens the first incomplete pet for correction', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    render(
+      <SignupScreen
+        options={options}
+        onCheckNickname={createNicknameCheck()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    await continueToPetStep(user)
+    await completeRequiredPet(user, '초코')
+    await user.click(screen.getByRole('button', { name: '반려동물 추가하기' }))
+    await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
+
+    const modal = await screen.findByRole('alertdialog')
+    expect(modal).toHaveTextContent('반려동물 2 이름')
+    expect(modal).toHaveTextContent('반려동물 2 견종')
+    expect(screen.getByRole('button', { name: '반려동물 2' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('blocks the user step with a modal until every required value is present', async () => {
     const user = userEvent.setup()
     const onCheckNickname = createNicknameCheck()
     render(
@@ -207,13 +253,26 @@ describe('SignupScreen', () => {
       name: '다음 — 반려동물 등록',
     })
     await user.type(screen.getByPlaceholderText('사용할 닉네임을 입력하세요'), '햇살이')
-    expect(nextButton).toBeDisabled()
+    await user.click(nextButton)
+
+    const firstModal = await screen.findByRole('alertdialog')
+    expect(firstModal).toHaveTextContent('닉네임 중복 확인')
+    expect(firstModal).toHaveTextContent('선호 테마')
+    expect(firstModal).toHaveTextContent('선호 지역')
+    expect(firstModal).toHaveTextContent('선호 이동수단')
+    expect(screen.getByRole('heading', { name: '기본 정보 입력' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '확인' }))
 
     await confirmCurrentNickname(user)
+    await user.click(screen.getByRole('button', { name: '자연' }))
+    await user.click(screen.getByRole('button', { name: '서울' }))
+    await user.click(screen.getByRole('button', { name: '자가용' }))
 
     expect(onCheckNickname).toHaveBeenCalledWith('햇살이')
     expect(screen.getByText('사용할 수 있는 닉네임이에요.')).toBeInTheDocument()
-    expect(nextButton).toBeEnabled()
+    await user.click(nextButton)
+    expect(screen.getByRole('heading', { name: '반려동물 정보' })).toBeInTheDocument()
   })
 
   it('invalidates a completed check when the nickname changes', async () => {
@@ -232,13 +291,14 @@ describe('SignupScreen', () => {
     await user.type(input, '2')
 
     expect(screen.getByRole('button', { name: '중복 확인' })).toBeEnabled()
-    expect(
-      screen.getByRole('button', { name: '다음 — 반려동물 등록' })
-    ).toBeDisabled()
     expect(screen.getByText('중복 확인 후 다음 단계로 이동할 수 있어요.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(
+      '닉네임 중복 확인'
+    )
   })
 
-  it('keeps the next step disabled when the nickname is already in use', async () => {
+  it('blocks the next step when the nickname is already in use', async () => {
     const user = userEvent.setup()
     render(
       <SignupScreen
@@ -254,9 +314,10 @@ describe('SignupScreen', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       '이미 사용 중인 닉네임이에요.'
     )
-    expect(
-      screen.getByRole('button', { name: '다음 — 반려동물 등록' })
-    ).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(
+      '닉네임 중복 확인'
+    )
   })
 
   it('ignores a stale availability response after the nickname changes', async () => {
@@ -283,11 +344,13 @@ describe('SignupScreen', () => {
     resolveCheck({ nickname: '첫닉네임', available: true })
 
     await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: '다음 — 반려동물 등록' })
-      ).toBeDisabled()
+      expect(screen.queryByText('사용할 수 있는 닉네임이에요.')).not.toBeInTheDocument()
     )
     expect(screen.queryByText('사용할 수 있는 닉네임이에요.')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(
+      '닉네임 중복 확인'
+    )
   })
 
   it('ignores a stale availability error after the nickname changes', async () => {
@@ -318,7 +381,11 @@ describe('SignupScreen', () => {
     )
     expect(
       screen.getByRole('button', { name: '다음 — 반려동물 등록' })
-    ).toBeDisabled()
+    ).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(
+      '닉네임 중복 확인'
+    )
   })
 
   it('fails closed when the response nickname does not match the request', async () => {
@@ -340,9 +407,10 @@ describe('SignupScreen', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       '닉네임 확인 결과가 일치하지 않습니다.'
     )
-    expect(
-      screen.getByRole('button', { name: '다음 — 반려동물 등록' })
-    ).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(
+      '닉네임 중복 확인'
+    )
   })
 
   it('invalidates nickname approval when final signup reports a conflict', async () => {
@@ -358,9 +426,8 @@ describe('SignupScreen', () => {
       />
     )
 
-    await user.type(screen.getByLabelText('닉네임'), '경쟁닉네임')
-    await confirmCurrentNickname(user)
-    await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
+    await continueToPetStep(user, '경쟁닉네임')
+    await completeRequiredPet(user)
     await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -368,8 +435,9 @@ describe('SignupScreen', () => {
     )
     expect(screen.getByRole('heading', { name: '기본 정보 입력' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '중복 확인' })).toBeEnabled()
-    expect(
-      screen.getByRole('button', { name: '다음 — 반려동물 등록' })
-    ).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(
+      '닉네임 중복 확인'
+    )
   })
 })

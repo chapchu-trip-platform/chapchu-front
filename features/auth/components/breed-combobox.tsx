@@ -14,6 +14,7 @@ import type { BreedOption } from '@/features/auth/types/signup'
 import { cn } from '@/lib/utils'
 
 interface BreedComboboxProps {
+  id?: string
   breeds: BreedOption[]
   value: number | null
   onChange: (breedId: number | null) => void
@@ -24,6 +25,7 @@ function normalizeBreedName(value: string) {
 }
 
 export function BreedCombobox({
+  id,
   breeds,
   value,
   onChange,
@@ -112,9 +114,11 @@ export function BreedCombobox({
   return (
     <div ref={rootRef} className="relative">
       <Input
+        id={id}
         type="text"
         role="combobox"
         aria-label="견종"
+        aria-required="true"
         aria-autocomplete="list"
         aria-controls={listboxId}
         aria-expanded={isOpen}
@@ -134,6 +138,7 @@ export function BreedCombobox({
         autoComplete="off"
         autoCorrect="off"
         spellCheck={false}
+        required
         className="appearance-none pr-10 [-webkit-appearance:none]"
       />
       <ChevronDown

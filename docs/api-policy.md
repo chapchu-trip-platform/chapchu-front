@@ -48,7 +48,10 @@ Google OAuth is delegated to the `chapchu-api` BFF:
   `GET /users/nickname/availability?nickname={nickname}` and the current input
   must have an `available: true` result before the setup flow can continue
 - integrated registration uses one unauthenticated `POST /auth/signup` request with
-  `registrationToken`, user preferences, and optional pets
+  `registrationToken`, user preferences, and pets
+- although the backend contract accepts optional preferences and pets, the current
+  frontend product policy requires one or more selections for theme, region, and
+  transport plus at least one complete pet with an activity before submission
 - successful signup returns `201 Created` with `userId`, `nickname`, `email`, and
   ordered `petIds`, then the frontend starts a fresh `/auth/login` navigation
 - refresh uses `POST /auth/refresh`

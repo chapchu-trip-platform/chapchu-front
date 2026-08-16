@@ -43,6 +43,29 @@ async function confirmCurrentNickname(
   await screen.findByRole('button', { name: '확인 완료' })
 }
 
+async function completeRequiredUserStep(
+  user: ReturnType<typeof userEvent.setup>,
+  nickname: string
+) {
+  await user.type(
+    await screen.findByPlaceholderText('사용할 닉네임을 입력하세요'),
+    nickname
+  )
+  await confirmCurrentNickname(user)
+  await user.click(screen.getByRole('button', { name: '서울' }))
+  await user.click(screen.getByRole('button', { name: '자연' }))
+  await user.click(screen.getByRole('button', { name: '자가용' }))
+}
+
+async function completeRequiredPet(user: ReturnType<typeof userEvent.setup>) {
+  await user.type(screen.getByPlaceholderText('반려동물 이름'), '초코')
+  const breedInput = screen.getByRole('combobox', { name: '견종' })
+  await user.type(breedInput, '골든')
+  await user.click(screen.getByRole('option', { name: '골든리트리버' }))
+  await user.type(screen.getByPlaceholderText('3'), '3')
+  await user.click(screen.getByRole('button', { name: '산책' }))
+}
+
 beforeEach(() => {
   vi.mocked(checkNicknameAvailability).mockImplementation(async (nickname) => ({
     nickname,
@@ -100,15 +123,9 @@ describe('SetupRoute', () => {
 
     render(<SetupRoute />)
 
-    await user.type(
-      await screen.findByPlaceholderText('사용할 닉네임을 입력하세요'),
-      ' 햇살여행자 '
-    )
-    await confirmCurrentNickname(user)
-    await user.click(screen.getByRole('button', { name: '서울' }))
-    await user.click(screen.getByRole('button', { name: '자연' }))
-    await user.click(screen.getByRole('button', { name: '자가용' }))
+    await completeRequiredUserStep(user, ' 햇살여행자 ')
     await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
+    await completeRequiredPet(user)
     await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
 
     await waitFor(() =>
@@ -120,7 +137,15 @@ describe('SetupRoute', () => {
           themeIds: ['theme-nature'],
           transportMethodIds: ['transport-car'],
         },
-        pets: [],
+        pets: [
+          {
+            petName: '초코',
+            breedId: 7,
+            size: 'SMALL',
+            age: 3,
+            activityIds: ['activity-walk'],
+          },
+        ],
       })
     )
     await waitFor(() => expect(navigateToGoogleLogin).toHaveBeenCalledOnce())
@@ -149,12 +174,9 @@ describe('SetupRoute', () => {
 
     render(<SetupRoute />)
 
-    await user.type(
-      await screen.findByPlaceholderText('사용할 닉네임을 입력하세요'),
-      '중복닉네임'
-    )
-    await confirmCurrentNickname(user)
+    await completeRequiredUserStep(user, '중복닉네임')
     await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
+    await completeRequiredPet(user)
     await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -162,9 +184,7 @@ describe('SetupRoute', () => {
     )
     expect(useAuthStore.getState().registrationToken).toBe('registration-token')
     expect(navigateToGoogleLogin).not.toHaveBeenCalled()
-    expect(
-      screen.getByRole('button', { name: '다음 — 반려동물 등록' })
-    ).toBeDisabled()
+    expect(screen.getByRole('button', { name: '중복 확인' })).toBeEnabled()
 
     await confirmCurrentNickname(user)
     await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
@@ -196,12 +216,9 @@ describe('SetupRoute', () => {
 
     render(<SetupRoute />)
 
-    await user.type(
-      await screen.findByPlaceholderText('사용할 닉네임을 입력하세요'),
-      '테스터'
-    )
-    await confirmCurrentNickname(user)
+    await completeRequiredUserStep(user, '테스터')
     await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
+    await completeRequiredPet(user)
     await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
 
     await waitFor(() => expect(navigateToGoogleLogin).toHaveBeenCalledOnce())
@@ -233,13 +250,9 @@ describe('SetupRoute', () => {
 
     render(<SetupRoute />)
 
-    await user.type(
-      await screen.findByPlaceholderText('사용할 닉네임을 입력하세요'),
-      '입력보존'
-    )
-    await confirmCurrentNickname(user)
-    await user.click(screen.getByRole('button', { name: '서울' }))
+    await completeRequiredUserStep(user, '입력보존')
     await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
+    await completeRequiredPet(user)
     await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
 
     await waitFor(() => expect(fetchSignupOptions).toHaveBeenCalledTimes(2))
@@ -311,9 +324,11 @@ describe('SetupRoute', () => {
     expect(getNicknameAvailabilityErrorMessage).toHaveBeenCalledWith({
       type: 'network',
     })
-    expect(
-      screen.getByRole('button', { name: '다음 — 반려동물 등록' })
-    ).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(
+      '닉네임 중복 확인'
+    )
+    expect(screen.getByRole('heading', { name: '기본 정보 입력' })).toBeInTheDocument()
   })
 
   it('redirects direct setup access without a valid flow to login', async () => {
