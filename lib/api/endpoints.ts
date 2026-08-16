@@ -18,6 +18,7 @@ export const API_ENDPOINTS = {
   },
   users: {
     me: '/users/me',
+    nicknameAvailability: '/users/nickname/availability',
   },
   pets: {
     list: '/pets',

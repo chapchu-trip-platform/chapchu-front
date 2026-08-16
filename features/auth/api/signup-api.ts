@@ -7,6 +7,7 @@ import type {
   IntegratedSignupRequest,
   IntegratedSignupResponse,
   NamedOption,
+  NicknameAvailabilityResponse,
   SignupOptions,
 } from '@/features/auth/types/signup'
 
@@ -14,6 +15,22 @@ interface PreferenceOptionsResponse {
   regions: NamedOption[]
   themes: NamedOption[]
   transportMethods: NamedOption[]
+}
+
+export async function checkNicknameAvailability(
+  nickname: string
+): Promise<NicknameAvailabilityResponse> {
+  const { data } = await publicApiClient.get<NicknameAvailabilityResponse>(
+    API_ENDPOINTS.users.nicknameAvailability,
+    { params: { nickname: nickname.trim() } }
+  )
+  if (
+    typeof data?.nickname !== 'string' ||
+    typeof data?.available !== 'boolean'
+  ) {
+    throw new Error('Invalid nickname availability response.')
+  }
+  return data
 }
 
 export async function fetchSignupOptions(): Promise<SignupOptions> {
@@ -75,4 +92,15 @@ export function getSignupOptionsErrorMessage(error: unknown) {
     return '선택지를 불러오지 못했습니다. 네트워크 연결을 확인해주세요.'
   }
   return '회원가입 선택지를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'
+}
+
+export function getNicknameAvailabilityErrorMessage(error: unknown) {
+  const apiError = error as SignupApiError
+  if (apiError.type === 'network') {
+    return '네트워크 연결을 확인한 뒤 다시 확인해주세요.'
+  }
+  if (apiError.type === 'timeout' || (apiError.status ?? 0) >= 500) {
+    return '닉네임 확인 서버가 원활하지 않습니다. 잠시 후 다시 시도해주세요.'
+  }
+  return '닉네임을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.'
 }

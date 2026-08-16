@@ -6,7 +6,9 @@ import SignupScreen from '@/components/screens/signup-screen'
 import { Button } from '@/components/ui/button'
 import { navigateToGoogleLogin } from '@/features/auth/api/auth-api'
 import {
+  checkNicknameAvailability,
   fetchSignupOptions,
+  getNicknameAvailabilityErrorMessage,
   getSignupErrorMessage,
   getSignupOptionsErrorMessage,
   submitIntegratedSignup,
@@ -101,7 +103,11 @@ export default function SetupRoute() {
         }
       }
       if (status === 404) await loadOptions(true)
-      throw new Error(getSignupErrorMessage(error))
+      const signupError = new Error(getSignupErrorMessage(error)) as Error & {
+        status?: number
+      }
+      signupError.status = status
+      throw signupError
     }
 
     useAuthStore.getState().setRegistrationToken(null)
@@ -119,6 +125,14 @@ export default function SetupRoute() {
 
   const handleDemoComplete = async () => {
     router.replace('/home')
+  }
+
+  const handleNicknameCheck = async (nickname: string) => {
+    try {
+      return await checkNicknameAvailability(nickname)
+    } catch (error) {
+      throw new Error(getNicknameAvailabilityErrorMessage(error))
+    }
   }
 
   if (!hasSetupFlow) {
@@ -157,6 +171,7 @@ export default function SetupRoute() {
   return (
     <SignupScreen
       options={options}
+      onCheckNickname={handleNicknameCheck}
       onSubmit={isRegistration ? handleIntegratedSignup : handleDemoComplete}
     />
   )

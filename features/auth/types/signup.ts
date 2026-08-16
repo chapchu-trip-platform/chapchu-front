@@ -16,6 +16,11 @@ export interface SignupOptions {
   activities: NamedOption[]
 }
 
+export interface NicknameAvailabilityResponse {
+  nickname: string
+  available: boolean
+}
+
 export type PetSize = 'SMALL' | 'MEDIUM' | 'LARGE'
 
 export interface SignupPetInput {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ChevronDown, Plus, Trash2 } from 'lucide-react'
 import TopBar from '@/components/top-bar'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,7 @@ import { IconButton } from '@/components/ui/icon-button'
 import { Input, inputVariants } from '@/components/ui/input'
 import type {
   PetSize,
+  NicknameAvailabilityResponse,
   SignupFormValues,
   SignupOptions,
 } from '@/features/auth/types/signup'
@@ -16,8 +17,16 @@ import { cn } from '@/lib/utils'
 
 interface SignupScreenProps {
   options: SignupOptions
+  onCheckNickname: (nickname: string) => Promise<NicknameAvailabilityResponse>
   onSubmit: (values: SignupFormValues) => Promise<void>
 }
+
+type NicknameCheckStatus =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'unavailable'
+  | 'failed'
 
 interface PetDraft {
   petName: string
@@ -62,9 +71,19 @@ function isCompletePet(pet: PetDraft, options: SignupOptions) {
   )
 }
 
-export default function SignupScreen({ options, onSubmit }: SignupScreenProps) {
+export default function SignupScreen({
+  options,
+  onCheckNickname,
+  onSubmit,
+}: SignupScreenProps) {
   const [step, setStep] = useState<'user' | 'pet'>('user')
   const [nickname, setNickname] = useState('')
+  const [nicknameCheckStatus, setNicknameCheckStatus] =
+    useState<NicknameCheckStatus>('idle')
+  const [nicknameCheckMessage, setNicknameCheckMessage] = useState<string | null>(
+    null
+  )
+  const nicknameRequestSequence = useRef(0)
   const [selectedThemeIds, setSelectedThemeIds] = useState<string[]>([])
   const [selectedRegionIds, setSelectedRegionIds] = useState<string[]>([])
   const [selectedTransportMethodIds, setSelectedTransportMethodIds] = useState<
@@ -118,8 +137,65 @@ export default function SignupScreen({ options, onSubmit }: SignupScreenProps) {
   }
 
   const handleUserContinue = () => {
+    if (nicknameCheckStatus !== 'available') {
+      setFormError('닉네임 중복 확인을 완료해주세요.')
+      return
+    }
     setFormError(null)
     setStep('pet')
+  }
+
+  const handleNicknameChange = (value: string) => {
+    nicknameRequestSequence.current += 1
+    setNickname(value)
+    setNicknameCheckStatus('idle')
+    setNicknameCheckMessage(null)
+    setFormError(null)
+  }
+
+  const handleNicknameCheck = async () => {
+    const requestedNickname = nickname.trim()
+    if (!requestedNickname) {
+      setNicknameCheckStatus('failed')
+      setNicknameCheckMessage('닉네임을 입력해주세요.')
+      return
+    }
+
+    const requestSequence = nicknameRequestSequence.current + 1
+    nicknameRequestSequence.current = requestSequence
+    setNicknameCheckStatus('checking')
+    setNicknameCheckMessage('닉네임을 확인하고 있어요…')
+    setFormError(null)
+
+    try {
+      const result = await onCheckNickname(requestedNickname)
+      if (nicknameRequestSequence.current !== requestSequence) return
+
+      const matchesCurrentNickname =
+        nickname.trim() === requestedNickname &&
+        result.nickname.trim() === requestedNickname
+      if (!matchesCurrentNickname) {
+        setNicknameCheckStatus('failed')
+        setNicknameCheckMessage('닉네임 확인 결과가 일치하지 않습니다. 다시 확인해주세요.')
+        return
+      }
+
+      if (result.available) {
+        setNicknameCheckStatus('available')
+        setNicknameCheckMessage('사용할 수 있는 닉네임이에요.')
+      } else {
+        setNicknameCheckStatus('unavailable')
+        setNicknameCheckMessage('이미 사용 중인 닉네임이에요.')
+      }
+    } catch (error) {
+      if (nicknameRequestSequence.current !== requestSequence) return
+      setNicknameCheckStatus('failed')
+      setNicknameCheckMessage(
+        error instanceof Error
+          ? error.message
+          : '닉네임을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.'
+      )
+    }
   }
 
   const handleComplete = async () => {
@@ -157,6 +233,17 @@ export default function SignupScreen({ options, onSubmit }: SignupScreenProps) {
         })),
       })
     } catch (error) {
+      const signupError = error as Error & { status?: number }
+      if (signupError.status === 409) {
+        nicknameRequestSequence.current += 1
+        setNicknameCheckStatus('unavailable')
+        setNicknameCheckMessage(
+          '가입 처리 중 닉네임이 사용되었습니다. 다른 닉네임을 입력하고 다시 확인해주세요.'
+        )
+        setFormError(null)
+        setStep('user')
+        return
+      }
       setFormError(
         error instanceof Error
           ? error.message
@@ -201,16 +288,67 @@ export default function SignupScreen({ options, onSubmit }: SignupScreenProps) {
         {step === 'user' ? (
           <div className="flex flex-col gap-6 pt-4">
             <div>
-              <label className="mb-2 block text-[13px] font-semibold text-deep-brown">
+              <label
+                htmlFor="signup-nickname"
+                className="mb-2 block text-[13px] font-semibold text-deep-brown"
+              >
                 닉네임
               </label>
-              <Input
-                type="text"
-                value={nickname}
-                onChange={(event) => setNickname(event.target.value)}
-                placeholder="사용할 닉네임을 입력하세요"
-                maxLength={30}
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  type="text"
+                  id="signup-nickname"
+                  value={nickname}
+                  onChange={(event) => handleNicknameChange(event.target.value)}
+                  placeholder="사용할 닉네임을 입력하세요"
+                  maxLength={30}
+                  aria-describedby="nickname-check-message"
+                  aria-invalid={
+                    nicknameCheckStatus === 'unavailable' ||
+                    nicknameCheckStatus === 'failed'
+                  }
+                  className="min-w-0 flex-1"
+                />
+                <Button
+                  type="button"
+                  onClick={() => void handleNicknameCheck()}
+                  disabled={
+                    !nickname.trim() ||
+                    nicknameCheckStatus === 'checking' ||
+                    nicknameCheckStatus === 'available'
+                  }
+                  variant={
+                    nicknameCheckStatus === 'available' ? 'secondary' : 'outline'
+                  }
+                  className="flex-none px-3"
+                >
+                  {nicknameCheckStatus === 'checking'
+                    ? '확인 중…'
+                    : nicknameCheckStatus === 'available'
+                      ? '확인 완료'
+                      : '중복 확인'}
+                </Button>
+              </div>
+              <p
+                id="nickname-check-message"
+                role={
+                  nicknameCheckStatus === 'unavailable' ||
+                  nicknameCheckStatus === 'failed'
+                    ? 'alert'
+                    : 'status'
+                }
+                className={cn(
+                  'mt-2 min-h-4 text-[12px]',
+                  nicknameCheckStatus === 'available'
+                    ? 'text-[#2f6b50]'
+                    : nicknameCheckStatus === 'unavailable' ||
+                        nicknameCheckStatus === 'failed'
+                      ? 'text-[#a63f2c]'
+                      : 'text-warm-gray'
+                )}
+              >
+                {nicknameCheckMessage ?? '중복 확인 후 다음 단계로 이동할 수 있어요.'}
+              </p>
             </div>
 
             <div>
@@ -462,7 +600,7 @@ export default function SignupScreen({ options, onSubmit }: SignupScreenProps) {
         {step === 'user' ? (
           <Button
             onClick={handleUserContinue}
-            disabled={!nickname.trim() || submitting}
+            disabled={nicknameCheckStatus !== 'available' || submitting}
             fullWidth
             size="lg"
           >

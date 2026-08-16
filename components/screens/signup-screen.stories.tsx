@@ -42,5 +42,27 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const UserPreferences: Story = {
-  args: { options, onSubmit: async () => undefined },
+  args: {
+    options,
+    onCheckNickname: async (nickname) => ({ nickname, available: true }),
+    onSubmit: async () => undefined,
+  },
+}
+
+export const NicknameUnavailable: Story = {
+  args: {
+    options,
+    onCheckNickname: async (nickname) => ({ nickname, available: false }),
+    onSubmit: async () => undefined,
+  },
+}
+
+export const NicknameCheckFailed: Story = {
+  args: {
+    options,
+    onCheckNickname: async () => {
+      throw new Error('닉네임을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.')
+    },
+    onSubmit: async () => undefined,
+  },
 }

@@ -44,6 +44,9 @@ Google OAuth is delegated to the `chapchu-api` BFF:
   `sessionStorage` is required and consumed before either callback result is accepted
 - signup choices use unauthenticated `GET /preferences/options`, `GET /breeds`,
   and `GET /activities`; database IDs must never be hard-coded
+- nickname availability uses unauthenticated
+  `GET /users/nickname/availability?nickname={nickname}` and the current input
+  must have an `available: true` result before the setup flow can continue
 - integrated registration uses one unauthenticated `POST /auth/signup` request with
   `registrationToken`, user preferences, and optional pets
 - successful signup returns `201 Created` with `userId`, `nickname`, `email`, and

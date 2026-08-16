@@ -4,7 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SetupRoute from '@/features/auth/components/setup-route'
 import { navigateToGoogleLogin } from '@/features/auth/api/auth-api'
 import {
+  checkNicknameAvailability,
   fetchSignupOptions,
+  getNicknameAvailabilityErrorMessage,
   getSignupErrorMessage,
   getSignupOptionsErrorMessage,
   submitIntegratedSignup,
@@ -18,7 +20,9 @@ vi.mock('@/features/auth/api/auth-api', () => ({
 }))
 
 vi.mock('@/features/auth/api/signup-api', () => ({
+  checkNicknameAvailability: vi.fn(),
   fetchSignupOptions: vi.fn(),
+  getNicknameAvailabilityErrorMessage: vi.fn(),
   getSignupErrorMessage: vi.fn(),
   getSignupOptionsErrorMessage: vi.fn(),
   submitIntegratedSignup: vi.fn(),
@@ -32,8 +36,22 @@ const options: SignupOptions = {
   activities: [{ id: 'activity-walk', name: '산책' }],
 }
 
+async function confirmCurrentNickname(
+  user: ReturnType<typeof userEvent.setup>
+) {
+  await user.click(screen.getByRole('button', { name: '중복 확인' }))
+  await screen.findByRole('button', { name: '확인 완료' })
+}
+
 beforeEach(() => {
+  vi.mocked(checkNicknameAvailability).mockImplementation(async (nickname) => ({
+    nickname,
+    available: true,
+  }))
   vi.mocked(fetchSignupOptions).mockResolvedValue(options)
+  vi.mocked(getNicknameAvailabilityErrorMessage).mockReturnValue(
+    '닉네임을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.'
+  )
   vi.mocked(getSignupErrorMessage).mockReturnValue(
     '회원가입을 완료하지 못했습니다. 입력 내용을 확인하고 다시 시도해주세요.'
   )
@@ -62,7 +80,9 @@ afterEach(() => {
   })
   resetNextNavigationMocks()
   vi.mocked(navigateToGoogleLogin).mockReset()
+  vi.mocked(checkNicknameAvailability).mockReset()
   vi.mocked(fetchSignupOptions).mockReset()
+  vi.mocked(getNicknameAvailabilityErrorMessage).mockReset()
   vi.mocked(getSignupErrorMessage).mockReset()
   vi.mocked(getSignupOptionsErrorMessage).mockReset()
   vi.mocked(submitIntegratedSignup).mockReset()
@@ -84,6 +104,7 @@ describe('SetupRoute', () => {
       await screen.findByPlaceholderText('사용할 닉네임을 입력하세요'),
       ' 햇살여행자 '
     )
+    await confirmCurrentNickname(user)
     await user.click(screen.getByRole('button', { name: '서울' }))
     await user.click(screen.getByRole('button', { name: '자연' }))
     await user.click(screen.getByRole('button', { name: '자가용' }))
@@ -109,7 +130,7 @@ describe('SetupRoute', () => {
     expect(navigateToGoogleLogin).toHaveBeenCalledWith()
   })
 
-  it('keeps the registration token for a retry and starts login only after success', async () => {
+  it('invalidates nickname approval after a signup conflict and retries with the same token', async () => {
     const user = userEvent.setup()
     vi.mocked(submitIntegratedSignup)
       .mockRejectedValueOnce({ status: 409 })
@@ -132,15 +153,21 @@ describe('SetupRoute', () => {
       await screen.findByPlaceholderText('사용할 닉네임을 입력하세요'),
       '중복닉네임'
     )
+    await confirmCurrentNickname(user)
     await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
     await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      '회원가입을 완료하지 못했습니다.'
+      '가입 처리 중 닉네임이 사용되었습니다.'
     )
     expect(useAuthStore.getState().registrationToken).toBe('registration-token')
     expect(navigateToGoogleLogin).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole('button', { name: '다음 — 반려동물 등록' })
+    ).toBeDisabled()
 
+    await confirmCurrentNickname(user)
+    await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
     await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
 
     await waitFor(() => expect(submitIntegratedSignup).toHaveBeenCalledTimes(2))
@@ -173,6 +200,7 @@ describe('SetupRoute', () => {
       await screen.findByPlaceholderText('사용할 닉네임을 입력하세요'),
       '테스터'
     )
+    await confirmCurrentNickname(user)
     await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
     await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
 
@@ -209,6 +237,7 @@ describe('SetupRoute', () => {
       await screen.findByPlaceholderText('사용할 닉네임을 입력하세요'),
       '입력보존'
     )
+    await confirmCurrentNickname(user)
     await user.click(screen.getByRole('button', { name: '서울' }))
     await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
     await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
@@ -254,6 +283,37 @@ describe('SetupRoute', () => {
       await screen.findByPlaceholderText('사용할 닉네임을 입력하세요')
     ).toBeInTheDocument()
     expect(fetchSignupOptions).toHaveBeenCalledTimes(2)
+  })
+
+  it('shows a safe error and blocks progress when nickname checking fails', async () => {
+    const user = userEvent.setup()
+    vi.mocked(checkNicknameAvailability).mockRejectedValueOnce({
+      type: 'network',
+    })
+    window.history.replaceState(null, '', '/setup')
+    useAuthStore.setState({
+      registrationToken: 'registration-token',
+      setupStage: 'registration',
+      status: 'unauthenticated',
+    })
+
+    render(<SetupRoute />)
+
+    await user.type(
+      await screen.findByPlaceholderText('사용할 닉네임을 입력하세요'),
+      '확인실패'
+    )
+    await user.click(screen.getByRole('button', { name: '중복 확인' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '닉네임을 확인하지 못했습니다.'
+    )
+    expect(getNicknameAvailabilityErrorMessage).toHaveBeenCalledWith({
+      type: 'network',
+    })
+    expect(
+      screen.getByRole('button', { name: '다음 — 반려동물 등록' })
+    ).toBeDisabled()
   })
 
   it('redirects direct setup access without a valid flow to login', async () => {

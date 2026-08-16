@@ -4,7 +4,9 @@ import type {
 } from 'axios'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  checkNicknameAvailability,
   fetchSignupOptions,
+  getNicknameAvailabilityErrorMessage,
   getSignupErrorMessage,
   submitIntegratedSignup,
 } from '@/features/auth/api/signup-api'
@@ -31,6 +33,38 @@ afterEach(() => {
 })
 
 describe('integrated signup API', () => {
+  it('checks nickname availability with the documented GET query', async () => {
+    let requestMethod: string | undefined
+    let requestUrl = ''
+    let requestParams: unknown
+    let requestBody: unknown
+    publicApiClient.defaults.adapter = async (config) => {
+      requestMethod = config.method
+      requestUrl = config.url ?? ''
+      requestParams = config.params
+      requestBody = config.data
+      return response(config, { nickname: '햇살이', available: true })
+    }
+
+    await expect(checkNicknameAvailability(' 햇살이 ')).resolves.toEqual({
+      nickname: '햇살이',
+      available: true,
+    })
+    expect(requestMethod).toBe('get')
+    expect(requestUrl).toBe('/users/nickname/availability')
+    expect(requestParams).toEqual({ nickname: '햇살이' })
+    expect(requestBody).toBeUndefined()
+  })
+
+  it('rejects a malformed nickname availability response', async () => {
+    publicApiClient.defaults.adapter = async (config) =>
+      response(config, { nickname: '햇살이', available: 'false' })
+
+    await expect(checkNicknameAvailability('햇살이')).rejects.toThrow(
+      'Invalid nickname availability response.'
+    )
+  })
+
   it('loads every public option source and combines the response', async () => {
     const requests: Array<{ method?: string; url: string }> = []
     publicApiClient.defaults.adapter = async (config) => {
@@ -118,5 +152,20 @@ describe('integrated signup API', () => {
     expect(getSignupErrorMessage({ status: 404 })).toContain('선택지가 변경')
     expect(getSignupErrorMessage({ type: 'network' })).toContain('네트워크')
     expect(getSignupErrorMessage({ status: 502 })).toContain('잠시 후')
+  })
+
+  it('maps nickname availability failures to safe user messages', () => {
+    expect(getNicknameAvailabilityErrorMessage({ type: 'network' })).toContain(
+      '네트워크'
+    )
+    expect(getNicknameAvailabilityErrorMessage({ type: 'timeout' })).toContain(
+      '서버'
+    )
+    expect(getNicknameAvailabilityErrorMessage({ status: 503 })).toContain(
+      '잠시 후'
+    )
+    expect(getNicknameAvailabilityErrorMessage({ status: 400 })).toContain(
+      '확인하지 못했습니다'
+    )
   })
 })
