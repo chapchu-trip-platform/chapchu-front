@@ -3,9 +3,18 @@ const pathId = (value: string) => encodeURIComponent(value)
 export const API_ENDPOINTS = {
   auth: {
     login: '/auth/login',
-    register: '/auth/register',
+    signup: '/auth/signup',
     refresh: '/auth/refresh',
     logout: '/auth/logout',
+  },
+  preferences: {
+    options: '/preferences/options',
+  },
+  breeds: {
+    list: '/breeds',
+  },
+  activities: {
+    list: '/activities',
   },
   users: {
     me: '/users/me',

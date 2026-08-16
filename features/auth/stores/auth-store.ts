@@ -14,12 +14,12 @@ interface AuthState {
   authNotice: 'logout-failed' | null
   registrationToken: string | null
   sessionEpoch: number
-  setupStage: 'registration' | 'pet' | null
+  setupStage: 'registration' | null
   status: AuthStatus
   setAccessToken: (accessToken: string) => void
   setAuthNotice: (authNotice: 'logout-failed' | null) => void
   setRegistrationToken: (registrationToken: string | null) => void
-  setSetupStage: (setupStage: 'registration' | 'pet' | null) => void
+  setSetupStage: (setupStage: 'registration' | null) => void
   setStatus: (status: AuthStatus) => void
   startDemoSession: () => void
   clearSession: () => void

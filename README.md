@@ -78,6 +78,12 @@ The frontend keeps only a short-lived, one-time, non-credential transaction
 marker in the initiating tab's `sessionStorage` and rejects unsolicited callback
 links that do not have that marker.
 
+New users load signup choices from `/preferences/options`, `/breeds`, and
+`/activities`, then submit nickname, preferences, and optional pets together
+through `POST /auth/signup`. After a successful `201 Created` response, the
+frontend starts a fresh Google login to receive the first access token. This
+signup flow is separate from access-token refresh.
+
 ## Project Structure
 
 ```txt

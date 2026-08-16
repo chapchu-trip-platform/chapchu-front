@@ -27,6 +27,7 @@ describe('AuthCallbackRoute', () => {
       registrationToken: 'stale-registration-token',
       setupStage: 'registration',
     })
+    sessionStorage.setItem('chapchu.auth.post-login-destination', 'pet-setup')
     beginOAuthTransaction()
     window.history.replaceState(null, '', '/auth/callback#access_token=test-jwt')
 
@@ -37,18 +38,6 @@ describe('AuthCallbackRoute', () => {
     expect(useAuthStore.getState().registrationToken).toBeNull()
     expect(useAuthStore.getState().setupStage).toBeNull()
     expect(window.location.hash).toBe('')
-  })
-
-  it('continues to the fixed pet setup route after registration', async () => {
-    sessionStorage.setItem('chapchu.auth.post-login-destination', 'pet-setup')
-    beginOAuthTransaction()
-    window.history.replaceState(null, '', '/auth/callback#access_token=test-jwt')
-
-    render(<AuthCallbackRoute />)
-
-    await waitFor(() =>
-      expect(mockRouter.replace).toHaveBeenCalledWith('/setup?step=pet')
-    )
     expect(sessionStorage).toHaveLength(0)
   })
 

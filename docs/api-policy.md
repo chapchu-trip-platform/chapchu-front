@@ -42,7 +42,12 @@ Google OAuth is delegated to the `chapchu-api` BFF:
 - the callback scrubs either credential from the address before routing to `/home` or `/setup`
 - a short-lived, one-time, non-credential transaction marker in the initiating tab's
   `sessionStorage` is required and consumed before either callback result is accepted
-- registration uses `POST /auth/register`
+- signup choices use unauthenticated `GET /preferences/options`, `GET /breeds`,
+  and `GET /activities`; database IDs must never be hard-coded
+- integrated registration uses one unauthenticated `POST /auth/signup` request with
+  `registrationToken`, user preferences, and optional pets
+- successful signup returns `201 Created` with `userId`, `nickname`, `email`, and
+  ordered `petIds`, then the frontend starts a fresh `/auth/login` navigation
 - refresh uses `POST /auth/refresh`
 - logout uses `POST /auth/logout`
 
@@ -73,9 +78,12 @@ UI copy should stay separate from normalized API error types so screens can choo
 OAuth endpoint paths and response fields follow the published chapchu API docs.
 Other service endpoint paths remain placeholders until their feature integration.
 
-The OAuth patch registers only the nickname required by `POST /auth/register`.
-Preference and pet inputs remain prototype UI until their service API request
-models are integrated; they must not be treated as persisted signup data yet.
+Integrated signup is transactional. For retryable failures, the registration token
+is retained in memory so the same form can retry within its 10-minute TTL. A `401`
+means the token is expired or invalid, so the frontend clears it and starts a fresh
+Google login. A successful signup also clears it and starts a fresh login to obtain
+the first access token. Access-token refresh is not part of this pre-authentication
+signup request and remains isolated in the session API client.
 
 When backend response shapes are finalized, add typed response models and feature-level mapper functions instead of coupling screens directly to API payloads.
 

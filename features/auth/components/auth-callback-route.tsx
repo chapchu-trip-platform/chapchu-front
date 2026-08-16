@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button'
 import { readAuthCallback } from '@/features/auth/lib/callback-params'
 import {
   clearPostLoginDestination,
-  consumePostLoginDestination,
 } from '@/features/auth/lib/post-login-destination'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
 import { consumeOAuthTransaction } from '@/features/auth/lib/oauth-transaction'
@@ -42,7 +41,8 @@ export default function AuthCallbackRoute() {
     }
 
     useAuthStore.getState().setAccessToken(result.token)
-    router.replace(consumePostLoginDestination())
+    clearPostLoginDestination()
+    router.replace('/home')
   }, [router])
 
   if (failed) {
