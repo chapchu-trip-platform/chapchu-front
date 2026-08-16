@@ -56,6 +56,8 @@ Google OAuth is delegated to the `chapchu-api` BFF:
   ordered `petIds`, then the frontend starts a fresh `/auth/login` navigation
 - refresh uses `POST /auth/refresh`
 - logout uses `POST /auth/logout`
+- logout clears the in-memory access token, registration token, and setup state
+  before awaiting the BFF response; the BFF response removes the HttpOnly refresh cookie
 
 The access token is stored only in the non-persisted auth store and attached to
 protected API calls as `Authorization: Bearer {access_token}`.

@@ -27,12 +27,16 @@ export function navigateToGoogleLogin() {
 }
 
 export async function logout() {
+  clearPostLoginDestination()
+  useAuthStore.getState().setAuthNotice(null)
+  // Revoke every client-held credential before waiting for the cookie logout request.
+  // This also advances the session epoch so an in-flight refresh cannot restore a token.
+  useAuthStore.getState().clearSession()
+
   try {
     await sessionApiClient.post(API_ENDPOINTS.auth.logout)
   } catch (error) {
     useAuthStore.getState().setAuthNotice('logout-failed')
     throw error
-  } finally {
-    useAuthStore.getState().clearSession()
   }
 }
