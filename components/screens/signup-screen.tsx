@@ -1,12 +1,13 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { ChevronDown, Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import TopBar from '@/components/top-bar'
 import { Button } from '@/components/ui/button'
 import { ChoiceChip } from '@/components/ui/choice-chip'
 import { IconButton } from '@/components/ui/icon-button'
-import { Input, inputVariants } from '@/components/ui/input'
+import { Input } from '@/components/ui/input'
+import { BreedCombobox } from '@/features/auth/components/breed-combobox'
 import type {
   PetSize,
   NicknameAvailabilityResponse,
@@ -484,31 +485,14 @@ export default function SignupScreen({
                 <label className="mb-2 block text-[13px] font-semibold text-deep-brown">
                   견종
                 </label>
-                <div className="relative">
-                  <select
-                    aria-label="견종"
-                    value={pet.breedId ?? ''}
-                    onChange={(event) =>
-                      updatePet(
-                        activePetIdx,
-                        'breedId',
-                        event.target.value ? Number(event.target.value) : null
-                      )
-                    }
-                    className={cn(
-                      inputVariants({ size: 'default' }),
-                      'appearance-none pr-10'
-                    )}
-                  >
-                    <option value="">견종 선택</option>
-                    {options.breeds.map((breed) => (
-                      <option key={breed.id} value={breed.id}>
-                        {breed.name}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-warm-gray" />
-                </div>
+                <BreedCombobox
+                  key={activePetIdx}
+                  breeds={options.breeds}
+                  value={pet.breedId}
+                  onChange={(breedId) =>
+                    updatePet(activePetIdx, 'breedId', breedId)
+                  }
+                />
               </div>
               <div className="w-24">
                 <label className="mb-2 block text-[13px] font-semibold text-deep-brown">

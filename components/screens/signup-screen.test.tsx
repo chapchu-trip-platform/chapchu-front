@@ -28,6 +28,17 @@ async function confirmCurrentNickname(
   await screen.findByRole('button', { name: '확인 완료' })
 }
 
+async function selectBreed(
+  user: ReturnType<typeof userEvent.setup>,
+  searchText: string,
+  breedName: string
+) {
+  const input = screen.getByRole('combobox', { name: '견종' })
+  await user.clear(input)
+  await user.type(input, searchText)
+  await user.click(screen.getByRole('option', { name: breedName }))
+}
+
 afterEach(cleanup)
 
 describe('SignupScreen', () => {
@@ -96,7 +107,7 @@ describe('SignupScreen', () => {
     await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
 
     await user.type(screen.getByPlaceholderText('반려동물 이름'), ' 초코 ')
-    await user.selectOptions(screen.getByRole('combobox', { name: '견종' }), '7')
+    await selectBreed(user, '골든', '골든리트리버')
     await user.type(screen.getByPlaceholderText('3'), '3')
     await user.click(screen.getByRole('button', { name: '중형' }))
     await user.click(screen.getByRole('button', { name: '산책' }))
@@ -174,7 +185,7 @@ describe('SignupScreen', () => {
     )
     expect(onSubmit).not.toHaveBeenCalled()
 
-    await user.selectOptions(screen.getByRole('combobox', { name: '견종' }), '7')
+    await selectBreed(user, '골든', '골든리트리버')
     await user.type(screen.getByPlaceholderText('3'), '3')
     await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
 
