@@ -73,6 +73,16 @@ API errors are normalized into these types:
 
 UI copy should stay separate from normalized API error types so screens can choose context-appropriate messages.
 
+## Development Diagnostics
+
+During local development, `/dev/diagnostics` shows sanitized auth-store changes and
+Axios request/response events from other app tabs through an in-memory
+`BroadcastChannel`. It keeps at most 200 events and does not persist them.
+
+The route returns not found in production. Access tokens, registration tokens,
+Authorization headers, cookies, passwords, and similarly sensitive fields are
+redacted before events are displayed or written to the development console.
+
 ## Backend Assumptions
 
 OAuth endpoint paths and response fields follow the published chapchu API docs.

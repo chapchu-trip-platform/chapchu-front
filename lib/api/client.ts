@@ -5,6 +5,11 @@ import { normalizeApiError } from '@/lib/api/errors'
 import { API_ENDPOINTS } from '@/lib/api/endpoints'
 import { redirectToLogin } from '@/features/auth/lib/auth-navigation'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
+import {
+  recordApiError,
+  recordApiRequest,
+  recordApiResponse,
+} from '@/features/devtools/lib/dev-diagnostics'
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim()
 
@@ -68,11 +73,17 @@ apiClient.interceptors.request.use((config) => {
     config.headers = headers
   }
 
-  return config
+  return recordApiRequest('authenticated', config)
 })
 
-publicApiClient.interceptors.request.use(requireConfiguredBaseUrl)
-sessionApiClient.interceptors.request.use(requireConfiguredBaseUrl)
+publicApiClient.interceptors.request.use((config) => {
+  requireConfiguredBaseUrl(config)
+  return recordApiRequest('public', config)
+})
+sessionApiClient.interceptors.request.use((config) => {
+  requireConfiguredBaseUrl(config)
+  return recordApiRequest('session', config)
+})
 
 interface AccessTokenResponse {
   access_token: string
@@ -116,8 +127,9 @@ function canReplayRequest(config: RetryableConfig) {
 }
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => recordApiResponse('authenticated', response),
   async (error) => {
+    recordApiError('authenticated', error)
     const config = error.config as RetryableConfig | undefined
 
     if (error.response?.status === 401 && config?._authRetry) {
@@ -153,6 +165,17 @@ apiClient.interceptors.response.use(
 )
 
 publicApiClient.interceptors.response.use(
-  (response) => response,
-  (error) => Promise.reject(normalizeApiError(error))
+  (response) => recordApiResponse('public', response),
+  (error) => {
+    recordApiError('public', error)
+    return Promise.reject(normalizeApiError(error))
+  }
+)
+
+sessionApiClient.interceptors.response.use(
+  (response) => recordApiResponse('session', response),
+  (error) => {
+    recordApiError('session', error)
+    return Promise.reject(error)
+  }
 )
