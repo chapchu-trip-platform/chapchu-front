@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  agentRules: false,
   async headers() {
     const sensitiveRouteHeaders = [
       { key: 'Cache-Control', value: 'no-store' },
