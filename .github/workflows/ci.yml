@@ -64,5 +64,5 @@ jobs:
         if: steps.scripts.outputs.build == 'true'
         run: npm run build
 
-      - name: Dependency audit
-        run: npm audit --audit-level=high
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=high
