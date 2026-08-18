@@ -19,5 +19,5 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {
-  args: { onLogin: () => undefined },
+  args: { onGoogleLogin: () => undefined, onLogin: () => undefined },
 }
