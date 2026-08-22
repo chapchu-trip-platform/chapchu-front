@@ -6,7 +6,7 @@ const TMAP_SDK_READY_INTERVAL_MS = 100
 let tmapSdkPromise: Promise<Tmapv2Namespace> | null = null
 
 function isTmapSdkReady() {
-  return Boolean(window.Tmapv2?.Map && window.Tmapv2.LatLng)
+  return Boolean(window.Tmapv2?.Map && window.Tmapv2.LatLng && window.Tmapv2.Marker)
 }
 
 function waitForTmapSdkReady() {

@@ -1,10 +1,11 @@
 'use client'
 
 import Image from 'next/image'
-import { MapPin, ThumbsUp, MessageCircle, Bookmark, Eye, ChevronRight, Star } from 'lucide-react'
+import { ThumbsUp, MessageCircle, Bookmark, Eye, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { InteractiveCard } from '@/components/ui/interactive-card'
 import WeatherCard from '@/features/home/components/weather-card'
+import TmapMap from '@/features/map/components/tmap-map'
 import type { CurrentWeather, WeatherLoadStatus } from '@/types/weather'
 
 interface HomeScreenProps {
@@ -44,6 +45,11 @@ const nearbyPlaces = [
     tags: ['레스토랑', '반려동물 동반'],
   },
 ]
+
+const HOME_MAP_LOCATION = {
+  center: { lat: 37.5446, lng: 127.0567 },
+  label: '성수동 기준 · 예시 위치',
+} as const
 
 const hotPosts = [
   {
@@ -103,31 +109,13 @@ export default function HomeScreen({
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
       {/* Current Location Map Card */}
       <div className="mx-4 mt-4 rounded-card overflow-hidden shadow-sm relative h-44 bg-sky-blue/30">
-        {/* Fake map background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-sky-blue/20 to-sage-green/10">
-          {/* Grid lines */}
-          {[0,1,2,3,4].map(i => (
-            <div key={i} className="absolute w-full h-px bg-white/30" style={{ top: `${i * 25}%` }} />
-          ))}
-          {[0,1,2,3,4].map(i => (
-            <div key={i} className="absolute h-full w-px bg-white/30" style={{ left: `${i * 25}%` }} />
-          ))}
-          {/* Roads */}
-          <div className="absolute top-1/2 w-full h-2 bg-white/40 -translate-y-1/2 rounded" />
-          <div className="absolute left-1/3 h-full w-2 bg-white/40 rounded" />
-        </div>
-        {/* Location badge */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1">
-          <div className="w-12 h-12 rounded-full bg-sage-green shadow-lg flex items-center justify-center pulse-dot">
-            <MapPin className="w-6 h-6 text-white" />
-          </div>
-        </div>
-        {/* Location pill */}
-        <div className="absolute bottom-3 left-3 right-3 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1.5 flex items-center gap-2">
-          <MapPin className="w-3.5 h-3.5 text-sage-green flex-shrink-0" />
-          <span className="text-[12px] text-deep-brown font-medium truncate">서울 성동구 성수동 2가</span>
-          <ChevronRight className="w-3.5 h-3.5 text-warm-gray ml-auto flex-shrink-0" />
-        </div>
+        <TmapMap
+          center={HOME_MAP_LOCATION.center}
+          zoom={15}
+          locationLabel={HOME_MAP_LOCATION.label}
+          showMarker
+          className="min-h-0"
+        />
       </div>
 
       {/* Weather Card */}
