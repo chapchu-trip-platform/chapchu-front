@@ -48,6 +48,7 @@ bun-debug.log*
 *.md
 !README.md
 !docs/api-policy.md
+!docs/home-development-plan.md
 
 # testing
 coverage/

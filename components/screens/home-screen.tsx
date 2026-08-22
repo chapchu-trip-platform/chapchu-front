@@ -1,16 +1,18 @@
 'use client'
 
 import Image from 'next/image'
-import { MapPin, Wind, Droplets, Sun, CloudSun, ThumbsUp, MessageCircle, Bookmark, Eye, ChevronRight, Star } from 'lucide-react'
+import { MapPin, ThumbsUp, MessageCircle, Bookmark, Eye, ChevronRight, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { InteractiveCard } from '@/components/ui/interactive-card'
-import { NotificationButton } from '@/components/ui/notification-button'
+import WeatherCard from '@/features/home/components/weather-card'
+import type { CurrentWeather, WeatherLoadStatus } from '@/types/weather'
 
 interface HomeScreenProps {
   onStartTrip: () => void
   onViewPost: (postId: number) => void
-  hasUnreadNotifications?: boolean
-  onNotificationClick?: () => void
+  weather: CurrentWeather | null
+  weatherStatus: WeatherLoadStatus
+  onRetryWeather: () => void
 }
 
 const nearbyPlaces = [
@@ -82,8 +84,9 @@ const hotPosts = [
 export default function HomeScreen({
   onStartTrip,
   onViewPost,
-  hasUnreadNotifications = true,
-  onNotificationClick,
+  weather,
+  weatherStatus,
+  onRetryWeather,
 }: HomeScreenProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -94,12 +97,6 @@ export default function HomeScreen({
             <Image src="/images/paw-logo.png" alt="PawRoute" fill className="object-contain" />
           </div>
           <span className="text-[17px] font-bold text-deep-brown">PawRoute</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <NotificationButton
-            hasUnread={hasUnreadNotifications}
-            onClick={onNotificationClick}
-          />
         </div>
       </header>
 
@@ -134,36 +131,7 @@ export default function HomeScreen({
       </div>
 
       {/* Weather Card */}
-      <div className="mx-4 mt-3 p-4 bg-card-surface rounded-card border border-border shadow-sm">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-sky-blue/20 flex items-center justify-center">
-              <CloudSun className="w-6 h-6 text-sky-blue" />
-            </div>
-            <div>
-              <p className="text-[22px] font-bold text-deep-brown leading-none">23°C</p>
-              <p className="text-[12px] text-warm-gray mt-0.5">맑음 · 서울</p>
-            </div>
-          </div>
-          <div className="flex gap-3 text-right">
-            <div className="flex flex-col items-center gap-0.5">
-              <Wind className="w-3.5 h-3.5 text-warm-gray" />
-              <span className="text-[11px] text-warm-gray">2m/s</span>
-            </div>
-            <div className="flex flex-col items-center gap-0.5">
-              <Droplets className="w-3.5 h-3.5 text-sky-blue" />
-              <span className="text-[11px] text-warm-gray">45%</span>
-            </div>
-            <div className="flex flex-col items-center gap-0.5">
-              <Sun className="w-3.5 h-3.5 text-soft-orange" />
-              <span className="text-[11px] text-warm-gray">UV 3</span>
-            </div>
-          </div>
-        </div>
-        <div className="mt-3 pt-3 border-t border-border">
-          <p className="text-[13px] text-sage-green font-medium">오늘은 가볍게 걷기 좋은 날이에요.</p>
-        </div>
-      </div>
+      <WeatherCard status={weatherStatus} weather={weather} onRetry={onRetryWeather} />
 
       {/* Travel Start CTA */}
       <div className="mx-4 mt-3 p-4 bg-sage-green rounded-card shadow-md">
@@ -173,7 +141,11 @@ export default function HomeScreen({
             <h2 className="text-[18px] font-bold text-white leading-snug text-balance">
               오늘 어디로 떠날까요?
             </h2>
-            <p className="text-[12px] text-white/70 mt-1">날씨도 좋고, 바람도 선선해요</p>
+            <p className="text-[12px] text-white/70 mt-1">
+              {weatherStatus === 'success' && weather
+                ? weather.walkAdvice
+                : '날씨를 확인하고 산책을 준비해 보세요'}
+            </p>
           </div>
           <div className="relative w-16 h-16 flex-shrink-0">
             <Image
