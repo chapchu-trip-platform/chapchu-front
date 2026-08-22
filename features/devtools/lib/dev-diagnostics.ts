@@ -39,6 +39,18 @@ const SENSITIVE_KEY_FRAGMENTS = [
   'csrf',
   'xsrf',
 ]
+const SENSITIVE_EXACT_KEYS = new Set([
+  'accuracy',
+  'accuracymeters',
+  'coordinate',
+  'coordinates',
+  'lat',
+  'latitude',
+  'lng',
+  'location',
+  'longitude',
+  'position',
+])
 
 let eventSequence = 0
 let broadcastChannel: BroadcastChannel | null = null
@@ -57,7 +69,7 @@ function nextId(prefix: string) {
 
 function isSensitiveKey(key: string) {
   const normalizedKey = key.replace(/[^a-z0-9]/gi, '').toLowerCase()
-  return SENSITIVE_KEY_FRAGMENTS.some((fragment) =>
+  return SENSITIVE_EXACT_KEYS.has(normalizedKey) || SENSITIVE_KEY_FRAGMENTS.some((fragment) =>
     normalizedKey.includes(fragment)
   )
 }
@@ -83,7 +95,15 @@ function redactString(value: string, seen: WeakSet<object>, depth: number) {
       '$1$2=[REDACTED]'
     )
     .replace(
+      /(^|[?&#])((?:lat|lng|latitude|longitude|accuracy|accuracyMeters))=([^&#\s]*)/gi,
+      '$1$2=[REDACTED]'
+    )
+    .replace(
       /("(?:[^"\\]|\\.)*(?:token|secret|password|credential|authorization|cookie|api[_-]?key|private[_-]?key|csrf|xsrf)(?:[^"\\]|\\.)*"\s*:\s*)("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?|true|false|null)/gi,
+      '$1"[REDACTED]"'
+    )
+    .replace(
+      /("(?:lat|lng|latitude|longitude|accuracy|accuracyMeters|coordinate|coordinates|location|position)"\s*:\s*)("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?|true|false|null)/gi,
       '$1"[REDACTED]"'
     )
     .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '[REDACTED_JWT]')

@@ -120,3 +120,32 @@ Backend coordination still needs to confirm:
 - travel note draft save API
 - album save API
 - community post/comment API
+
+## Home And Location API Status
+
+The Chapchu API documentation updated on 2026-08-18 now publishes:
+
+- authenticated `GET /home`, returning `nickname` and `petNames`
+- authenticated `GET /places/nearby`, accepting `lat`, `lng`, and optional
+  `radiusMeters` query parameters
+
+The published documentation does not yet define APIs for location consent lookup,
+recording, or withdrawal. The frontend must not infer service consent from the browser
+or operating-system permission alone.
+
+Location acquisition preparation is isolated under `features/location`. The current
+web provider only exposes permission inspection and a one-shot foreground position
+request. Nothing invokes it automatically, and coordinates are not persisted.
+
+Before Home activates device location, backend coordination still needs to provide:
+
+- authenticated location-consent lookup, grant/decline, and withdrawal contracts
+- a decision on replacing the coordinate-bearing nearby-place query with a `POST`
+  Home context endpoint so precise coordinates do not enter URL, proxy, CDN, or access logs
+- production-wide redaction for coordinates in application logs, APM, analytics, and errors
+- the retention policy for consent evidence while keeping raw coordinates out of the user DB
+
+If the current `GET /places/nearby` contract is used temporarily, it must only run after
+explicit service consent and device permission, and the request coordinates must be reduced
+to the minimum precision needed for Home. The client diagnostics redact location fields and
+coordinate query parameters before any future integration.

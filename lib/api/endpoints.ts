@@ -16,6 +16,12 @@ export const API_ENDPOINTS = {
   activities: {
     list: '/activities',
   },
+  home: {
+    summary: '/home',
+  },
+  places: {
+    nearby: '/places/nearby',
+  },
   users: {
     me: '/users/me',
     nicknameAvailability: '/users/nickname/availability',
