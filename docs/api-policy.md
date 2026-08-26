@@ -123,15 +123,22 @@ Backend coordination still needs to confirm:
 
 ## Home And Location API Status
 
-The Chapchu API documentation updated on 2026-08-18 now publishes:
+The Chapchu API documentation updated on 2026-08-25 publishes:
 
+- public integrated signup `POST /auth/signup`, requiring
+  `user.locationConsent` as a boolean
 - authenticated `GET /home`, returning `nickname` and `petNames`
 - authenticated `GET /places/nearby`, accepting `lat`, `lng`, and optional
   `radiusMeters` query parameters
 
-The published documentation does not yet define APIs for location consent lookup,
-recording, or withdrawal. The frontend must not infer service consent from the browser
-or operating-system permission alone.
+The signup UI presents location collection/use and third-party provision as separate,
+required acknowledgements. The current backend contract can only receive one boolean, so
+the frontend sends `locationConsent: true` only after both acknowledgements are checked.
+Signup does not request the operating-system location permission or collect coordinates.
+
+The published documentation still does not define APIs for location-consent lookup,
+withdrawal, temporary suspension, or consent-history evidence. The frontend must not infer
+service consent from the browser or operating-system permission alone.
 
 Location acquisition preparation is isolated under `features/location`. The current
 web provider only exposes permission inspection and a one-shot foreground position
@@ -140,10 +147,18 @@ request. Nothing invokes it automatically, and coordinates are not persisted.
 Before Home activates device location, backend coordination still needs to provide:
 
 - authenticated location-consent lookup, grant/decline, and withdrawal contracts
+- separate consent evidence for collection/use and third-party provision, including policy
+  version and agreed/withdrawn timestamps; a single boolean is not sufficient audit evidence
 - a decision on replacing the coordinate-bearing nearby-place query with a `POST`
   Home context endpoint so precise coordinates do not enter URL, proxy, CDN, or access logs
 - production-wide redaction for coordinates in application logs, APM, analytics, and errors
 - the retention policy for consent evidence while keeping raw coordinates out of the user DB
+
+Before production release, legal and operations owners must finalize the service operator's
+legal name, address, contact channel, withdrawal procedure, exact external recipients, and
+recipient-specific retention periods. The UI copy is an implementation draft based on the
+current service design and is not a substitute for approved location-service terms or legal
+review.
 
 If the current `GET /places/nearby` contract is used temporarily, it must only run after
 explicit service consent and device permission, and the request coordinates must be reduced

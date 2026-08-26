@@ -68,6 +68,27 @@ async function completeRequiredPet(
   await user.click(screen.getByRole('button', { name: '산책' }))
 }
 
+async function continueToLocationConsentStep(
+  user: ReturnType<typeof userEvent.setup>
+) {
+  await user.click(screen.getByRole('button', { name: '다음 — 위치정보 동의' }))
+}
+
+async function acceptRequiredLocationConsents(
+  user: ReturnType<typeof userEvent.setup>
+) {
+  await user.click(
+    screen.getByRole('checkbox', {
+      name: /개인위치정보 수집·이용에 동의합니다/,
+    })
+  )
+  await user.click(
+    screen.getByRole('checkbox', {
+      name: /개인위치정보 제3자 제공에 동의합니다/,
+    })
+  )
+}
+
 afterEach(cleanup)
 
 describe('SignupScreen', () => {
@@ -136,7 +157,34 @@ describe('SignupScreen', () => {
     await user.type(screen.getByPlaceholderText('3'), '3')
     await user.click(screen.getByRole('button', { name: '중형' }))
     await user.click(screen.getByRole('button', { name: '산책' }))
-    await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
+    await continueToLocationConsentStep(user)
+
+    expect(screen.getByRole('heading', { name: '위치정보 이용 동의' })).toBeInTheDocument()
+    const completeButton = screen.getByRole('button', {
+      name: '완료 — 회원가입하기',
+    })
+    expect(completeButton).toBeDisabled()
+    const collectionConsent = screen.getByRole('checkbox', {
+      name: /개인위치정보 수집·이용에 동의합니다/,
+    })
+    const thirdPartyConsent = screen.getByRole('checkbox', {
+      name: /개인위치정보 제3자 제공에 동의합니다/,
+    })
+    await user.click(thirdPartyConsent)
+    expect(completeButton).toBeDisabled()
+    expect(onSubmit).not.toHaveBeenCalled()
+    await user.click(thirdPartyConsent)
+    await user.click(
+      collectionConsent
+    )
+    expect(completeButton).toBeDisabled()
+    await user.click(thirdPartyConsent)
+    expect(completeButton).toBeEnabled()
+    await user.click(collectionConsent)
+    expect(completeButton).toBeDisabled()
+    expect(onSubmit).not.toHaveBeenCalled()
+    await user.click(collectionConsent)
+    await user.click(completeButton)
 
     await waitFor(() =>
       expect(onSubmit).toHaveBeenCalledWith({
@@ -145,6 +193,7 @@ describe('SignupScreen', () => {
           regionIds: ['region-seoul'],
           themeIds: ['theme-nature'],
           transportMethodIds: ['transport-car', 'transport-walk'],
+          locationConsent: true,
         },
         pets: [
           {
@@ -171,7 +220,7 @@ describe('SignupScreen', () => {
     )
 
     await continueToPetStep(user)
-    await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
+    await user.click(screen.getByRole('button', { name: '다음 — 위치정보 동의' }))
 
     const modal = await screen.findByRole('alertdialog')
     expect(modal).toHaveTextContent('반려동물 1 이름')
@@ -195,7 +244,7 @@ describe('SignupScreen', () => {
 
     await continueToPetStep(user)
     await user.type(screen.getByPlaceholderText('반려동물 이름'), '초코')
-    await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
+    await user.click(screen.getByRole('button', { name: '다음 — 위치정보 동의' }))
 
     const modal = await screen.findByRole('alertdialog')
     expect(modal).toHaveTextContent('초코 견종')
@@ -207,6 +256,8 @@ describe('SignupScreen', () => {
     await selectBreed(user, '골든', '골든리트리버')
     await user.type(screen.getByPlaceholderText('3'), '3')
     await user.click(screen.getByRole('button', { name: '산책' }))
+    await continueToLocationConsentStep(user)
+    await acceptRequiredLocationConsents(user)
     await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce())
@@ -226,7 +277,7 @@ describe('SignupScreen', () => {
     await continueToPetStep(user)
     await completeRequiredPet(user, '초코')
     await user.click(screen.getByRole('button', { name: '반려동물 추가하기' }))
-    await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
+    await user.click(screen.getByRole('button', { name: '다음 — 위치정보 동의' }))
 
     const modal = await screen.findByRole('alertdialog')
     expect(modal).toHaveTextContent('반려동물 2 이름')
@@ -273,6 +324,53 @@ describe('SignupScreen', () => {
     expect(screen.getByText('사용할 수 있는 닉네임이에요.')).toBeInTheDocument()
     await user.click(nextButton)
     expect(screen.getByRole('heading', { name: '반려동물 정보' })).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '회원가입 2/3, 반려동물 정보'
+    )
+  })
+
+  it('announces each step and preserves consent when navigating back', async () => {
+    const user = userEvent.setup()
+    render(
+      <SignupScreen
+        options={options}
+        onCheckNickname={createNicknameCheck()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.getByText('회원가입 1/3, 기본 정보 입력', {
+        selector: '[aria-live="polite"]',
+      })
+    ).toBeInTheDocument()
+    await continueToPetStep(user)
+    await completeRequiredPet(user)
+    await continueToLocationConsentStep(user)
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '회원가입 3/3, 위치정보 이용 동의'
+    )
+    await acceptRequiredLocationConsents(user)
+
+    await user.click(screen.getByRole('button', { name: '뒤로 가기' }))
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '회원가입 2/3, 반려동물 정보'
+    )
+    await continueToLocationConsentStep(user)
+
+    expect(
+      screen.getByRole('checkbox', {
+        name: /개인위치정보 수집·이용에 동의합니다/,
+      })
+    ).toBeChecked()
+    expect(
+      screen.getByRole('checkbox', {
+        name: /개인위치정보 제3자 제공에 동의합니다/,
+      })
+    ).toBeChecked()
+    expect(
+      screen.getByRole('button', { name: '완료 — 회원가입하기' })
+    ).toBeEnabled()
   })
 
   it('invalidates a completed check when the nickname changes', async () => {
@@ -428,6 +526,8 @@ describe('SignupScreen', () => {
 
     await continueToPetStep(user, '경쟁닉네임')
     await completeRequiredPet(user)
+    await continueToLocationConsentStep(user)
+    await acceptRequiredLocationConsents(user)
     await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(

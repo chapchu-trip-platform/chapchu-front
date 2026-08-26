@@ -123,6 +123,24 @@ describe('development diagnostics redaction', () => {
     )
   })
 
+  it('redacts location consent from signup diagnostics', () => {
+    expect(
+      sanitizeDiagnosticValue({
+        registrationToken: 'signup-token',
+        user: {
+          nickname: '햇살여행자',
+          locationConsent: true,
+        },
+      })
+    ).toEqual({
+      registrationToken: '[REDACTED]',
+      user: {
+        nickname: '햇살여행자',
+        locationConsent: '[REDACTED]',
+      },
+    })
+  })
+
   it('sanitizes summaries before publishing them to listeners', () => {
     vi.spyOn(console, 'debug').mockImplementation(() => undefined)
     const listener = vi.fn()

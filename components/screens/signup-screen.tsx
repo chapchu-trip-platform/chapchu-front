@@ -8,6 +8,7 @@ import { ChoiceChip } from '@/components/ui/choice-chip'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { BreedCombobox } from '@/features/auth/components/breed-combobox'
+import LocationConsentStep from '@/features/auth/components/location-consent-step'
 import { RequiredFieldsModal } from '@/features/auth/components/required-fields-modal'
 import type {
   PetSize,
@@ -65,7 +66,7 @@ export default function SignupScreen({
   onCheckNickname,
   onSubmit,
 }: SignupScreenProps) {
-  const [step, setStep] = useState<'user' | 'pet'>('user')
+  const [step, setStep] = useState<'user' | 'pet' | 'location'>('user')
   const [nickname, setNickname] = useState('')
   const [nicknameCheckStatus, setNicknameCheckStatus] =
     useState<NicknameCheckStatus>('idle')
@@ -80,6 +81,10 @@ export default function SignupScreen({
   >([])
   const [pets, setPets] = useState<PetDraft[]>([createEmptyPet()])
   const [activePetIdx, setActivePetIdx] = useState(0)
+  const [locationCollectionConsent, setLocationCollectionConsent] =
+    useState(false)
+  const [locationThirdPartyConsent, setLocationThirdPartyConsent] =
+    useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [missingRequiredFields, setMissingRequiredFields] = useState<string[]>([])
@@ -216,7 +221,7 @@ export default function SignupScreen({
     }
   }
 
-  const handleComplete = async () => {
+  const handlePetContinue = () => {
     const missingFields: string[] = []
     let firstIncompletePetIndex = -1
 
@@ -262,6 +267,13 @@ export default function SignupScreen({
       return
     }
 
+    setFormError(null)
+    setStep('location')
+  }
+
+  const handleComplete = async () => {
+    if (!locationCollectionConsent || !locationThirdPartyConsent) return
+
     setSubmitting(true)
     setFormError(null)
 
@@ -278,6 +290,8 @@ export default function SignupScreen({
           transportMethodIds: selectedTransportMethodIds.filter((id) =>
             options.transportMethods.some((option) => option.id === id)
           ),
+          locationConsent:
+            locationCollectionConsent && locationThirdPartyConsent,
         },
         pets: pets.map((pet) => ({
           petName: pet.petName.trim(),
@@ -312,22 +326,32 @@ export default function SignupScreen({
   }
 
   const pet = pets[activePetIdx]
+  const stepTitle =
+    step === 'user'
+      ? '기본 정보 입력'
+      : step === 'pet'
+        ? '반려동물 정보'
+        : '위치정보 이용 동의'
+  const stepNumber = step === 'user' ? '1/3' : step === 'pet' ? '2/3' : '3/3'
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden bg-warm-beige">
       <TopBar
-        title={step === 'user' ? '기본 정보 입력' : '반려동물 정보'}
-        showBack={step === 'pet'}
+        title={stepTitle}
+        showBack={step !== 'user' && !submitting}
         onBack={() => {
           setFormError(null)
-          setStep('user')
+          setStep(step === 'location' ? 'pet' : 'user')
         }}
         rightAction={
           <span className="text-[12px] text-warm-gray">
-            {step === 'user' ? '1/2' : '2/2'}
+            {stepNumber}
           </span>
         }
       />
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        회원가입 {stepNumber}, {stepTitle}
+      </p>
 
       <div className="px-4 py-2">
         <div className="flex gap-1">
@@ -335,7 +359,13 @@ export default function SignupScreen({
           <div
             className={cn(
               'h-1 flex-1 rounded-full',
-              step === 'pet' ? 'bg-sage-green' : 'bg-border'
+              step !== 'user' ? 'bg-sage-green' : 'bg-border'
+            )}
+          />
+          <div
+            className={cn(
+              'h-1 flex-1 rounded-full',
+              step === 'location' ? 'bg-sage-green' : 'bg-border'
             )}
           />
         </div>
@@ -497,10 +527,11 @@ export default function SignupScreen({
               </div>
             </div>
           </div>
-        ) : (
+        ) : step === 'pet' ? (
           <div className="flex flex-col gap-5 pt-4">
             <p className="text-[12px] leading-relaxed text-warm-gray">
-              반려동물 정보는 필수 사항입니다. 모든 항목을 입력한 후 완료해주세요.
+              반려동물 정보는 필수 사항입니다. 모든 항목을 입력한 후 다음 단계로
+              이동해주세요.
             </p>
 
             {pets.length > 1 && (
@@ -671,6 +702,20 @@ export default function SignupScreen({
               </Button>
             )}
           </div>
+        ) : (
+          <LocationConsentStep
+            collectionConsent={locationCollectionConsent}
+            disabled={submitting}
+            thirdPartyConsent={locationThirdPartyConsent}
+            onCollectionConsentChange={(checked) => {
+              setLocationCollectionConsent(checked)
+              setFormError(null)
+            }}
+            onThirdPartyConsentChange={(checked) => {
+              setLocationThirdPartyConsent(checked)
+              setFormError(null)
+            }}
+          />
         )}
 
         {formError && (
@@ -690,10 +735,23 @@ export default function SignupScreen({
           >
             다음 — 반려동물 등록
           </Button>
+        ) : step === 'pet' ? (
+          <Button
+            onClick={handlePetContinue}
+            disabled={submitting}
+            fullWidth
+            size="lg"
+          >
+            다음 — 위치정보 동의
+          </Button>
         ) : (
           <Button
             onClick={handleComplete}
-            disabled={submitting}
+            disabled={
+              submitting ||
+              !locationCollectionConsent ||
+              !locationThirdPartyConsent
+            }
             fullWidth
             size="lg"
           >

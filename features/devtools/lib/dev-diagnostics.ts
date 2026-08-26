@@ -48,6 +48,7 @@ const SENSITIVE_EXACT_KEYS = new Set([
   'latitude',
   'lng',
   'location',
+  'locationconsent',
   'longitude',
   'position',
 ])
