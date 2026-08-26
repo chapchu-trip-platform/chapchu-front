@@ -48,7 +48,7 @@ export default function WeatherCard({ status, weather, onRetry }: WeatherCardPro
           <div className="h-12 w-12 animate-pulse rounded-full bg-sky-blue/15 motion-reduce:animate-none" />
           <div className="flex-1 space-y-2">
             <div className="h-5 w-24 animate-pulse rounded bg-warm-beige motion-reduce:animate-none" />
-            <p className="text-[12px] text-warm-gray">수성구 날씨를 불러오고 있어요.</p>
+            <p className="text-[12px] text-warm-gray">날씨를 불러오고 있어요.</p>
           </div>
         </div>
       </section>
@@ -116,7 +116,12 @@ export default function WeatherCard({ status, weather, onRetry }: WeatherCardPro
       </div>
       <div className="mt-3 border-t border-border pt-3">
         <p className="text-[13px] font-medium text-sage-green">{weather.walkAdvice}</p>
-        <p className="mt-1 text-[10px] text-warm-gray">기상청 제공 · 수성구 대표 지점 기준</p>
+        <p className="mt-1 text-[10px] text-warm-gray">
+          기상청 제공 ·{' '}
+          {weather.locationName === '현재 위치 주변'
+            ? '현재 위치 기상 격자 기준'
+            : '수성구 대표 지점 기준'}
+        </p>
       </div>
     </section>
   )

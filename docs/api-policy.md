@@ -128,6 +128,7 @@ The Chapchu API documentation updated on 2026-08-25 publishes:
 - public integrated signup `POST /auth/signup`, requiring
   `user.locationConsent` as a boolean
 - authenticated `GET /home`, returning `nickname` and `petNames`
+- authenticated `GET /posts?sort=popular`, returning recommendation-sorted post summaries
 - authenticated `GET /places/nearby`, accepting `lat`, `lng`, and optional
   `radiusMeters` query parameters
 
@@ -136,17 +137,31 @@ required acknowledgements. The current backend contract can only receive one boo
 the frontend sends `locationConsent: true` only after both acknowledgements are checked.
 Signup does not request the operating-system location permission or collect coordinates.
 
-The published documentation still does not define APIs for location-consent lookup,
-withdrawal, temporary suspension, or consent-history evidence. The frontend must not infer
-service consent from the browser or operating-system permission alone.
+Successful integrated signup is treated as proof that the required service-location
+consent was completed; the frontend signup adapter rejects any request whose
+`locationConsent` is not `true`. The published documentation still does not define APIs
+for later withdrawal, temporary suspension, or consent-history evidence. Browser or
+operating-system permission remains a separate device-level control.
 
-Location acquisition preparation is isolated under `features/location`. The current
-web provider only exposes permission inspection and a one-shot foreground position
-request. Nothing invokes it automatically, and coordinates are not persisted.
+Location acquisition is isolated under `features/location`. Home and Map automatically
+start a fresh one-shot foreground request when their route is entered. The browser or
+operating system may still show its own device-permission prompt. The resulting latitude,
+longitude, accuracy, and capture time are held only in the non-persisted Zustand store
+and are reset on logout; they are not written to browser storage or the Chapchu backend.
+Home passes the precise position only to the in-browser TMAP component.
+Weather converts it in the browser to a KMA 5 km grid and sends only `nx` and `ny` to the
+internal weather Route Handler. If the position is unavailable, weather falls back to
+the existing Suseong-gu representative point. Dynamic grid weather omits UV until a
+trustworthy coordinate-to-area-code mapping is available.
 
-Before Home activates device location, backend coordination still needs to provide:
+Home now reads `petNames` from `GET /home` and shows the first name plus the remaining
+count. Its three HOT cards come from `GET /posts?sort=popular`. Because that list contract
+only includes a `photoId`, not a displayable image URL, the frontend uses local fallback
+images and does not invent author, comment, or bookmark values.
 
-- authenticated location-consent lookup, grant/decline, and withdrawal contracts
+Before production location rollout, backend coordination still needs to provide:
+
+- location-consent withdrawal, temporary suspension, and status contracts for account settings
 - separate consent evidence for collection/use and third-party provision, including policy
   version and agreed/withdrawn timestamps; a single boolean is not sufficient audit evidence
 - a decision on replacing the coordinate-bearing nearby-place query with a `POST`

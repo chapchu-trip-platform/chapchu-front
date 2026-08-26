@@ -178,12 +178,14 @@ export function mapKmaWeather({
   uvItems,
   baseTimes,
   now,
+  locationName = SUSEONG_GU_WEATHER_LOCATION.name,
 }: {
   observationItems: ObservationItem[]
   forecastItems: ForecastItem[]
   uvItems: UvItem[]
   baseTimes: KmaBaseTimes
   now: Date
+  locationName?: string
 }): CurrentWeather {
   const observationValues = new Map(
     observationItems
@@ -214,9 +216,7 @@ export function mapKmaWeather({
     forecastAt: selectedForecast
       ? toKstIso(selectedForecast.timestamp.slice(0, 8), selectedForecast.timestamp.slice(8))
       : null,
-    locationName: SUSEONG_GU_WEATHER_LOCATION.name,
-    latitude: SUSEONG_GU_WEATHER_LOCATION.latitude,
-    longitude: SUSEONG_GU_WEATHER_LOCATION.longitude,
+    locationName,
     temperatureC,
     conditionCode,
     conditionLabel,

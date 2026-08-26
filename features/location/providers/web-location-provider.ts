@@ -16,7 +16,7 @@ function isWebLocationAvailable() {
   return (
     typeof window !== 'undefined' &&
     typeof navigator !== 'undefined' &&
-    window.isSecureContext !== false &&
+    window.isSecureContext === true &&
     'geolocation' in navigator
   )
 }

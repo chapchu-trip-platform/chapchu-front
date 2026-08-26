@@ -21,6 +21,7 @@ declare global {
     width?: string
     height?: string
     zoom?: number
+    zoomControl?: boolean
   }
 
   type TmapMapInstance = {

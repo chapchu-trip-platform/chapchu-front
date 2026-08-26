@@ -15,8 +15,6 @@ export interface CurrentWeather {
   observedAt: string
   forecastAt: string | null
   locationName: string
-  latitude: number
-  longitude: number
   temperatureC: number | null
   conditionCode: WeatherConditionCode
   conditionLabel: string

@@ -21,6 +21,7 @@ interface TmapMapProps {
   className?: string
   locationLabel?: string
   showMarker?: boolean
+  showZoomControl?: boolean
 }
 
 export default function TmapMap({
@@ -29,6 +30,7 @@ export default function TmapMap({
   className = '',
   locationLabel = '서울 시청 기준',
   showMarker = false,
+  showZoomControl = true,
 }: TmapMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [status, setStatus] = useState<TmapLoadStatus>('loading')
@@ -50,6 +52,7 @@ export default function TmapMap({
           width: '100%',
           height: '100%',
           zoom,
+          zoomControl: showZoomControl,
         })
 
         if (showMarker) {
@@ -75,7 +78,7 @@ export default function TmapMap({
       mapInstance?.remove?.()
       mapRoot?.replaceChildren()
     }
-  }, [center.lat, center.lng, locationLabel, showMarker, zoom])
+  }, [center.lat, center.lng, locationLabel, showMarker, showZoomControl, zoom])
 
   return (
     <div

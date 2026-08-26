@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import AuthCallbackRoute from '@/features/auth/components/auth-callback-route'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
+import { useLocationStore } from '@/features/location/stores/location-store'
 import { mockRouter, resetNextNavigationMocks } from '@/test/mocks/next-navigation'
 import { beginOAuthTransaction } from '@/features/auth/lib/oauth-transaction'
 
@@ -18,6 +19,7 @@ afterEach(() => {
     setupStage: null,
     status: 'idle',
   })
+  useLocationStore.getState().reset()
   resetNextNavigationMocks()
 })
 
@@ -28,6 +30,17 @@ describe('AuthCallbackRoute', () => {
       setupStage: 'registration',
     })
     sessionStorage.setItem('chapchu.auth.post-login-destination', 'pet-setup')
+    useLocationStore.setState({
+      position: {
+        latitude: 35.858,
+        longitude: 128.63,
+        accuracyMeters: 20,
+        capturedAt: '2026-08-26T05:00:00.000Z',
+        precision: 'precise',
+        source: 'web',
+      },
+      status: 'success',
+    })
     beginOAuthTransaction()
     window.history.replaceState(null, '', '/auth/callback#access_token=test-jwt')
 
@@ -37,6 +50,7 @@ describe('AuthCallbackRoute', () => {
     expect(useAuthStore.getState().accessToken).toBe('test-jwt')
     expect(useAuthStore.getState().registrationToken).toBeNull()
     expect(useAuthStore.getState().setupStage).toBeNull()
+    expect(useLocationStore.getState().position).toBeNull()
     expect(window.location.hash).toBe('')
     expect(sessionStorage).toHaveLength(0)
   })

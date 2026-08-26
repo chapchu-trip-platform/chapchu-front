@@ -22,8 +22,24 @@ interface KmaEnvelope<T> {
   }
 }
 
-let weatherCache: { expiresAt: number; weather: CurrentWeather } | null = null
-let pendingWeather: Promise<CurrentWeather> | null = null
+export interface KmaWeatherLocation {
+  name: string
+  gridX: number
+  gridY: number
+  areaNo?: string
+}
+
+const MAX_WEATHER_CACHE_ENTRIES = 50
+const MAX_PENDING_WEATHER_REQUESTS = 20
+const weatherCache = new Map<string, { expiresAt: number; weather: CurrentWeather }>()
+const pendingWeather = new Map<string, Promise<CurrentWeather>>()
+
+export class WeatherRequestCapacityError extends Error {
+  constructor() {
+    super('Too many pending weather requests.')
+    this.name = 'WeatherRequestCapacityError'
+  }
+}
 
 function asArray<T>(item: T | T[] | undefined): T[] {
   if (item === undefined) return []
@@ -72,19 +88,21 @@ async function requestKma<T>(url: URL, request: typeof fetch) {
   }
 }
 
-async function requestCurrentSuseongWeather({
+async function requestCurrentWeather({
   serviceKey,
+  location,
   now = new Date(),
   request = fetch,
 }: {
   serviceKey: string
+  location: KmaWeatherLocation
   now?: Date
   request?: typeof fetch
 }) {
   const baseTimes = getKmaBaseTimes(now)
   const commonGridParams = {
-    nx: String(SUSEONG_GU_WEATHER_LOCATION.gridX),
-    ny: String(SUSEONG_GU_WEATHER_LOCATION.gridY),
+    nx: String(location.gridX),
+    ny: String(location.gridY),
   }
 
   const observationUrl = buildUrl(SHORT_FORECAST_ORIGIN, 'getUltraSrtNcst', serviceKey, {
@@ -99,39 +117,72 @@ async function requestCurrentSuseongWeather({
     base_time: baseTimes.forecast.baseTime,
     ...commonGridParams,
   })
-  const uvUrl = buildUrl(LIVING_WEATHER_ORIGIN, 'getUVIdxV5', serviceKey, {
-    numOfRows: '10',
-    areaNo: SUSEONG_GU_WEATHER_LOCATION.areaNo,
-    time: baseTimes.uv.time,
-  })
+  const uvRequest = location.areaNo
+    ? requestKma<UvItem>(
+        buildUrl(LIVING_WEATHER_ORIGIN, 'getUVIdxV5', serviceKey, {
+          numOfRows: '10',
+          areaNo: location.areaNo,
+          time: baseTimes.uv.time,
+        }),
+        request
+      ).catch(() => [])
+    : Promise.resolve([] as UvItem[])
 
   const [observationItems, forecastItems, uvItems] = await Promise.all([
     requestKma<ObservationItem>(observationUrl, request),
     requestKma<ForecastItem>(forecastUrl, request).catch(() => []),
-    requestKma<UvItem>(uvUrl, request).catch(() => []),
+    uvRequest,
   ])
 
-  return mapKmaWeather({ observationItems, forecastItems, uvItems, baseTimes, now })
+  return mapKmaWeather({
+    observationItems,
+    forecastItems,
+    uvItems,
+    baseTimes,
+    now,
+    locationName: location.name,
+  })
 }
 
 export function clearKmaWeatherCache() {
-  weatherCache = null
-  pendingWeather = null
+  weatherCache.clear()
+  pendingWeather.clear()
 }
 
-export function getCurrentSuseongWeather(serviceKey: string) {
-  const now = Date.now()
-  if (weatherCache && weatherCache.expiresAt > now) return Promise.resolve(weatherCache.weather)
-  if (pendingWeather) return pendingWeather
+function createCacheKey(location: KmaWeatherLocation) {
+  return [location.gridX, location.gridY, location.areaNo ?? '-', location.name].join(':')
+}
 
-  pendingWeather = requestCurrentSuseongWeather({ serviceKey })
+export function getCurrentWeather(
+  serviceKey: string,
+  location: KmaWeatherLocation = SUSEONG_GU_WEATHER_LOCATION
+) {
+  const now = Date.now()
+  const cacheKey = createCacheKey(location)
+  const cached = weatherCache.get(cacheKey)
+  if (cached && cached.expiresAt > now) return Promise.resolve(cached.weather)
+  const pending = pendingWeather.get(cacheKey)
+  if (pending) return pending
+  if (pendingWeather.size >= MAX_PENDING_WEATHER_REQUESTS) {
+    throw new WeatherRequestCapacityError()
+  }
+
+  const request = requestCurrentWeather({ serviceKey, location })
     .then((weather) => {
-      weatherCache = { weather, expiresAt: Date.now() + WEATHER_CACHE_TTL_MS }
+      if (weatherCache.size >= MAX_WEATHER_CACHE_ENTRIES) {
+        const oldestKey = weatherCache.keys().next().value
+        if (oldestKey) weatherCache.delete(oldestKey)
+      }
+      weatherCache.set(cacheKey, {
+        weather,
+        expiresAt: Date.now() + WEATHER_CACHE_TTL_MS,
+      })
       return weather
     })
     .finally(() => {
-      pendingWeather = null
+      pendingWeather.delete(cacheKey)
     })
 
-  return pendingWeather
+  pendingWeather.set(cacheKey, request)
+  return request
 }

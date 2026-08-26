@@ -63,6 +63,7 @@ describe('TmapMap', () => {
       width: '100%',
       height: '100%',
       zoom: 15,
+      zoomControl: true,
     })
     expect(Marker).toHaveBeenCalledWith({
       position: mapCenter,
@@ -75,5 +76,24 @@ describe('TmapMap', () => {
     expect(mapInstance.destroy).toHaveBeenCalledOnce()
     expect(mapInstance.remove).toHaveBeenCalledOnce()
     expect(mapContainer).toBeEmptyDOMElement()
+  })
+
+  it('can hide the TMAP zoom control for the compact Home preview', async () => {
+    const Map = vi.fn(function MapConstructor() {
+      return { destroy: vi.fn(), remove: vi.fn() }
+    })
+    vi.mocked(loadTmapSdk).mockResolvedValue({
+      LatLng: vi.fn(function LatLng() {}),
+      Map,
+      Marker: vi.fn(),
+    } as unknown as Tmapv2Namespace)
+
+    render(<TmapMap showZoomControl={false} />)
+    await screen.findByText('서울 시청 기준')
+
+    expect(Map).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({ zoomControl: false })
+    )
   })
 })

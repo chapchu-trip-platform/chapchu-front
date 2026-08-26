@@ -7,8 +7,6 @@ const weather: CurrentWeather = {
   observedAt: '2026-08-22T12:00:00+09:00',
   forecastAt: '2026-08-22T13:00:00+09:00',
   locationName: '대구광역시 수성구',
-  latitude: 35.8552083333333,
-  longitude: 128.632866666666,
   temperatureC: 27,
   conditionCode: 'CLEAR',
   conditionLabel: '맑음',
@@ -23,7 +21,7 @@ const weather: CurrentWeather = {
 describe('WeatherCard', () => {
   it('shows a loading state without blocking the rest of Home', () => {
     render(<WeatherCard status="loading" weather={null} onRetry={() => undefined} />)
-    expect(screen.getByText('수성구 날씨를 불러오고 있어요.')).toBeInTheDocument()
+    expect(screen.getByText('날씨를 불러오고 있어요.')).toBeInTheDocument()
   })
 
   it('renders normalized KMA weather data', () => {

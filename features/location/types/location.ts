@@ -37,6 +37,6 @@ export interface LocationRequestOptions {
 
 export interface LocationProvider {
   checkPermission(): Promise<LocationPermissionState>
-  /** Call only after an explicit user action when the current permission can prompt. */
+  /** Call only for a user whose required Chapchu service-location consent is complete. */
   requestCurrentPosition(options?: LocationRequestOptions): Promise<LocationResult>
 }
