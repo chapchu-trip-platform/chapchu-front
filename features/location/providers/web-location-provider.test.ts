@@ -45,7 +45,7 @@ describe('webLocationProvider', () => {
     expect(getCurrentPosition).not.toHaveBeenCalled()
   })
 
-  it('requests one foreground position with privacy-focused Home defaults', async () => {
+  it('requests one foreground position with high-accuracy Home defaults', async () => {
     const getCurrentPosition = vi.fn((success: PositionCallback) => {
       success({
         coords: {
@@ -77,9 +77,9 @@ describe('webLocationProvider', () => {
       expect.any(Function),
       expect.any(Function),
       {
-        enableHighAccuracy: false,
-        maximumAge: 300_000,
-        timeout: 10_000,
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 15_000,
       }
     )
   })

@@ -10,12 +10,16 @@ vi.mock('@/features/map/components/tmap-map', () => ({
     locationLabel,
     showMarker,
     showZoomControl,
+    interactive,
+    markerVariant,
   }: {
     center: { lat: number; lng: number }
     zoom: number
     locationLabel: string
     showMarker: boolean
     showZoomControl: boolean
+    interactive: boolean
+    markerVariant: string
   }) => (
     <div
       data-testid="home-tmap"
@@ -24,6 +28,8 @@ vi.mock('@/features/map/components/tmap-map', () => ({
       data-location-label={locationLabel}
       data-show-marker={showMarker}
       data-show-zoom-control={showZoomControl}
+      data-interactive={interactive}
+      data-marker-variant={markerVariant}
       data-zoom={zoom}
     />
   ),
@@ -70,6 +76,8 @@ describe('HomeScreen', () => {
     expect(map).toHaveAttribute('data-location-label', '현재 위치')
     expect(map).toHaveAttribute('data-show-marker', 'true')
     expect(map).toHaveAttribute('data-show-zoom-control', 'false')
+    expect(map).toHaveAttribute('data-interactive', 'false')
+    expect(map).toHaveAttribute('data-marker-variant', 'profile')
   })
 
   it('shows the first pet and the remaining pet count from the Home API', () => {
@@ -87,6 +95,18 @@ describe('HomeScreen', () => {
     expect(screen.getByText('42')).toBeInTheDocument()
     expect(screen.getByText('추천 장소 예시')).toBeInTheDocument()
     expect(screen.getByText('위치 기반 추천 API 연결 전 예시 데이터예요.')).toBeInTheDocument()
+    const hotBadge = screen.getByText('HOT').parentElement
+    expect(hotBadge).toHaveClass('items-center', 'justify-center')
+    expect(screen.getByText('HOT')).toHaveClass('leading-none')
+  })
+
+  it('keeps the example places in a touch-scrollable snap carousel', () => {
+    render(<HomeScreen {...defaultProps} />)
+
+    const carousel = screen.getByTestId('nearby-place-carousel')
+    expect(carousel).toHaveClass('overflow-x-auto', 'snap-x', 'overscroll-x-contain')
+    expect(carousel).toHaveStyle({ touchAction: 'pan-x pan-y' })
+    expect(carousel.querySelectorAll('article')).toHaveLength(3)
   })
 
   it('does not place a second service-consent action over the Home map', () => {

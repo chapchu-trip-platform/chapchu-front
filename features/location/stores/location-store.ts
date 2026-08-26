@@ -59,9 +59,9 @@ export const useLocationStore = create<LocationState>((set, get) => ({
 
       set({ permission })
       const result = await provider.requestCurrentPosition({
-        enableHighAccuracy: false,
+        enableHighAccuracy: true,
         maximumAgeMs: 0,
-        timeoutMs: 10_000,
+        timeoutMs: 15_000,
       })
       if (get().requestId !== requestId) return null
 

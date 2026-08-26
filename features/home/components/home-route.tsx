@@ -186,8 +186,8 @@ export default function HomeRoute() {
     ? { lat: locationPosition.latitude, lng: locationPosition.longitude }
     : DEFAULT_HOME_LOCATION.center
   const mapLocationLabel =
-    locationStatus === 'success'
-      ? '현재 위치'
+    locationStatus === 'success' && locationPosition
+      ? `현재 위치 · 정확도 약 ${Math.max(1, Math.round(locationPosition.accuracyMeters))}m`
       : locationStatus === 'requesting'
         ? '현재 위치 확인 중'
         : DEFAULT_HOME_LOCATION.label

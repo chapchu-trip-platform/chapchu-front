@@ -7,9 +7,9 @@ import type {
 } from '@/features/location/types/location'
 
 const DEFAULT_LOCATION_OPTIONS = {
-  enableHighAccuracy: false,
-  timeoutMs: 10_000,
-  maximumAgeMs: 5 * 60 * 1000,
+  enableHighAccuracy: true,
+  timeoutMs: 15_000,
+  maximumAgeMs: 0,
 } as const
 
 function isWebLocationAvailable() {

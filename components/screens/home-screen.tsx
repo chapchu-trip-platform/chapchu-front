@@ -3,7 +3,6 @@
 import Image from 'next/image'
 import { Eye, Star, ThumbsUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { InteractiveCard } from '@/components/ui/interactive-card'
 import { mockNearbyPlaces } from '@/data/mock'
 import WeatherCard from '@/features/home/components/weather-card'
 import {
@@ -88,6 +87,8 @@ export default function HomeScreen({
           locationLabel={mapLocationLabel}
           showMarker={locationStatus === 'success'}
           showZoomControl={false}
+          interactive={false}
+          markerVariant="profile"
           className="min-h-0"
         />
       </div>
@@ -136,13 +137,15 @@ export default function HomeScreen({
             위치 기반 추천 API 연결 전 예시 데이터예요.
           </p>
         </div>
-        <div className="flex gap-3 px-4 overflow-x-auto no-scrollbar pb-1">
+        <div
+          className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-4 pb-2 no-scrollbar"
+          data-testid="nearby-place-carousel"
+          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' }}
+        >
           {nearbyPlaces.map((place, i) => (
-            <InteractiveCard
+            <article
               key={i}
-              padding="none"
-              fullWidth={false}
-              className="w-44 flex-shrink-0 overflow-hidden"
+              className="w-44 flex-shrink-0 snap-start overflow-hidden rounded-card border border-border bg-card-surface shadow-sm"
             >
               <div className="relative h-28">
                 <Image
@@ -170,7 +173,7 @@ export default function HomeScreen({
                   <span className="text-[11px] text-warm-gray">({place.reviews})</span>
                 </div>
               </div>
-            </InteractiveCard>
+            </article>
           ))}
         </div>
       </div>
@@ -231,8 +234,8 @@ export default function HomeScreen({
                   className="object-cover"
                 />
                 {i === 0 && (
-                  <div className="absolute top-1 left-1 bg-soft-orange rounded-full px-1.5 py-0.5">
-                    <span className="text-[9px] text-white font-bold">HOT</span>
+                  <div className="absolute left-1 top-1 flex h-5 min-w-8 items-center justify-center rounded-full bg-soft-orange px-1.5">
+                    <span className="text-[9px] font-bold leading-none text-white">HOT</span>
                   </div>
                 )}
               </div>

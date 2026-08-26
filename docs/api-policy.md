@@ -154,6 +154,14 @@ internal weather Route Handler. If the position is unavailable, weather falls ba
 the existing Suseong-gu representative point. Dynamic grid weather omits UV until a
 trustworthy coordinate-to-area-code mapping is available.
 
+The Home TMAP receives the browser's original JavaScript latitude and longitude without
+decimal rounding, requests a fresh high-accuracy fix (`maximumAge: 0`), and exposes the
+reported `accuracyMeters` separately from coordinate precision. More decimal digits do
+not compensate for GPS, Wi-Fi, or cell-location error. Browser Geolocation coordinates
+are passed directly to TMAP's WGS84 `LatLng` without a second coordinate conversion. The compact Home map is read-only,
+uses a temporary profile-photo pin, and updates its center/marker without rebuilding the
+TMAP instance when a newer coordinate reaches Zustand.
+
 Home now reads `petNames` from `GET /home` and shows the first name plus the remaining
 count. Its three HOT cards come from `GET /posts?sort=popular`. Because that list contract
 only includes a `photoId`, not a displayable image URL, the frontend uses local fallback

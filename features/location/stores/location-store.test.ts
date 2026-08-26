@@ -30,9 +30,9 @@ describe('location store', () => {
       error: null,
     })
     expect(provider.requestCurrentPosition).toHaveBeenCalledWith({
-      enableHighAccuracy: false,
+      enableHighAccuracy: true,
       maximumAgeMs: 0,
-      timeoutMs: 10_000,
+      timeoutMs: 15_000,
     })
   })
 

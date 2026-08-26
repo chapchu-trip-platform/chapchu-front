@@ -126,7 +126,7 @@ Home 실제 데이터 연동을 위해 아래 계약의 확인 또는 보완이 
 - 회원가입 성공 사용자는 `locationConsent: true`가 보장되므로 Home/Map 진입 시 `getCurrentPosition()`을 자동 호출한다.
 - 브라우저 또는 운영체제의 기기 위치 권한은 서비스 동의와 별개이며, 아직 결정되지 않았다면 시스템 권한창이 표시될 수 있다.
 - 초기 Home은 `getCurrentPosition()`만 사용한다. 여행 진행에서 필요한 지속 추적 `watchPosition()`은 별도 동의와 별도 기능으로 분리한다.
-- 초기 옵션은 배터리와 응답 속도를 고려해 `enableHighAccuracy: false`, timeout 약 10초, `maximumAge` 약 5분을 권장한다.
+- 현재 위치 오차를 줄이기 위해 `enableHighAccuracy: true`, timeout 15초, `maximumAge: 0`으로 새 좌표를 요청한다. 좌표 소수점 자릿수와 실제 GPS 정확도는 별개이며 응답의 `accuracy` 값을 함께 판단한다.
 - 위치는 feature store의 메모리에만 보관하고 localStorage/sessionStorage에 저장하지 않는다.
 - 서버 전송 전 좌표를 소수점 3자리 수준으로 낮추는 방안을 우선 검토한다. 약 100m 단위로 주변 검색에는 충분하며 과도한 정밀도를 줄일 수 있다.
 - 위치 원본, 좌표, 정확도는 console, 진단 로그, 분석 이벤트, 오류 리포트에 기록하지 않는다.
@@ -229,6 +229,7 @@ Home 실제 데이터 연동을 위해 아래 계약의 확인 또는 보완이 
 - 위치 거부/미지원/timeout/직접 지역 선택 fallback을 구현한다.
 - 좌표를 메모리에만 보관하고 `/places/nearby`를 호출한다.
 - 기존 TMAP 컴포넌트에 실제 center/marker 표시 기능을 확장한다.
+- Home TMAP은 직접 드래그·확대·축소를 막고 임시 프로필 사진 핀으로 현재 위치만 추적한다. 좌표 갱신 시 지도 객체를 재생성하지 않고 center와 marker만 이동한다.
 - reverse geocoding 전에는 “현재 위치 주변”을 사용한다.
 
 ### 단계 4 — 날씨

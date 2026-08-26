@@ -25,6 +25,7 @@ declare global {
   }
 
   type TmapMapInstance = {
+    setCenter?: (center: TmapLatLng) => void
     destroy?: () => void
     remove?: () => void
   }
@@ -37,5 +38,6 @@ declare global {
 
   type TmapMarkerInstance = {
     setMap?: (map: TmapMapInstance | null) => void
+    setPosition?: (position: TmapLatLng) => void
   }
 }

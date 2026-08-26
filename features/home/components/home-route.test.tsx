@@ -19,7 +19,20 @@ vi.mock('@/features/location/providers/web-location-provider', () => ({
 }))
 
 vi.mock('@/features/map/components/tmap-map', () => ({
-  default: () => <div data-testid="home-map" />,
+  default: ({
+    center,
+    locationLabel,
+  }: {
+    center: { lat: number; lng: number }
+    locationLabel: string
+  }) => (
+    <div
+      data-testid="home-map"
+      data-lat={center.lat}
+      data-lng={center.lng}
+      data-location-label={locationLabel}
+    />
+  ),
 }))
 
 const weather: CurrentWeather = {
@@ -93,6 +106,12 @@ describe('HomeRoute data and location flow', () => {
     expect(await screen.findByText('27°C')).toBeInTheDocument()
     expect(fetchHomeSummary).toHaveBeenCalledOnce()
     expect(fetchPopularPosts).toHaveBeenCalledOnce()
+    expect(screen.getByTestId('home-map')).toHaveAttribute('data-lat', '35.8552083333333')
+    expect(screen.getByTestId('home-map')).toHaveAttribute('data-lng', '128.632866666666')
+    expect(screen.getByTestId('home-map')).toHaveAttribute(
+      'data-location-label',
+      '현재 위치 · 정확도 약 20m'
+    )
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/weather/current?nx=89&ny=90',
       expect.objectContaining({ signal: expect.any(AbortSignal) })
