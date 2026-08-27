@@ -104,9 +104,25 @@ describe('HomeScreen', () => {
     render(<HomeScreen {...defaultProps} />)
 
     const carousel = screen.getByTestId('nearby-place-carousel')
-    expect(carousel).toHaveClass('overflow-x-auto', 'snap-x', 'overscroll-x-contain')
+    expect(carousel).toHaveClass(
+      'overflow-x-auto',
+      'snap-x',
+      'scroll-px-4',
+      'overscroll-x-contain',
+      'px-4'
+    )
     expect(carousel).toHaveStyle({ touchAction: 'pan-y' })
     expect(carousel.querySelectorAll('article')).toHaveLength(3)
+  })
+
+  it('applies Motion transitions only to the Home content sections', () => {
+    render(<HomeScreen {...defaultProps} />)
+
+    expect(document.querySelector('[data-motion-section="map"]')).toBeInTheDocument()
+    expect(document.querySelector('[data-motion-section="weather"]')).toBeInTheDocument()
+    expect(document.querySelector('[data-motion-section="trip-cta"]')).toBeInTheDocument()
+    expect(document.querySelector('[data-motion-section="nearby"]')).toBeInTheDocument()
+    expect(document.querySelector('[data-motion-section="hot-posts"]')).toBeInTheDocument()
   })
 
   it('moves the recommendation carousel when a pointer drags horizontally', () => {

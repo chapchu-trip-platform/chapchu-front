@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import { useRef, type PointerEvent as ReactPointerEvent } from 'react'
 import { Eye, Star, ThumbsUp } from 'lucide-react'
+import { LazyMotion, domAnimation, m, useReducedMotion } from 'motion/react'
 import { Button } from '@/components/ui/button'
 import { mockNearbyPlaces } from '@/data/mock'
 import WeatherCard from '@/features/home/components/weather-card'
@@ -39,6 +40,8 @@ const HOT_POST_PLACEHOLDERS = [
   '/images/place-cafe.png',
 ] as const
 
+const HOME_MOTION_EASE = [0.22, 1, 0.36, 1] as const
+
 function formatPostDate(createdAt: string | null) {
   if (!createdAt) return '작성일 미제공'
   const date = new Date(createdAt)
@@ -64,6 +67,7 @@ export default function HomeScreen({
   weatherStatus,
   onRetryWeather,
 }: HomeScreenProps) {
+  const prefersReducedMotion = useReducedMotion()
   const nearbyDragRef = useRef<{
     pointerId: number
     startX: number
@@ -113,20 +117,36 @@ export default function HomeScreen({
   }
 
   return (
+    <LazyMotion features={domAnimation}>
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* Top bar — home variant */}
-      <header className="z-40 flex h-14 flex-shrink-0 items-center justify-between border-b border-border bg-card-surface px-4">
+      <m.header
+        initial={prefersReducedMotion ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.25 }}
+        className="z-40 flex h-14 flex-shrink-0 items-center justify-between border-b border-border bg-card-surface px-4"
+      >
         <div className="flex items-center gap-1.5">
           <div className="relative w-6 h-6">
             <Image src="/images/paw-logo.png" alt="PawRoute" fill className="object-contain" />
           </div>
           <span className="text-[17px] font-bold text-deep-brown">PawRoute</span>
         </div>
-      </header>
+      </m.header>
 
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
       {/* Current Location Map Card */}
-      <div className="mx-4 mt-4 rounded-card overflow-hidden shadow-sm relative h-44 bg-sky-blue/30">
+      <m.div
+        initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          delay: prefersReducedMotion ? 0 : 0.04,
+          duration: prefersReducedMotion ? 0 : 0.38,
+          ease: HOME_MOTION_EASE,
+        }}
+        className="relative mx-4 mt-4 h-44 overflow-hidden rounded-card bg-sky-blue/30 shadow-sm"
+        data-motion-section="map"
+      >
         <TmapMap
           center={mapCenter}
           zoom={15}
@@ -137,13 +157,34 @@ export default function HomeScreen({
           markerVariant="profile"
           className="min-h-0"
         />
-      </div>
+      </m.div>
 
       {/* Weather Card */}
+      <m.div
+        initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          delay: prefersReducedMotion ? 0 : 0.1,
+          duration: prefersReducedMotion ? 0 : 0.38,
+          ease: HOME_MOTION_EASE,
+        }}
+        data-motion-section="weather"
+      >
       <WeatherCard status={weatherStatus} weather={weather} onRetry={onRetryWeather} />
+      </m.div>
 
       {/* Travel Start CTA */}
-      <div className="mx-4 mt-3 p-4 bg-sage-green rounded-card shadow-md">
+      <m.div
+        initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          delay: prefersReducedMotion ? 0 : 0.16,
+          duration: prefersReducedMotion ? 0 : 0.4,
+          ease: HOME_MOTION_EASE,
+        }}
+        className="mx-4 mt-3 rounded-card bg-sage-green p-4 shadow-md"
+        data-motion-section="trip-cta"
+      >
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[12px] text-white/80 font-medium mb-0.5">{petCompanion}</p>
@@ -173,10 +214,20 @@ export default function HomeScreen({
         >
           여행 시작하기
         </Button>
-      </div>
+      </m.div>
 
       {/* Nearby Places */}
-      <div className="mt-6">
+      <m.section
+        initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          delay: prefersReducedMotion ? 0 : 0.22,
+          duration: prefersReducedMotion ? 0 : 0.42,
+          ease: HOME_MOTION_EASE,
+        }}
+        className="mt-6"
+        data-motion-section="nearby"
+      >
         <div className="px-4 mb-3">
           <h3 className="text-[16px] font-semibold text-deep-brown">추천 장소 예시</h3>
           <p className="mt-0.5 text-[11px] text-warm-gray">
@@ -184,7 +235,7 @@ export default function HomeScreen({
           </p>
         </div>
         <div
-          className="flex cursor-grab snap-x snap-mandatory select-none gap-3 overflow-x-auto overscroll-x-contain px-4 pb-2 active:cursor-grabbing no-scrollbar"
+          className="flex cursor-grab snap-x snap-mandatory scroll-px-4 select-none gap-3 overflow-x-auto overscroll-x-contain px-4 pb-2 active:cursor-grabbing no-scrollbar"
           data-testid="nearby-place-carousel"
           onDragStart={(event) => event.preventDefault()}
           onPointerCancel={stopNearbyDrag}
@@ -194,8 +245,15 @@ export default function HomeScreen({
           style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
         >
           {nearbyPlaces.map((place, i) => (
-            <article
+            <m.article
               key={i}
+              initial={prefersReducedMotion ? false : { opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{
+                delay: prefersReducedMotion ? 0 : 0.26 + i * 0.05,
+                duration: prefersReducedMotion ? 0 : 0.36,
+                ease: HOME_MOTION_EASE,
+              }}
               className="w-44 flex-shrink-0 snap-start overflow-hidden rounded-card border border-border bg-card-surface shadow-sm"
             >
               <div className="relative h-28">
@@ -225,13 +283,23 @@ export default function HomeScreen({
                   <span className="text-[11px] text-warm-gray">({place.reviews})</span>
                 </div>
               </div>
-            </article>
+            </m.article>
           ))}
         </div>
-      </div>
+      </m.section>
 
       {/* HOT Posts */}
-      <div className="mt-6 pb-4">
+      <m.section
+        initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          delay: prefersReducedMotion ? 0 : 0.3,
+          duration: prefersReducedMotion ? 0 : 0.42,
+          ease: HOME_MOTION_EASE,
+        }}
+        className="mt-6 pb-4"
+        data-motion-section="hot-posts"
+      >
         <div className="flex items-center justify-between px-4 mb-3">
           <h3 className="text-[16px] font-semibold text-deep-brown">HOT 게시글</h3>
           <Button
@@ -274,8 +342,15 @@ export default function HomeScreen({
           )}
 
           {hotPostsStatus === 'success' && hotPosts.map((post, i) => (
-            <article
+            <m.article
               key={post.id}
+              initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                delay: prefersReducedMotion ? 0 : i * 0.04,
+                duration: prefersReducedMotion ? 0 : 0.34,
+                ease: HOME_MOTION_EASE,
+              }}
               className="flex gap-3 rounded-card border border-border bg-card-surface p-3 shadow-sm"
             >
               <div className="relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0">
@@ -308,11 +383,12 @@ export default function HomeScreen({
                   </span>
                 </div>
               </div>
-            </article>
+            </m.article>
           ))}
         </div>
-      </div>
+      </m.section>
       </div>
     </div>
+    </LazyMotion>
   )
 }
