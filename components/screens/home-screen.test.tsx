@@ -106,11 +106,10 @@ describe('HomeScreen', () => {
     const carousel = screen.getByTestId('nearby-place-carousel')
     expect(carousel).toHaveClass(
       'overflow-x-auto',
-      'snap-x',
-      'scroll-px-4',
       'overscroll-x-contain',
       'px-4'
     )
+    expect(carousel).not.toHaveClass('scroll-smooth', 'snap-x', 'snap-mandatory')
     expect(carousel).toHaveStyle({ touchAction: 'pan-y' })
     expect(carousel.querySelectorAll('article')).toHaveLength(3)
   })

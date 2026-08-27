@@ -1,9 +1,9 @@
 'use client'
 
 import Image from 'next/image'
-import { useRef, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react'
 import { Eye, Star, ThumbsUp } from 'lucide-react'
-import { LazyMotion, domAnimation, m, useReducedMotion } from 'motion/react'
+import { LazyMotion, animate, domAnimation, m, useReducedMotion } from 'motion/react'
 import { Button } from '@/components/ui/button'
 import { mockNearbyPlaces } from '@/data/mock'
 import WeatherCard from '@/features/home/components/weather-card'
@@ -68,25 +68,41 @@ export default function HomeScreen({
   onRetryWeather,
 }: HomeScreenProps) {
   const prefersReducedMotion = useReducedMotion()
+  const nearbyMomentumRef = useRef<{ stop: () => void } | null>(null)
   const nearbyDragRef = useRef<{
     pointerId: number
     startX: number
     startY: number
     startScrollLeft: number
     isHorizontal: boolean
+    lastX: number
+    lastTimestamp: number
+    velocityX: number
   } | null>(null)
   const petCompanion =
     petNamesStatus === 'loading' ? '반려동물 정보 확인 중' : formatPetCompanion(petNames)
 
+  useEffect(
+    () => () => {
+      nearbyMomentumRef.current?.stop()
+    },
+    []
+  )
+
   const handleNearbyPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return
 
+    nearbyMomentumRef.current?.stop()
+    nearbyMomentumRef.current = null
     nearbyDragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
       startScrollLeft: event.currentTarget.scrollLeft,
       isHorizontal: false,
+      lastX: event.clientX,
+      lastTimestamp: event.timeStamp,
+      velocityX: 0,
     }
     event.currentTarget.setPointerCapture?.(event.pointerId)
   }
@@ -102,6 +118,12 @@ export default function HomeScreen({
       drag.isHorizontal = true
     }
 
+    const elapsedMs = Math.max(1, event.timeStamp - drag.lastTimestamp)
+    const latestVelocity = (event.clientX - drag.lastX) / elapsedMs
+    drag.velocityX = drag.velocityX * 0.35 + latestVelocity * 0.65
+    drag.lastX = event.clientX
+    drag.lastTimestamp = event.timeStamp
+
     event.preventDefault()
     event.currentTarget.scrollLeft = drag.startScrollLeft - deltaX
   }
@@ -114,6 +136,32 @@ export default function HomeScreen({
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
     nearbyDragRef.current = null
+
+    if (event.type === 'pointercancel' || !drag.isHorizontal || prefersReducedMotion) return
+
+    const carousel = event.currentTarget
+    const currentScrollLeft = carousel.scrollLeft
+    const maxScrollLeft = Math.max(0, carousel.scrollWidth - carousel.clientWidth)
+    if (maxScrollLeft === 0) return
+
+    const targetScrollLeft = Math.min(
+      maxScrollLeft,
+      Math.max(0, currentScrollLeft - drag.velocityX * 220)
+    )
+    if (Math.abs(targetScrollLeft - currentScrollLeft) < 1) return
+
+    nearbyMomentumRef.current = animate(currentScrollLeft, targetScrollLeft, {
+      type: 'spring',
+      stiffness: 240,
+      damping: 32,
+      mass: 0.7,
+      onUpdate: (value) => {
+        carousel.scrollLeft = value
+      },
+      onComplete: () => {
+        nearbyMomentumRef.current = null
+      },
+    })
   }
 
   return (
@@ -235,7 +283,7 @@ export default function HomeScreen({
           </p>
         </div>
         <div
-          className="flex cursor-grab snap-x snap-mandatory scroll-px-4 select-none gap-3 overflow-x-auto overscroll-x-contain px-4 pb-2 active:cursor-grabbing no-scrollbar"
+          className="flex cursor-grab select-none gap-3 overflow-x-auto overscroll-x-contain px-4 pb-2 active:cursor-grabbing no-scrollbar"
           data-testid="nearby-place-carousel"
           onDragStart={(event) => event.preventDefault()}
           onPointerCancel={stopNearbyDrag}
@@ -254,7 +302,7 @@ export default function HomeScreen({
                 duration: prefersReducedMotion ? 0 : 0.36,
                 ease: HOME_MOTION_EASE,
               }}
-              className="w-44 flex-shrink-0 snap-start overflow-hidden rounded-card border border-border bg-card-surface shadow-sm"
+              className="w-44 flex-shrink-0 overflow-hidden rounded-card border border-border bg-card-surface shadow-sm"
             >
               <div className="relative h-28">
                 <Image
