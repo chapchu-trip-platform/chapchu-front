@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import HomeScreen from '@/components/screens/home-screen'
 import type { HotPost } from '@/features/home/types/home'
@@ -105,8 +105,30 @@ describe('HomeScreen', () => {
 
     const carousel = screen.getByTestId('nearby-place-carousel')
     expect(carousel).toHaveClass('overflow-x-auto', 'snap-x', 'overscroll-x-contain')
-    expect(carousel).toHaveStyle({ touchAction: 'pan-x pan-y' })
+    expect(carousel).toHaveStyle({ touchAction: 'pan-y' })
     expect(carousel.querySelectorAll('article')).toHaveLength(3)
+  })
+
+  it('moves the recommendation carousel when a pointer drags horizontally', () => {
+    render(<HomeScreen {...defaultProps} />)
+
+    const carousel = screen.getByTestId('nearby-place-carousel')
+    fireEvent.pointerDown(carousel, {
+      button: 0,
+      clientX: 280,
+      clientY: 100,
+      pointerId: 1,
+      pointerType: 'mouse',
+    })
+    fireEvent.pointerMove(carousel, {
+      clientX: 100,
+      clientY: 104,
+      pointerId: 1,
+      pointerType: 'mouse',
+    })
+    fireEvent.pointerUp(carousel, { pointerId: 1, pointerType: 'mouse' })
+
+    expect(carousel.scrollLeft).toBe(180)
   })
 
   it('does not place a second service-consent action over the Home map', () => {

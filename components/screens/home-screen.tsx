@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import { useRef, type PointerEvent as ReactPointerEvent } from 'react'
 import { Eye, Star, ThumbsUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { mockNearbyPlaces } from '@/data/mock'
@@ -63,8 +64,53 @@ export default function HomeScreen({
   weatherStatus,
   onRetryWeather,
 }: HomeScreenProps) {
+  const nearbyDragRef = useRef<{
+    pointerId: number
+    startX: number
+    startY: number
+    startScrollLeft: number
+    isHorizontal: boolean
+  } | null>(null)
   const petCompanion =
     petNamesStatus === 'loading' ? '반려동물 정보 확인 중' : formatPetCompanion(petNames)
+
+  const handleNearbyPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+
+    nearbyDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startScrollLeft: event.currentTarget.scrollLeft,
+      isHorizontal: false,
+    }
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+  }
+
+  const handleNearbyPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = nearbyDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+
+    const deltaX = event.clientX - drag.startX
+    const deltaY = event.clientY - drag.startY
+    if (!drag.isHorizontal) {
+      if (Math.abs(deltaX) < 6 || Math.abs(deltaX) <= Math.abs(deltaY)) return
+      drag.isHorizontal = true
+    }
+
+    event.preventDefault()
+    event.currentTarget.scrollLeft = drag.startScrollLeft - deltaX
+  }
+
+  const stopNearbyDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = nearbyDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    nearbyDragRef.current = null
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -138,9 +184,14 @@ export default function HomeScreen({
           </p>
         </div>
         <div
-          className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-4 pb-2 no-scrollbar"
+          className="flex cursor-grab snap-x snap-mandatory select-none gap-3 overflow-x-auto overscroll-x-contain px-4 pb-2 active:cursor-grabbing no-scrollbar"
           data-testid="nearby-place-carousel"
-          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' }}
+          onDragStart={(event) => event.preventDefault()}
+          onPointerCancel={stopNearbyDrag}
+          onPointerDown={handleNearbyPointerDown}
+          onPointerMove={handleNearbyPointerMove}
+          onPointerUp={stopNearbyDrag}
+          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
         >
           {nearbyPlaces.map((place, i) => (
             <article
@@ -154,6 +205,7 @@ export default function HomeScreen({
                   fill
                   priority={i === 0}
                   loading={i === 0 ? 'eager' : 'lazy'}
+                  draggable={false}
                   className="object-cover"
                 />
                 {/* Pet friendly badge */}
