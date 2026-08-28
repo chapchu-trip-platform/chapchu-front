@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
+import { useLocationStore } from '@/features/location/stores/location-store'
 
 afterEach(() => {
   useAuthStore.setState({
@@ -12,6 +13,7 @@ afterEach(() => {
   })
   localStorage.clear()
   sessionStorage.clear()
+  useLocationStore.getState().reset()
 })
 
 describe('auth store', () => {
@@ -35,6 +37,18 @@ describe('auth store', () => {
   it('clears every credential when the session ends', () => {
     useAuthStore.getState().setAccessToken('access-token')
     useAuthStore.getState().setRegistrationToken('registration-token')
+    useLocationStore.setState({
+      position: {
+        latitude: 35.858,
+        longitude: 128.63,
+        accuracyMeters: 20,
+        capturedAt: '2026-08-26T05:00:00.000Z',
+        precision: 'precise',
+        source: 'web',
+      },
+      permission: 'granted',
+      status: 'success',
+    })
 
     useAuthStore.getState().clearSession()
 
@@ -45,6 +59,11 @@ describe('auth store', () => {
       sessionEpoch: 1,
       setupStage: null,
       status: 'unauthenticated',
+    })
+    expect(useLocationStore.getState()).toMatchObject({
+      position: null,
+      permission: 'unknown',
+      status: 'idle',
     })
   })
 })

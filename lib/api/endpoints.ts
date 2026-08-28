@@ -16,6 +16,12 @@ export const API_ENDPOINTS = {
   activities: {
     list: '/activities',
   },
+  home: {
+    summary: '/home',
+  },
+  places: {
+    nearby: '/places/nearby',
+  },
   users: {
     me: '/users/me',
     nicknameAvailability: '/users/nickname/availability',
@@ -34,8 +40,8 @@ export const API_ENDPOINTS = {
     notes: (tripId: string) => `/trips/${pathId(tripId)}/notes`,
   },
   community: {
-    posts: '/community/posts',
-    post: (postId: string) => `/community/posts/${pathId(postId)}`,
+    posts: '/posts',
+    post: (postId: string) => `/posts/${pathId(postId)}`,
   },
   albums: {
     list: '/albums',

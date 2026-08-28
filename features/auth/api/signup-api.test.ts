@@ -2,7 +2,7 @@ import type {
   AxiosResponse,
   InternalAxiosRequestConfig,
 } from 'axios'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   checkNicknameAvailability,
   fetchSignupOptions,
@@ -123,6 +123,7 @@ describe('integrated signup API', () => {
         regionIds: ['region-id'],
         themeIds: ['theme-id'],
         transportMethodIds: ['transport-id'],
+        locationConsent: true,
       },
       pets: [
         {
@@ -145,6 +146,31 @@ describe('integrated signup API', () => {
     expect(requestUrl).toBe('/auth/signup')
     expect(requestBody).toEqual(request)
   })
+
+  it.each([false, undefined])(
+    'fails closed before sending signup when location consent is %s',
+    async (locationConsent) => {
+      const adapter = vi.fn(async (config: InternalAxiosRequestConfig) =>
+        response(config, {}, 201)
+      )
+      publicApiClient.defaults.adapter = adapter
+
+      await expect(
+        submitIntegratedSignup({
+        registrationToken: 'registration-token',
+        user: {
+          nickname: '햇살이',
+          regionIds: ['region-id'],
+          themeIds: ['theme-id'],
+          transportMethodIds: ['transport-id'],
+          locationConsent,
+        },
+        pets: [],
+        } as Parameters<typeof submitIntegratedSignup>[0])
+      ).rejects.toThrow('Location consent is required')
+      expect(adapter).not.toHaveBeenCalled()
+    }
+  )
 
   it('maps signup failures to safe user messages', () => {
     expect(getSignupErrorMessage({ status: 401 })).toContain('만료')

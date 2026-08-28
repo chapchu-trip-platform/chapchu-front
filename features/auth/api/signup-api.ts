@@ -53,6 +53,10 @@ export async function fetchSignupOptions(): Promise<SignupOptions> {
 export async function submitIntegratedSignup(
   request: IntegratedSignupRequest
 ): Promise<IntegratedSignupResponse> {
+  if (request.user.locationConsent !== true) {
+    throw new Error('Location consent is required for signup.')
+  }
+
   const { data } = await publicApiClient.post<IntegratedSignupResponse>(
     API_ENDPOINTS.auth.signup,
     request

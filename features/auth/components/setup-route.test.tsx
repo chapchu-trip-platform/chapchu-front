@@ -66,6 +66,22 @@ async function completeRequiredPet(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: '산책' }))
 }
 
+async function acceptRequiredLocationConsents(
+  user: ReturnType<typeof userEvent.setup>
+) {
+  await user.click(screen.getByRole('button', { name: '다음 — 위치정보 동의' }))
+  await user.click(
+    screen.getByRole('checkbox', {
+      name: /개인위치정보 수집·이용에 동의합니다/,
+    })
+  )
+  await user.click(
+    screen.getByRole('checkbox', {
+      name: /개인위치정보 제3자 제공에 동의합니다/,
+    })
+  )
+}
+
 beforeEach(() => {
   vi.mocked(checkNicknameAvailability).mockImplementation(async (nickname) => ({
     nickname,
@@ -126,6 +142,7 @@ describe('SetupRoute', () => {
     await completeRequiredUserStep(user, ' 햇살여행자 ')
     await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
     await completeRequiredPet(user)
+    await acceptRequiredLocationConsents(user)
     await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
 
     await waitFor(() =>
@@ -136,6 +153,7 @@ describe('SetupRoute', () => {
           regionIds: ['region-seoul'],
           themeIds: ['theme-nature'],
           transportMethodIds: ['transport-car'],
+          locationConsent: true,
         },
         pets: [
           {
@@ -177,6 +195,7 @@ describe('SetupRoute', () => {
     await completeRequiredUserStep(user, '중복닉네임')
     await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
     await completeRequiredPet(user)
+    await acceptRequiredLocationConsents(user)
     await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -188,6 +207,7 @@ describe('SetupRoute', () => {
 
     await confirmCurrentNickname(user)
     await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
+    await user.click(screen.getByRole('button', { name: '다음 — 위치정보 동의' }))
     await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
 
     await waitFor(() => expect(submitIntegratedSignup).toHaveBeenCalledTimes(2))
@@ -219,6 +239,7 @@ describe('SetupRoute', () => {
     await completeRequiredUserStep(user, '테스터')
     await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
     await completeRequiredPet(user)
+    await acceptRequiredLocationConsents(user)
     await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
 
     await waitFor(() => expect(navigateToGoogleLogin).toHaveBeenCalledOnce())
@@ -253,22 +274,17 @@ describe('SetupRoute', () => {
     await completeRequiredUserStep(user, '입력보존')
     await user.click(screen.getByRole('button', { name: '다음 — 반려동물 등록' }))
     await completeRequiredPet(user)
+    await acceptRequiredLocationConsents(user)
     await user.click(screen.getByRole('button', { name: '완료 — 회원가입하기' }))
 
     await waitFor(() => expect(fetchSignupOptions).toHaveBeenCalledTimes(2))
-    expect(screen.getByRole('heading', { name: '반려동물 정보' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: '뒤로 가기' }))
-    expect(screen.getByPlaceholderText('사용할 닉네임을 입력하세요')).toHaveValue(
-      '입력보존'
-    )
-    expect(screen.getByRole('button', { name: '서울' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
+    expect(screen.getByRole('heading', { name: '위치정보 이용 동의' })).toBeInTheDocument()
 
     resolveRefreshedOptions(refreshedOptions)
 
     expect(await screen.findByRole('alert')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '뒤로 가기' }))
+    await user.click(screen.getByRole('button', { name: '뒤로 가기' }))
     expect(screen.getByPlaceholderText('사용할 닉네임을 입력하세요')).toHaveValue(
       '입력보존'
     )

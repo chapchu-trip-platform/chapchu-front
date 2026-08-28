@@ -37,6 +37,7 @@ export interface SignupFormValues {
     regionIds: string[]
     themeIds: string[]
     transportMethodIds: string[]
+    locationConsent: boolean
   }
   pets: SignupPetInput[]
 }

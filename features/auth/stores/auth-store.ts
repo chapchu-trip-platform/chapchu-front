@@ -1,6 +1,7 @@
 'use client'
 
 import { create } from 'zustand'
+import { useLocationStore } from '@/features/location/stores/location-store'
 
 export type AuthStatus =
   | 'idle'
@@ -44,7 +45,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   setRegistrationToken: (registrationToken) => set({ registrationToken }),
   setSetupStage: (setupStage) => set({ setupStage }),
   setStatus: (status) => set({ status }),
-  startDemoSession: () =>
+  startDemoSession: () => {
+    useLocationStore.getState().reset()
     set((state) => ({
       accessToken: null,
       authNotice: null,
@@ -52,13 +54,16 @@ export const useAuthStore = create<AuthState>((set) => ({
       sessionEpoch: state.sessionEpoch + 1,
       setupStage: null,
       status: 'demo',
-    })),
-  clearSession: () =>
+    }))
+  },
+  clearSession: () => {
+    useLocationStore.getState().reset()
     set((state) => ({
       accessToken: null,
       registrationToken: null,
       sessionEpoch: state.sessionEpoch + 1,
       setupStage: null,
       status: 'unauthenticated',
-    })),
+    }))
+  },
 }))

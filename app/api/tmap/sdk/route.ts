@@ -19,6 +19,22 @@ const ERROR_HEADERS = {
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+function containsApiKey(source: string, apiKey: string) {
+  const normalizedSource = source.toLowerCase()
+  const apiKeyVariants = new Set([apiKey, encodeURIComponent(apiKey), encodeURI(apiKey)])
+
+  try {
+    apiKeyVariants.add(decodeURIComponent(apiKey))
+  } catch {
+    // Keep checking the original and encoded variants when the configured value is not URI encoded.
+  }
+
+  return [...apiKeyVariants].some(
+    (apiKeyVariant) =>
+      apiKeyVariant.length > 0 && normalizedSource.includes(apiKeyVariant.toLowerCase())
+  )
+}
+
 export async function GET() {
   const apiKey = process.env.T_MAP_APIKEY
 
@@ -54,7 +70,7 @@ export async function GET() {
 
     const sdkSource = await sdkResponse.text()
 
-    if (sdkSource.includes(apiKey)) {
+    if (containsApiKey(sdkSource, apiKey)) {
       return new Response('TMAP SDK response failed security validation.', {
         status: 502,
         headers: ERROR_HEADERS,

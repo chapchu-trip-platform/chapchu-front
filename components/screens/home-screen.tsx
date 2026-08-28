@@ -1,184 +1,254 @@
 'use client'
 
 import Image from 'next/image'
-import { MapPin, Wind, Droplets, Sun, CloudSun, ThumbsUp, MessageCircle, Bookmark, Eye, ChevronRight, Star } from 'lucide-react'
+import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react'
+import { Eye, Star, ThumbsUp } from 'lucide-react'
+import { LazyMotion, animate, domAnimation, m, useReducedMotion } from 'motion/react'
 import { Button } from '@/components/ui/button'
-import { InteractiveCard } from '@/components/ui/interactive-card'
-import { NotificationButton } from '@/components/ui/notification-button'
+import { mockNearbyPlaces } from '@/data/mock'
+import WeatherCard from '@/features/home/components/weather-card'
+import {
+  formatPetCompanion,
+  type HomeDataStatus,
+  type HotPost,
+} from '@/features/home/types/home'
+import TmapMap from '@/features/map/components/tmap-map'
+import type { LocationLoadStatus } from '@/features/location/stores/location-store'
+import type { CurrentWeather, WeatherLoadStatus } from '@/types/weather'
 
 interface HomeScreenProps {
   onStartTrip: () => void
-  onViewPost: (postId: number) => void
-  hasUnreadNotifications?: boolean
-  onNotificationClick?: () => void
+  onViewAllPosts: () => void
+  mapCenter: { lat: number; lng: number }
+  mapLocationLabel: string
+  locationStatus: LocationLoadStatus
+  petNames: string[]
+  petNamesStatus: HomeDataStatus
+  hotPosts: HotPost[]
+  hotPostsStatus: HomeDataStatus
+  onRetryHotPosts: () => void
+  weather: CurrentWeather | null
+  weatherStatus: WeatherLoadStatus
+  onRetryWeather: () => void
 }
 
-const nearbyPlaces = [
-  {
-    name: '성수 펫 카페',
-    address: '서울 성동구 성수동',
-    image: '/images/place-cafe.png',
-    rating: 4.8,
-    reviews: 124,
-    distance: '0.3km',
-    tags: ['카페', '반려동물 동반'],
-  },
-  {
-    name: '서울숲 공원',
-    address: '서울 성동구 뚝섬로',
-    image: '/images/place-park.png',
-    rating: 4.9,
-    reviews: 320,
-    distance: '0.8km',
-    tags: ['공원', '산책 코스'],
-  },
-  {
-    name: '한강 펫 레스토랑',
-    address: '서울 용산구 이촌동',
-    image: '/images/place-restaurant.png',
-    rating: 4.6,
-    reviews: 87,
-    distance: '1.2km',
-    tags: ['레스토랑', '반려동물 동반'],
-  },
-]
+const nearbyPlaces = mockNearbyPlaces.slice(0, 3)
 
-const hotPosts = [
-  {
-    id: 1,
-    title: '제주 올레길 강아지와 4박 5일 코스 완전정복',
-    author: '산책왕멍이',
-    views: 3420,
-    likes: 289,
-    comments: 47,
-    bookmarks: 156,
-    date: '2일 전',
-    image: '/images/album-cover.png',
-  },
-  {
-    id: 2,
-    title: '가평 펫 캠핑장 후기 — 반려견과 함께 최고였어요',
-    author: '캠핑러버루나',
-    views: 1890,
-    likes: 147,
-    comments: 28,
-    bookmarks: 89,
-    date: '3일 전',
-    image: '/images/place-park.png',
-  },
-  {
-    id: 3,
-    title: '성수동 애견 카페 TOP 5 모음',
-    author: '서울산책로',
-    views: 2140,
-    likes: 198,
-    comments: 34,
-    bookmarks: 113,
-    date: '5일 전',
-    image: '/images/place-cafe.png',
-  },
-]
+const HOT_POST_PLACEHOLDERS = [
+  '/images/album-cover.png',
+  '/images/place-park.png',
+  '/images/place-cafe.png',
+] as const
+
+const HOME_MOTION_EASE = [0.22, 1, 0.36, 1] as const
+
+function formatPostDate(createdAt: string | null) {
+  if (!createdAt) return '작성일 미제공'
+  const date = new Date(createdAt)
+  if (!Number.isFinite(date.getTime())) return '작성일 미제공'
+  return new Intl.DateTimeFormat('ko-KR', {
+    dateStyle: 'medium',
+    timeZone: 'Asia/Seoul',
+  }).format(date)
+}
 
 export default function HomeScreen({
   onStartTrip,
-  onViewPost,
-  hasUnreadNotifications = true,
-  onNotificationClick,
+  onViewAllPosts,
+  mapCenter,
+  mapLocationLabel,
+  locationStatus,
+  petNames,
+  petNamesStatus,
+  hotPosts,
+  hotPostsStatus,
+  onRetryHotPosts,
+  weather,
+  weatherStatus,
+  onRetryWeather,
 }: HomeScreenProps) {
+  const prefersReducedMotion = useReducedMotion()
+  const nearbyMomentumRef = useRef<{ stop: () => void } | null>(null)
+  const nearbyDragRef = useRef<{
+    pointerId: number
+    startX: number
+    startY: number
+    startScrollLeft: number
+    isHorizontal: boolean
+    lastX: number
+    lastTimestamp: number
+    velocityX: number
+  } | null>(null)
+  const petCompanion =
+    petNamesStatus === 'loading' ? '반려동물 정보 확인 중' : formatPetCompanion(petNames)
+
+  useEffect(
+    () => () => {
+      nearbyMomentumRef.current?.stop()
+    },
+    []
+  )
+
+  const handleNearbyPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+
+    nearbyMomentumRef.current?.stop()
+    nearbyMomentumRef.current = null
+    nearbyDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startScrollLeft: event.currentTarget.scrollLeft,
+      isHorizontal: false,
+      lastX: event.clientX,
+      lastTimestamp: event.timeStamp,
+      velocityX: 0,
+    }
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+  }
+
+  const handleNearbyPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = nearbyDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+
+    const deltaX = event.clientX - drag.startX
+    const deltaY = event.clientY - drag.startY
+    if (!drag.isHorizontal) {
+      if (Math.abs(deltaX) < 6 || Math.abs(deltaX) <= Math.abs(deltaY)) return
+      drag.isHorizontal = true
+    }
+
+    const elapsedMs = Math.max(1, event.timeStamp - drag.lastTimestamp)
+    const latestVelocity = (event.clientX - drag.lastX) / elapsedMs
+    drag.velocityX = drag.velocityX * 0.35 + latestVelocity * 0.65
+    drag.lastX = event.clientX
+    drag.lastTimestamp = event.timeStamp
+
+    event.preventDefault()
+    event.currentTarget.scrollLeft = drag.startScrollLeft - deltaX
+  }
+
+  const stopNearbyDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = nearbyDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    nearbyDragRef.current = null
+
+    if (event.type === 'pointercancel' || !drag.isHorizontal || prefersReducedMotion) return
+
+    const carousel = event.currentTarget
+    const currentScrollLeft = carousel.scrollLeft
+    const maxScrollLeft = Math.max(0, carousel.scrollWidth - carousel.clientWidth)
+    if (maxScrollLeft === 0) return
+
+    const targetScrollLeft = Math.min(
+      maxScrollLeft,
+      Math.max(0, currentScrollLeft - drag.velocityX * 220)
+    )
+    if (Math.abs(targetScrollLeft - currentScrollLeft) < 1) return
+
+    nearbyMomentumRef.current = animate(currentScrollLeft, targetScrollLeft, {
+      type: 'spring',
+      stiffness: 240,
+      damping: 32,
+      mass: 0.7,
+      onUpdate: (value) => {
+        carousel.scrollLeft = value
+      },
+      onComplete: () => {
+        nearbyMomentumRef.current = null
+      },
+    })
+  }
+
   return (
+    <LazyMotion features={domAnimation}>
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* Top bar — home variant */}
-      <header className="z-40 flex h-14 flex-shrink-0 items-center justify-between border-b border-border bg-card-surface px-4">
+      <m.header
+        initial={prefersReducedMotion ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.25 }}
+        className="z-40 flex h-14 flex-shrink-0 items-center justify-between border-b border-border bg-card-surface px-4"
+      >
         <div className="flex items-center gap-1.5">
           <div className="relative w-6 h-6">
             <Image src="/images/paw-logo.png" alt="PawRoute" fill className="object-contain" />
           </div>
           <span className="text-[17px] font-bold text-deep-brown">PawRoute</span>
         </div>
-        <div className="flex items-center gap-1">
-          <NotificationButton
-            hasUnread={hasUnreadNotifications}
-            onClick={onNotificationClick}
-          />
-        </div>
-      </header>
+      </m.header>
 
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
       {/* Current Location Map Card */}
-      <div className="mx-4 mt-4 rounded-card overflow-hidden shadow-sm relative h-44 bg-sky-blue/30">
-        {/* Fake map background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-sky-blue/20 to-sage-green/10">
-          {/* Grid lines */}
-          {[0,1,2,3,4].map(i => (
-            <div key={i} className="absolute w-full h-px bg-white/30" style={{ top: `${i * 25}%` }} />
-          ))}
-          {[0,1,2,3,4].map(i => (
-            <div key={i} className="absolute h-full w-px bg-white/30" style={{ left: `${i * 25}%` }} />
-          ))}
-          {/* Roads */}
-          <div className="absolute top-1/2 w-full h-2 bg-white/40 -translate-y-1/2 rounded" />
-          <div className="absolute left-1/3 h-full w-2 bg-white/40 rounded" />
-        </div>
-        {/* Location badge */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1">
-          <div className="w-12 h-12 rounded-full bg-sage-green shadow-lg flex items-center justify-center pulse-dot">
-            <MapPin className="w-6 h-6 text-white" />
-          </div>
-        </div>
-        {/* Location pill */}
-        <div className="absolute bottom-3 left-3 right-3 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1.5 flex items-center gap-2">
-          <MapPin className="w-3.5 h-3.5 text-sage-green flex-shrink-0" />
-          <span className="text-[12px] text-deep-brown font-medium truncate">서울 성동구 성수동 2가</span>
-          <ChevronRight className="w-3.5 h-3.5 text-warm-gray ml-auto flex-shrink-0" />
-        </div>
-      </div>
+      <m.div
+        initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          delay: prefersReducedMotion ? 0 : 0.04,
+          duration: prefersReducedMotion ? 0 : 0.38,
+          ease: HOME_MOTION_EASE,
+        }}
+        className="relative mx-4 mt-4 h-44 overflow-hidden rounded-card bg-sky-blue/30 shadow-sm"
+        data-motion-section="map"
+      >
+        <TmapMap
+          center={mapCenter}
+          zoom={16}
+          locationLabel={mapLocationLabel}
+          showMarker={locationStatus === 'success'}
+          showZoomControl={false}
+          interactive={false}
+          markerVariant="profile"
+          className="min-h-0"
+        />
+      </m.div>
 
       {/* Weather Card */}
-      <div className="mx-4 mt-3 p-4 bg-card-surface rounded-card border border-border shadow-sm">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-sky-blue/20 flex items-center justify-center">
-              <CloudSun className="w-6 h-6 text-sky-blue" />
-            </div>
-            <div>
-              <p className="text-[22px] font-bold text-deep-brown leading-none">23°C</p>
-              <p className="text-[12px] text-warm-gray mt-0.5">맑음 · 서울</p>
-            </div>
-          </div>
-          <div className="flex gap-3 text-right">
-            <div className="flex flex-col items-center gap-0.5">
-              <Wind className="w-3.5 h-3.5 text-warm-gray" />
-              <span className="text-[11px] text-warm-gray">2m/s</span>
-            </div>
-            <div className="flex flex-col items-center gap-0.5">
-              <Droplets className="w-3.5 h-3.5 text-sky-blue" />
-              <span className="text-[11px] text-warm-gray">45%</span>
-            </div>
-            <div className="flex flex-col items-center gap-0.5">
-              <Sun className="w-3.5 h-3.5 text-soft-orange" />
-              <span className="text-[11px] text-warm-gray">UV 3</span>
-            </div>
-          </div>
-        </div>
-        <div className="mt-3 pt-3 border-t border-border">
-          <p className="text-[13px] text-sage-green font-medium">오늘은 가볍게 걷기 좋은 날이에요.</p>
-        </div>
-      </div>
+      <m.div
+        initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          delay: prefersReducedMotion ? 0 : 0.1,
+          duration: prefersReducedMotion ? 0 : 0.38,
+          ease: HOME_MOTION_EASE,
+        }}
+        data-motion-section="weather"
+      >
+      <WeatherCard status={weatherStatus} weather={weather} onRetry={onRetryWeather} />
+      </m.div>
 
       {/* Travel Start CTA */}
-      <div className="mx-4 mt-3 p-4 bg-sage-green rounded-card shadow-md">
+      <m.div
+        initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          delay: prefersReducedMotion ? 0 : 0.16,
+          duration: prefersReducedMotion ? 0 : 0.4,
+          ease: HOME_MOTION_EASE,
+        }}
+        className="mx-4 mt-3 rounded-card bg-sage-green p-4 shadow-md"
+        data-motion-section="trip-cta"
+      >
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[12px] text-white/80 font-medium mb-0.5">골든이와 함께</p>
+            <p className="text-[12px] text-white/80 font-medium mb-0.5">{petCompanion}</p>
             <h2 className="text-[18px] font-bold text-white leading-snug text-balance">
               오늘 어디로 떠날까요?
             </h2>
-            <p className="text-[12px] text-white/70 mt-1">날씨도 좋고, 바람도 선선해요</p>
+            <p className="text-[12px] text-white/70 mt-1">
+              {weatherStatus === 'success' && weather
+                ? weather.walkAdvice
+                : '날씨를 확인하고 산책을 준비해 보세요'}
+            </p>
           </div>
           <div className="relative w-16 h-16 flex-shrink-0">
             <Image
               src="/images/dog-hero.png"
-              alt="골든이"
+              alt=""
               fill
               className="object-cover rounded-full border-2 border-white/50"
             />
@@ -192,23 +262,58 @@ export default function HomeScreen({
         >
           여행 시작하기
         </Button>
-      </div>
+      </m.div>
 
       {/* Nearby Places */}
-      <div className="mt-6">
+      <m.section
+        initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          delay: prefersReducedMotion ? 0 : 0.22,
+          duration: prefersReducedMotion ? 0 : 0.42,
+          ease: HOME_MOTION_EASE,
+        }}
+        className="mt-6"
+        data-motion-section="nearby"
+      >
         <div className="px-4 mb-3">
-          <h3 className="text-[16px] font-semibold text-deep-brown">주변 추천 장소</h3>
+          <h3 className="text-[16px] font-semibold text-deep-brown">추천 장소 예시</h3>
+          <p className="mt-0.5 text-[11px] text-warm-gray">
+            위치 기반 추천 API 연결 전 예시 데이터예요.
+          </p>
         </div>
-        <div className="flex gap-3 px-4 overflow-x-auto no-scrollbar pb-1">
+        <div
+          className="flex cursor-grab select-none gap-3 overflow-x-auto overscroll-x-contain px-4 pb-2 active:cursor-grabbing no-scrollbar"
+          data-testid="nearby-place-carousel"
+          onDragStart={(event) => event.preventDefault()}
+          onPointerCancel={stopNearbyDrag}
+          onPointerDown={handleNearbyPointerDown}
+          onPointerMove={handleNearbyPointerMove}
+          onPointerUp={stopNearbyDrag}
+          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+        >
           {nearbyPlaces.map((place, i) => (
-            <InteractiveCard
+            <m.article
               key={i}
-              padding="none"
-              fullWidth={false}
-              className="w-44 flex-shrink-0 overflow-hidden"
+              initial={prefersReducedMotion ? false : { opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{
+                delay: prefersReducedMotion ? 0 : 0.26 + i * 0.05,
+                duration: prefersReducedMotion ? 0 : 0.36,
+                ease: HOME_MOTION_EASE,
+              }}
+              className="w-44 flex-shrink-0 overflow-hidden rounded-card border border-border bg-card-surface shadow-sm"
             >
               <div className="relative h-28">
-                <Image src={place.image} alt={place.name} fill className="object-cover" />
+                <Image
+                  src={place.image}
+                  alt={place.name}
+                  fill
+                  priority={i === 0}
+                  loading={i === 0 ? 'eager' : 'lazy'}
+                  draggable={false}
+                  className="object-cover"
+                />
                 {/* Pet friendly badge */}
                 <div className="absolute top-2 left-2 bg-sage-green rounded-full px-2 py-0.5 flex items-center gap-1">
                   <span className="text-[10px] text-white font-medium">반려동물 OK</span>
@@ -226,30 +331,86 @@ export default function HomeScreen({
                   <span className="text-[11px] text-warm-gray">({place.reviews})</span>
                 </div>
               </div>
-            </InteractiveCard>
+            </m.article>
           ))}
         </div>
-      </div>
+      </m.section>
 
       {/* HOT Posts */}
-      <div className="mt-6 pb-4">
+      <m.section
+        initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          delay: prefersReducedMotion ? 0 : 0.3,
+          duration: prefersReducedMotion ? 0 : 0.42,
+          ease: HOME_MOTION_EASE,
+        }}
+        className="mt-6 pb-4"
+        data-motion-section="hot-posts"
+      >
         <div className="flex items-center justify-between px-4 mb-3">
           <h3 className="text-[16px] font-semibold text-deep-brown">HOT 게시글</h3>
-          <Button variant="link" size="sm" className="h-auto p-0 text-[12px] font-medium">더보기</Button>
+          <Button
+            onClick={onViewAllPosts}
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-[12px] font-medium"
+          >
+            더보기
+          </Button>
         </div>
         <div className="flex flex-col gap-3 px-4">
-          {hotPosts.map((post, i) => (
-            <InteractiveCard
+          {hotPostsStatus === 'loading' && (
+            <div role="status" aria-label="HOT 게시글을 불러오는 중" className="contents">
+              {[0, 1, 2].map((index) => (
+              <div
+                key={index}
+                aria-hidden="true"
+                className="h-[106px] animate-pulse rounded-card border border-border bg-card-surface"
+              />
+              ))}
+            </div>
+          )}
+
+          {hotPostsStatus === 'error' && (
+            <div className="rounded-card border border-border bg-card-surface px-4 py-5 text-center">
+              <p className="text-[13px] font-semibold text-deep-brown">
+                HOT 게시글을 잠시 불러오지 못했어요.
+              </p>
+              <Button onClick={onRetryHotPosts} variant="link" size="sm" className="mt-1">
+                다시 시도
+              </Button>
+            </div>
+          )}
+
+          {hotPostsStatus === 'success' && hotPosts.length === 0 && (
+            <div className="rounded-card border border-border bg-card-surface px-4 py-5 text-center">
+              <p className="text-[13px] text-warm-gray">아직 추천 게시글이 없어요.</p>
+            </div>
+          )}
+
+          {hotPostsStatus === 'success' && hotPosts.map((post, i) => (
+            <m.article
               key={post.id}
-              onClick={() => onViewPost(post.id)}
-              padding="sm"
-              className="flex gap-3"
+              initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                delay: prefersReducedMotion ? 0 : i * 0.04,
+                duration: prefersReducedMotion ? 0 : 0.34,
+                ease: HOME_MOTION_EASE,
+              }}
+              className="flex gap-3 rounded-card border border-border bg-card-surface p-3 shadow-sm"
             >
               <div className="relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0">
-                <Image src={post.image} alt={post.title} fill className="object-cover" />
+                <Image
+                  src={HOT_POST_PLACEHOLDERS[i] ?? HOT_POST_PLACEHOLDERS[0]}
+                  alt=""
+                  fill
+                  className="object-cover"
+                />
                 {i === 0 && (
-                  <div className="absolute top-1 left-1 bg-soft-orange rounded-full px-1.5 py-0.5">
-                    <span className="text-[9px] text-white font-bold">HOT</span>
+                  <div className="absolute left-1 top-1 flex h-5 min-w-8 items-center justify-center rounded-full bg-soft-orange px-1.5">
+                    <span className="text-[9px] font-bold leading-none text-white">HOT</span>
                   </div>
                 )}
               </div>
@@ -257,27 +418,25 @@ export default function HomeScreen({
                 <h4 className="text-[13px] font-semibold text-deep-brown leading-snug line-clamp-2 text-balance">
                   {post.title}
                 </h4>
-                <p className="text-[11px] text-warm-gray">{post.author} · {post.date}</p>
+                <p className="line-clamp-1 text-[11px] text-warm-gray">
+                  {post.content || '게시글 내용이 없어요.'}
+                </p>
+                <p className="text-[10px] text-warm-gray/80">{formatPostDate(post.createdAt)}</p>
                 <div className="flex items-center gap-2 mt-auto">
                   <span className="flex items-center gap-0.5 text-[11px] text-warm-gray">
-                    <Eye className="w-3 h-3" /> {post.views.toLocaleString()}
+                    <Eye className="w-3 h-3" /> {post.viewCount.toLocaleString()}
                   </span>
                   <span className="flex items-center gap-0.5 text-[11px] text-warm-gray">
-                    <ThumbsUp className="w-3 h-3" /> {post.likes}
-                  </span>
-                  <span className="flex items-center gap-0.5 text-[11px] text-warm-gray">
-                    <MessageCircle className="w-3 h-3" /> {post.comments}
-                  </span>
-                  <span className="flex items-center gap-0.5 text-[11px] text-warm-gray">
-                    <Bookmark className="w-3 h-3" /> {post.bookmarks}
+                    <ThumbsUp className="w-3 h-3" /> {post.recommendationCount.toLocaleString()}
                   </span>
                 </div>
               </div>
-            </InteractiveCard>
+            </m.article>
           ))}
         </div>
-      </div>
+      </m.section>
       </div>
     </div>
+    </LazyMotion>
   )
 }

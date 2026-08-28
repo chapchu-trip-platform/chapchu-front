@@ -50,6 +50,28 @@ describe('/api/tmap/sdk route', () => {
     expect(body).not.toContain('test-tmap-key')
   })
 
+  it('does not return an SDK response that echoes a URL-encoded API key', async () => {
+    const apiKey = 'test+tmap/key=='
+    const encodedApiKey = encodeURIComponent(apiKey)
+    process.env.T_MAP_APIKEY = apiKey
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(`window.Tmapv2 = {}; appKey=${encodedApiKey}`, {
+          status: 200,
+        })
+      )
+    )
+
+    const response = await GET()
+    const body = await response.text()
+
+    expect(response.status).toBe(502)
+    expect(body).toBe('TMAP SDK response failed security validation.')
+    expect(body).not.toContain(apiKey)
+    expect(body).not.toContain(encodedApiKey)
+  })
+
   it('proxies safe SDK JavaScript with security-focused headers', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response('window.Tmapv2 = {};', {

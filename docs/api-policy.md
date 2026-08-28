@@ -120,3 +120,80 @@ Backend coordination still needs to confirm:
 - travel note draft save API
 - album save API
 - community post/comment API
+
+## Home And Location API Status
+
+The Chapchu API documentation updated on 2026-08-25 publishes:
+
+- public integrated signup `POST /auth/signup`, requiring
+  `user.locationConsent` as a boolean
+- authenticated `GET /home`, returning `nickname` and `petNames`
+- authenticated `GET /posts?sort=popular`, returning recommendation-sorted post summaries
+- authenticated `GET /places/nearby`, accepting `lat`, `lng`, and optional
+  `radiusMeters` query parameters
+
+The signup UI presents location collection/use and third-party provision as separate,
+required acknowledgements. The current backend contract can only receive one boolean, so
+the frontend sends `locationConsent: true` only after both acknowledgements are checked.
+Signup does not request the operating-system location permission or collect coordinates.
+
+Successful integrated signup is treated as proof that the required service-location
+consent was completed; the frontend signup adapter rejects any request whose
+`locationConsent` is not `true`. The published documentation still does not define APIs
+for later withdrawal, temporary suspension, or consent-history evidence. Browser or
+operating-system permission remains a separate device-level control.
+
+Location acquisition is isolated under `features/location`. Home and Map automatically
+start a bounded foreground quality-sampling window when their route is entered. The web
+provider watches fresh high-accuracy samples for at most 12 seconds, accepts immediately
+at 100 m or better, otherwise keeps the best sample, and rejects the result when the best
+reported accuracy remains worse than 1 km. This short quality window is not continuous
+trip tracking. The browser or operating system may still show its own device-permission prompt. The resulting latitude,
+longitude, accuracy, and capture time are held only in the non-persisted Zustand store
+and are reset on logout; they are not written to browser storage or the Chapchu backend.
+Home keeps the precise position in non-persistent device memory and passes it to the
+in-browser TMAP component. TMAP may receive or infer the displayed map center/area while
+serving map tiles, so this use must be reflected in the location/privacy notice.
+Weather does not wait for the final map-quality result. The first fresh sample reported
+within 5 km accuracy is converted in the browser to a KMA 5 km grid and only `nx` and `ny`
+are sent to the internal weather Route Handler. The final position replaces the temporary
+weather position, but weather is requested again only when its KMA grid changes. If no
+weather-usable sample arrives, weather falls back to the existing Suseong-gu representative
+point after the location attempt ends. Dynamic grid weather omits UV until a trustworthy
+coordinate-to-area-code mapping is available.
+
+The Home TMAP receives the browser's original JavaScript latitude and longitude without
+decimal rounding, requests fresh high-accuracy fixes (`maximumAge: 0`), and exposes the
+reported `accuracyMeters` separately from coordinate precision. More decimal digits do
+not compensate for GPS, Wi-Fi, or cell-location error. Browser Geolocation coordinates
+are passed directly to TMAP's WGS84 `LatLng` without a second coordinate conversion. The compact Home map is read-only,
+uses a temporary profile-photo pin, and updates its center/marker without rebuilding the
+TMAP instance when a newer coordinate reaches Zustand. The bounded browser position watch
+is aborted immediately when Home/Map unmounts or the location store is reset; transient
+`unavailable`/`timeout` callbacks do not stop the quality window before a better sample can arrive.
+
+Home now reads `petNames` from `GET /home` and shows the first name plus the remaining
+count. Its three HOT cards come from `GET /posts?sort=popular`. Because that list contract
+only includes a `photoId`, not a displayable image URL, the frontend uses local fallback
+images and does not invent author, comment, or bookmark values.
+
+Before production location rollout, backend coordination still needs to provide:
+
+- location-consent withdrawal, temporary suspension, and status contracts for account settings
+- separate consent evidence for collection/use and third-party provision, including policy
+  version and agreed/withdrawn timestamps; a single boolean is not sufficient audit evidence
+- a decision on replacing the coordinate-bearing nearby-place query with a `POST`
+  Home context endpoint so precise coordinates do not enter URL, proxy, CDN, or access logs
+- production-wide redaction for coordinates in application logs, APM, analytics, and errors
+- the retention policy for consent evidence while keeping raw coordinates out of the user DB
+
+Before production release, legal and operations owners must finalize the service operator's
+legal name, address, contact channel, withdrawal procedure, exact external recipients, and
+recipient-specific retention periods. The UI copy is an implementation draft based on the
+current service design and is not a substitute for approved location-service terms or legal
+review.
+
+If the current `GET /places/nearby` contract is used temporarily, it must only run after
+explicit service consent and device permission, and the request coordinates must be reduced
+to the minimum precision needed for Home. The client diagnostics redact location fields and
+coordinate query parameters before any future integration.

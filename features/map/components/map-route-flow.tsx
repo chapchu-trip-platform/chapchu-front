@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import MapSetupScreen from '@/components/screens/map-setup-screen'
 import MapRouteScreen from '@/components/screens/map-route-screen'
@@ -9,6 +9,7 @@ import TripEndScreen from '@/components/screens/trip-end-screen'
 import PostShareSheet from '@/components/screens/post-share-sheet'
 import ErrorScreen from '@/components/screens/error-screen'
 import { useTravelStore } from '@/features/travel/stores/travel-store'
+import { useLocationStore } from '@/features/location/stores/location-store'
 import type { ErrorType } from '@/types'
 
 type MapStep = 'setup' | 'route' | 'progress' | 'end'
@@ -22,6 +23,16 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
   const [step, setStep] = useState<MapStep>('setup')
   const [showShareSheet, setShowShareSheet] = useState(false)
   const { draftTripTitle, draftTripImage, selectedPetName, setTravelStage } = useTravelStore()
+  const currentPosition = useLocationStore((state) => state.position)
+  const locationStatus = useLocationStore((state) => state.status)
+  const refreshLocation = useLocationStore((state) => state.refreshLocation)
+  const cancelLocationRequest = useLocationStore((state) => state.cancelLocationRequest)
+
+  useEffect(() => {
+    if (initialErrorType || step !== 'setup') return
+    void refreshLocation()
+    return () => cancelLocationRequest()
+  }, [cancelLocationRequest, initialErrorType, refreshLocation, step])
 
   if (initialErrorType) {
     return (
@@ -57,6 +68,12 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
     return (
       <MapSetupScreen
         onBack={() => router.push('/home')}
+        currentLocation={
+          currentPosition
+            ? { lat: currentPosition.latitude, lng: currentPosition.longitude }
+            : undefined
+        }
+        locationStatus={locationStatus}
         onNext={() => {
           setTravelStage('planning')
           setStep('route')

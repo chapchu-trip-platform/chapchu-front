@@ -7,10 +7,13 @@ import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { InteractiveCard } from '@/components/ui/interactive-card'
 import TmapMap from '@/features/map/components/tmap-map'
+import type { LocationLoadStatus } from '@/features/location/stores/location-store'
 
 interface MapSetupScreenProps {
   onBack: () => void
   onNext: () => void
+  currentLocation?: { lat: number; lng: number }
+  locationStatus: LocationLoadStatus
 }
 
 const searchResults = [
@@ -21,7 +24,12 @@ const searchResults = [
 
 const initialRecentSearches = ['제주 올레길', '경복궁', '가평 자라섬']
 
-export default function MapSetupScreen({ onBack, onNext }: MapSetupScreenProps) {
+export default function MapSetupScreen({
+  onBack,
+  onNext,
+  currentLocation,
+  locationStatus,
+}: MapSetupScreenProps) {
   const [origin, setOrigin] = useState('')
   const [destination, setDestination] = useState('')
   const [activeField, setActiveField] = useState<'origin' | 'destination' | null>(null)
@@ -56,13 +64,20 @@ export default function MapSetupScreen({ onBack, onNext }: MapSetupScreenProps) 
       <div className="flex flex-col gap-3 p-4">
         {/* Use current location */}
         <Button
-          onClick={() => { setOrigin('현재 위치'); setActiveField(null); setQuery('') }}
+          onClick={() => {
+            setOrigin('현재 위치')
+            setActiveField(null)
+            setQuery('')
+          }}
+          disabled={locationStatus === 'requesting' || !currentLocation}
           variant="link"
           size="sm"
           className="ml-2 h-auto self-start p-0 no-underline"
         >
           <MapPin className="h-4 w-4 text-sage-green" />
-          <span className="text-[13px] font-medium text-sage-green">현재 위치 사용</span>
+          <span className="text-[13px] font-medium text-sage-green">
+            {locationStatus === 'requesting' ? '현재 위치 확인 중' : '현재 위치 사용'}
+          </span>
         </Button>
 
         {/* Origin and destination */}
@@ -208,7 +223,11 @@ export default function MapSetupScreen({ onBack, onNext }: MapSetupScreenProps) 
           </div>
         ) : (
           <>
-            <TmapMap />
+            <TmapMap
+              center={currentLocation}
+              locationLabel={currentLocation ? '현재 위치' : '서울 시청 기준'}
+              showMarker={Boolean(currentLocation)}
+            />
 
             {origin && destination && (
               <>

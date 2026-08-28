@@ -40,6 +40,9 @@ export default function AuthCallbackRoute() {
       return
     }
 
+    // A successful OAuth callback may replace an already authenticated account.
+    // Tear down session-scoped location data before accepting the new identity.
+    useAuthStore.getState().clearSession()
     useAuthStore.getState().setAccessToken(result.token)
     clearPostLoginDestination()
     router.replace('/home')

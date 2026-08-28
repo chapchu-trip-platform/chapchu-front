@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { loadTmapSdk, resetTmapSdkLoaderForTest } from '@/lib/load-tmap-sdk'
 
 const mockTmapNamespace: Tmapv2Namespace = {
@@ -8,13 +8,21 @@ const mockTmapNamespace: Tmapv2Namespace = {
   LatLng: class {
     constructor() {}
   },
+  Marker: class {
+    constructor() {}
+  },
 }
 
 describe('loadTmapSdk', () => {
   beforeEach(() => {
+    vi.useRealTimers()
     resetTmapSdkLoaderForTest()
     document.head.innerHTML = ''
     Reflect.deleteProperty(window, 'Tmapv2')
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('inserts the SDK script only once while loading', async () => {
@@ -52,5 +60,30 @@ describe('loadTmapSdk', () => {
     secondScript?.dispatchEvent(new Event('load'))
 
     await expect(secondLoad).resolves.toBe(mockTmapNamespace)
+  })
+
+  it('waits for the Marker constructor before resolving the SDK', async () => {
+    vi.useFakeTimers()
+    const loadingNamespace = {
+      Map: mockTmapNamespace.Map,
+      LatLng: mockTmapNamespace.LatLng,
+    } as Tmapv2Namespace
+    const sdkLoad = loadTmapSdk()
+    const script = document.querySelector('script#tmap-js-sdk')
+    let isResolved = false
+
+    window.Tmapv2 = loadingNamespace
+    sdkLoad.then(() => {
+      isResolved = true
+    })
+    script?.dispatchEvent(new Event('load'))
+    await Promise.resolve()
+
+    expect(isResolved).toBe(false)
+
+    loadingNamespace.Marker = mockTmapNamespace.Marker
+    await vi.advanceTimersByTimeAsync(100)
+
+    await expect(sdkLoad).resolves.toBe(loadingNamespace)
   })
 })
