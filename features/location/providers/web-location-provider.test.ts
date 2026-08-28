@@ -91,6 +91,7 @@ describe('webLocationProvider', () => {
 
   it('keeps sampling until a position reaches the target accuracy', async () => {
     let reportPosition!: PositionCallback
+    const onSample = vi.fn()
     const clearWatch = vi.fn()
     const watchPosition = vi.fn((success: PositionCallback) => {
       reportPosition = success
@@ -98,7 +99,7 @@ describe('webLocationProvider', () => {
     })
     stubNavigator({ clearWatch, watchPosition })
 
-    const resultPromise = webLocationProvider.requestCurrentPosition()
+    const resultPromise = webLocationProvider.requestCurrentPosition({ onSample })
     reportPosition({
       coords: {
         accuracy: 5_000,
@@ -133,6 +134,8 @@ describe('webLocationProvider', () => {
         precision: 'precise',
       },
     })
+    expect(onSample).toHaveBeenCalledTimes(2)
+    expect(onSample.mock.calls.map(([sample]) => sample.accuracyMeters)).toEqual([5_000, 72])
     expect(clearWatch).toHaveBeenCalledWith(17)
   })
 
@@ -267,22 +270,41 @@ describe('webLocationProvider', () => {
 
   it('clears the active watch and timer when the request is cancelled', async () => {
     vi.useFakeTimers()
+    let reportPosition!: PositionCallback
+    const onSample = vi.fn()
     const clearWatch = vi.fn()
     stubNavigator({
       clearWatch,
-      watchPosition: vi.fn(() => 44),
+      watchPosition: vi.fn((success: PositionCallback) => {
+        reportPosition = success
+        return 44
+      }),
     })
     const controller = new AbortController()
 
     const resultPromise = webLocationProvider.requestCurrentPosition({
       signal: controller.signal,
       timeoutMs: 1_000,
+      onSample,
     })
     controller.abort()
 
     await expect(resultPromise).resolves.toEqual({ ok: false, code: 'cancelled' })
     expect(clearWatch).toHaveBeenCalledTimes(1)
     expect(clearWatch).toHaveBeenCalledWith(44)
+    reportPosition({
+      coords: {
+        accuracy: 50,
+        altitude: null,
+        altitudeAccuracy: null,
+        heading: null,
+        latitude: 35.8584,
+        longitude: 128.6304,
+        speed: null,
+      },
+      timestamp: Date.parse('2026-08-22T07:00:04Z'),
+    } as GeolocationPosition)
+    expect(onSample).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(1_000)
     expect(clearWatch).toHaveBeenCalledTimes(1)
   })

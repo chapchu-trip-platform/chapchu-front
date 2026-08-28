@@ -36,6 +36,7 @@ export interface LocationRequestOptions {
   timeoutMs?: number
   maximumAgeMs?: number
   signal?: AbortSignal
+  onSample?: (position: DevicePosition) => void
 }
 
 export interface LocationProvider {

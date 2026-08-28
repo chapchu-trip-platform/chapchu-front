@@ -2,7 +2,10 @@
 
 import { create } from 'zustand'
 import { webLocationProvider } from '@/features/location/providers/web-location-provider'
-import { LOCATION_QUALITY_SAMPLING_WINDOW_MS } from '@/features/location/config/location-quality'
+import {
+  LOCATION_QUALITY_SAMPLING_WINDOW_MS,
+  LOCATION_WEATHER_MAX_ACCURACY_METERS,
+} from '@/features/location/config/location-quality'
 import type {
   DevicePosition,
   LocationFailureCode,
@@ -14,6 +17,7 @@ export type LocationLoadStatus = 'idle' | 'requesting' | 'success' | 'error'
 
 interface LocationState {
   position: DevicePosition | null
+  weatherPosition: DevicePosition | null
   permission: LocationPermissionState
   status: LocationLoadStatus
   error: LocationFailureCode | null
@@ -25,6 +29,7 @@ interface LocationState {
 
 const initialState = {
   position: null,
+  weatherPosition: null,
   permission: 'unknown' as LocationPermissionState,
   status: 'idle' as LocationLoadStatus,
   error: null,
@@ -41,8 +46,10 @@ export const useLocationStore = create<LocationState>((set, get) => ({
 
     const requestId = get().requestId + 1
     const abortController = new AbortController()
+    let hasFreshWeatherSample = false
     activeAbortController = abortController
     set({
+      weatherPosition: null,
       status: 'requesting',
       error: null,
       requestId,
@@ -55,6 +62,7 @@ export const useLocationStore = create<LocationState>((set, get) => ({
       if (permission === 'denied' || permission === 'unavailable') {
         set({
           position: null,
+          weatherPosition: null,
           permission,
           status: 'error',
           error: permission === 'denied' ? 'denied' : 'unsupported',
@@ -68,6 +76,17 @@ export const useLocationStore = create<LocationState>((set, get) => ({
         maximumAgeMs: 0,
         timeoutMs: LOCATION_QUALITY_SAMPLING_WINDOW_MS,
         signal: abortController.signal,
+        onSample: (sample) => {
+          if (
+            hasFreshWeatherSample ||
+            get().requestId !== requestId ||
+            sample.accuracyMeters > LOCATION_WEATHER_MAX_ACCURACY_METERS
+          ) {
+            return
+          }
+          hasFreshWeatherSample = true
+          set({ weatherPosition: sample })
+        },
       })
       if (get().requestId !== requestId) return null
 
@@ -78,6 +97,7 @@ export const useLocationStore = create<LocationState>((set, get) => ({
 
       set({
         position: result.position,
+        weatherPosition: result.position,
         permission: 'granted',
         status: 'success',
         error: null,

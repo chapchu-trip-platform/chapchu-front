@@ -48,6 +48,14 @@ function toQualityResult(position: DevicePosition | null): LocationResult {
   return { ok: true, position } as const
 }
 
+function reportSample(options: LocationRequestOptions, position: DevicePosition) {
+  try {
+    options.onSample?.(position)
+  } catch {
+    // A UI subscriber must not interrupt or leak the browser's active position watch.
+  }
+}
+
 export const webLocationProvider: LocationProvider = {
   async checkPermission() {
     if (!isWebLocationAvailable()) return 'unavailable'
@@ -99,7 +107,12 @@ export const webLocationProvider: LocationProvider = {
 
         try {
           geolocation.getCurrentPosition(
-            (position) => finish(toQualityResult(normalizeWebPosition(position))),
+            (position) => {
+              if (settled) return
+              const normalizedPosition = normalizeWebPosition(position)
+              if (normalizedPosition) reportSample(options, normalizedPosition)
+              finish(toQualityResult(normalizedPosition))
+            },
             (error) => finish({ ok: false, code: mapGeolocationError(error) }),
             resolvedOptions
           )
@@ -160,8 +173,10 @@ export const webLocationProvider: LocationProvider = {
       try {
         watchId = geolocation.watchPosition(
           (position) => {
+            if (settled) return
             const normalizedPosition = normalizeWebPosition(position)
             if (!normalizedPosition) return
+            reportSample(options, normalizedPosition)
 
             if (!bestPosition || normalizedPosition.accuracyMeters < bestPosition.accuracyMeters) {
               bestPosition = normalizedPosition

@@ -154,10 +154,13 @@ and are reset on logout; they are not written to browser storage or the Chapchu 
 Home keeps the precise position in non-persistent device memory and passes it to the
 in-browser TMAP component. TMAP may receive or infer the displayed map center/area while
 serving map tiles, so this use must be reflected in the location/privacy notice.
-Weather converts it in the browser to a KMA 5 km grid and sends only `nx` and `ny` to the
-internal weather Route Handler. If the position is unavailable, weather falls back to
-the existing Suseong-gu representative point. Dynamic grid weather omits UV until a
-trustworthy coordinate-to-area-code mapping is available.
+Weather does not wait for the final map-quality result. The first fresh sample reported
+within 5 km accuracy is converted in the browser to a KMA 5 km grid and only `nx` and `ny`
+are sent to the internal weather Route Handler. The final position replaces the temporary
+weather position, but weather is requested again only when its KMA grid changes. If no
+weather-usable sample arrives, weather falls back to the existing Suseong-gu representative
+point after the location attempt ends. Dynamic grid weather omits UV until a trustworthy
+coordinate-to-area-code mapping is available.
 
 The Home TMAP receives the browser's original JavaScript latitude and longitude without
 decimal rounding, requests fresh high-accuracy fixes (`maximumAge: 0`), and exposes the

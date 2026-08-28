@@ -29,6 +29,7 @@ describe('location store', () => {
     await expect(useLocationStore.getState().refreshLocation(provider)).resolves.toEqual(position)
     expect(useLocationStore.getState()).toMatchObject({
       position,
+      weatherPosition: position,
       permission: 'granted',
       status: 'success',
       error: null,
@@ -38,6 +39,53 @@ describe('location store', () => {
       maximumAgeMs: 0,
       timeoutMs: 12_000,
       signal: expect.any(AbortSignal),
+      onSample: expect.any(Function),
+    })
+  })
+
+  it('publishes the first weather-usable sample before the final map position', async () => {
+    let reportSample!: (sample: DevicePosition) => void
+    let resolvePosition!: (result: LocationResult) => void
+    const coarsePosition: DevicePosition = {
+      ...position,
+      latitude: 35.86,
+      longitude: 128.64,
+      accuracyMeters: 4_000,
+      precision: 'approximate',
+    }
+    const provider: LocationProvider = {
+      checkPermission: vi.fn().mockResolvedValue('granted'),
+      requestCurrentPosition: vi.fn((options) => {
+        reportSample = options!.onSample!
+        return new Promise<LocationResult>((resolve) => {
+          resolvePosition = resolve
+        })
+      }),
+    }
+
+    useLocationStore.setState({ weatherPosition: position })
+    const request = useLocationStore.getState().refreshLocation(provider)
+    await vi.waitFor(() => expect(provider.requestCurrentPosition).toHaveBeenCalledOnce())
+    expect(useLocationStore.getState().weatherPosition).toBeNull()
+    reportSample({ ...coarsePosition, accuracyMeters: 5_001 })
+    expect(useLocationStore.getState().weatherPosition).toBeNull()
+
+    reportSample(coarsePosition)
+    expect(useLocationStore.getState()).toMatchObject({
+      position: null,
+      weatherPosition: coarsePosition,
+      status: 'requesting',
+    })
+
+    reportSample({ ...coarsePosition, accuracyMeters: 2_000 })
+    expect(useLocationStore.getState().weatherPosition).toEqual(coarsePosition)
+
+    resolvePosition({ ok: true, position })
+    await expect(request).resolves.toEqual(position)
+    expect(useLocationStore.getState()).toMatchObject({
+      position,
+      weatherPosition: position,
+      status: 'success',
     })
   })
 

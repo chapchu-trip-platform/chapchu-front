@@ -4,6 +4,11 @@ import HomeRoute from '@/features/home/components/home-route'
 import { fetchHomeSummary, fetchPopularPosts } from '@/features/home/api/home-api'
 import { webLocationProvider } from '@/features/location/providers/web-location-provider'
 import { useLocationStore } from '@/features/location/stores/location-store'
+import type {
+  DevicePosition,
+  LocationRequestOptions,
+  LocationResult,
+} from '@/features/location/types/location'
 import type { CurrentWeather } from '@/types/weather'
 
 vi.mock('@/features/home/api/home-api', () => ({
@@ -118,6 +123,118 @@ describe('HomeRoute data and location flow', () => {
     )
   })
 
+  it('loads weather from the first coarse grid before the final map position resolves', async () => {
+    let locationOptions!: LocationRequestOptions
+    let resolveLocation!: (result: LocationResult) => void
+    const coarsePosition: DevicePosition = {
+      latitude: 35.8552083333333,
+      longitude: 128.632866666666,
+      accuracyMeters: 4_000,
+      capturedAt: '2026-08-26T05:00:00.000Z',
+      precision: 'approximate',
+      source: 'web',
+    }
+    vi.mocked(webLocationProvider.requestCurrentPosition).mockImplementation((options) => {
+      locationOptions = options ?? {}
+      return new Promise<LocationResult>((resolve) => {
+        resolveLocation = resolve
+      })
+    })
+    const fetchMock = vi.fn().mockResolvedValue(weatherResponse())
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<HomeRoute />)
+    await waitFor(() => expect(webLocationProvider.requestCurrentPosition).toHaveBeenCalledOnce())
+    act(() => locationOptions.onSample?.(coarsePosition))
+
+    expect(await screen.findByText('27°C')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/weather/current?nx=89&ny=90',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+    expect(screen.getByTestId('home-map')).toHaveAttribute(
+      'data-location-label',
+      '더 정확한 위치 확인 중'
+    )
+
+    act(() => {
+      resolveLocation({
+        ok: true,
+        position: { ...coarsePosition, accuracyMeters: 70, precision: 'precise' },
+      })
+    })
+    await waitFor(() =>
+      expect(screen.getByTestId('home-map')).toHaveAttribute(
+        'data-location-label',
+        '현재 위치 · 정확도 약 70m'
+      )
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('refreshes weather once for a changed final grid and ignores the older response', async () => {
+    let locationOptions!: LocationRequestOptions
+    let resolveLocation!: (result: LocationResult) => void
+    let resolveFirstWeather!: (response: Response) => void
+    const coarsePosition: DevicePosition = {
+      latitude: 35.8552083333333,
+      longitude: 128.632866666666,
+      accuracyMeters: 4_000,
+      capturedAt: '2026-08-26T05:00:00.000Z',
+      precision: 'approximate',
+      source: 'web',
+    }
+    vi.mocked(webLocationProvider.requestCurrentPosition).mockImplementation((options) => {
+      locationOptions = options ?? {}
+      return new Promise<LocationResult>((resolve) => {
+        resolveLocation = resolve
+      })
+    })
+    const fetchMock = vi
+      .fn()
+      .mockReturnValueOnce(
+        new Promise<Response>((resolve) => {
+          resolveFirstWeather = resolve
+        })
+      )
+      .mockResolvedValueOnce(weatherResponse({ ...weather, temperatureC: 18 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<HomeRoute />)
+    await waitFor(() => expect(webLocationProvider.requestCurrentPosition).toHaveBeenCalledOnce())
+    act(() => locationOptions.onSample?.(coarsePosition))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+
+    act(() => {
+      resolveLocation({
+        ok: true,
+        position: {
+          ...coarsePosition,
+          latitude: 37.5665,
+          longitude: 126.978,
+          accuracyMeters: 70,
+          precision: 'precise',
+        },
+      })
+    })
+
+    expect(await screen.findByText('18°C')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/weather/current?nx=89&ny=90',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/weather/current?nx=60&ny=127',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+
+    act(() => resolveFirstWeather(weatherResponse()))
+    await waitFor(() => expect(screen.getByText('18°C')).toBeInTheDocument())
+    expect(screen.queryByText('27°C')).not.toBeInTheDocument()
+  })
+
   it('falls back to the default weather location when device permission is denied', async () => {
     vi.mocked(webLocationProvider.checkPermission).mockResolvedValue('denied')
     const fetchMock = vi.fn().mockResolvedValue(
@@ -166,6 +283,43 @@ describe('HomeRoute data and location flow', () => {
       'data-location-label',
       '대구 수성구 기준 · 위치 정확도 부족'
     )
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/weather/current',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+  })
+
+  it('does not request weather with a stale position when a fresh attempt has no sample', async () => {
+    useLocationStore.setState({
+      position: {
+        latitude: 37.5665,
+        longitude: 126.978,
+        accuracyMeters: 50,
+        capturedAt: '2026-08-26T04:00:00.000Z',
+        precision: 'precise',
+        source: 'web',
+      },
+      weatherPosition: {
+        latitude: 37.5665,
+        longitude: 126.978,
+        accuracyMeters: 50,
+        capturedAt: '2026-08-26T04:00:00.000Z',
+        precision: 'precise',
+        source: 'web',
+      },
+      status: 'success',
+    })
+    vi.mocked(webLocationProvider.requestCurrentPosition).mockResolvedValue({
+      ok: false,
+      code: 'low_accuracy',
+    })
+    const fetchMock = vi.fn().mockResolvedValue(weatherResponse())
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<HomeRoute />)
+
+    expect(await screen.findByText('27°C')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/weather/current',
       expect.objectContaining({ signal: expect.any(AbortSignal) })

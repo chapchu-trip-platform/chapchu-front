@@ -1,13 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import HomeScreen from '@/components/screens/home-screen'
 import { fetchHomeSummary, fetchPopularPosts } from '@/features/home/api/home-api'
 import { convertLatLngToKmaGrid } from '@/features/home/lib/kma-grid'
 import type { HomeDataStatus, HomeSummary, HotPost } from '@/features/home/types/home'
 import { useLocationStore } from '@/features/location/stores/location-store'
-import type { DevicePosition } from '@/features/location/types/location'
 import type { CurrentWeather, WeatherLoadStatus } from '@/types/weather'
 
 const DEFAULT_HOME_LOCATION = {
@@ -53,10 +52,12 @@ function isCurrentWeather(value: unknown): value is CurrentWeather {
   )
 }
 
-async function requestCurrentWeather(position: DevicePosition | null, signal?: AbortSignal) {
+async function requestCurrentWeather(
+  grid: { nx: number; ny: number } | null,
+  signal?: AbortSignal
+) {
   const query = new URLSearchParams()
-  if (position) {
-    const grid = convertLatLngToKmaGrid(position.latitude, position.longitude)
+  if (grid) {
     query.set('nx', String(grid.nx))
     query.set('ny', String(grid.ny))
   }
@@ -76,6 +77,7 @@ function isAbortError(error: unknown) {
 export default function HomeRoute() {
   const router = useRouter()
   const locationPosition = useLocationStore((state) => state.position)
+  const weatherPosition = useLocationStore((state) => state.weatherPosition)
   const locationStatus = useLocationStore((state) => state.status)
   const locationError = useLocationStore((state) => state.error)
   const refreshLocation = useLocationStore((state) => state.refreshLocation)
@@ -126,11 +128,55 @@ export default function HomeRoute() {
   }, [])
 
   useEffect(() => {
+    void refreshLocation()
+
+    return () => {
+      cancelLocationRequest()
+      weatherControllerRef.current?.abort()
+      weatherControllerRef.current = null
+    }
+  }, [cancelLocationRequest, refreshLocation])
+
+  const weatherGrid = useMemo(
+    () =>
+      weatherPosition
+        ? convertLatLngToKmaGrid(weatherPosition.latitude, weatherPosition.longitude)
+        : null,
+    [weatherPosition]
+  )
+  const weatherNx = weatherGrid?.nx ?? null
+  const weatherNy = weatherGrid?.ny ?? null
+  const weatherRequestKey =
+    weatherNx !== null && weatherNy !== null
+      ? `${weatherNx}:${weatherNy}`
+      : locationStatus === 'error'
+        ? 'default'
+        : null
+
+  useEffect(() => {
+    if (weatherRequestKey === null) return
+
+    const latestLocationState = useLocationStore.getState()
+    if (weatherRequestKey === 'default') {
+      if (latestLocationState.status !== 'error') return
+    } else {
+      const latestPosition = latestLocationState.weatherPosition
+      if (!latestPosition) return
+      const latestGrid = convertLatLngToKmaGrid(
+        latestPosition.latitude,
+        latestPosition.longitude
+      )
+      if (`${latestGrid.nx}:${latestGrid.ny}` !== weatherRequestKey) return
+    }
+
+    weatherControllerRef.current?.abort()
     const controller = new AbortController()
     weatherControllerRef.current = controller
 
-    void refreshLocation()
-      .then((position) => requestCurrentWeather(position, controller.signal))
+    const grid =
+      weatherNx !== null && weatherNy !== null ? { nx: weatherNx, ny: weatherNy } : null
+
+    void requestCurrentWeather(grid, controller.signal)
       .then((data) => {
         if (weatherControllerRef.current !== controller) return
         setWeather(data)
@@ -142,19 +188,22 @@ export default function HomeRoute() {
         setWeatherStatus('error')
       })
 
-    return () => {
-      cancelLocationRequest()
-      weatherControllerRef.current?.abort()
-      weatherControllerRef.current = null
-    }
-  }, [cancelLocationRequest, refreshLocation])
+    return () => controller.abort()
+  }, [weatherNx, weatherNy, weatherRequestKey])
 
   const retryWeather = () => {
     weatherControllerRef.current?.abort()
     const controller = new AbortController()
     weatherControllerRef.current = controller
     setWeatherStatus('loading')
-    void requestCurrentWeather(useLocationStore.getState().position, controller.signal)
+    const latestWeatherPosition = useLocationStore.getState().weatherPosition
+    const latestWeatherGrid = latestWeatherPosition
+      ? convertLatLngToKmaGrid(
+          latestWeatherPosition.latitude,
+          latestWeatherPosition.longitude
+        )
+      : null
+    void requestCurrentWeather(latestWeatherGrid, controller.signal)
       .then((data) => {
         if (weatherControllerRef.current !== controller) return
         setWeather(data)
