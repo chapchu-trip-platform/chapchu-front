@@ -77,7 +77,9 @@ export default function HomeRoute() {
   const router = useRouter()
   const locationPosition = useLocationStore((state) => state.position)
   const locationStatus = useLocationStore((state) => state.status)
+  const locationError = useLocationStore((state) => state.error)
   const refreshLocation = useLocationStore((state) => state.refreshLocation)
+  const cancelLocationRequest = useLocationStore((state) => state.cancelLocationRequest)
   const [summary, setSummary] = useState<HomeSummary | null>(null)
   const [summaryStatus, setSummaryStatus] = useState<HomeDataStatus>('loading')
   const [hotPosts, setHotPosts] = useState<HotPost[]>([])
@@ -141,10 +143,11 @@ export default function HomeRoute() {
       })
 
     return () => {
+      cancelLocationRequest()
       weatherControllerRef.current?.abort()
       weatherControllerRef.current = null
     }
-  }, [refreshLocation])
+  }, [cancelLocationRequest, refreshLocation])
 
   const retryWeather = () => {
     weatherControllerRef.current?.abort()
@@ -189,8 +192,10 @@ export default function HomeRoute() {
     locationStatus === 'success' && locationPosition
       ? `현재 위치 · 정확도 약 ${Math.max(1, Math.round(locationPosition.accuracyMeters))}m`
       : locationStatus === 'requesting'
-        ? '현재 위치 확인 중'
-        : DEFAULT_HOME_LOCATION.label
+        ? '더 정확한 위치 확인 중'
+        : locationError === 'low_accuracy'
+          ? '대구 수성구 기준 · 위치 정확도 부족'
+          : DEFAULT_HOME_LOCATION.label
 
   return (
     <HomeScreen

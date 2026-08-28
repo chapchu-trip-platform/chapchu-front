@@ -1,7 +1,8 @@
 import type { DevicePosition, LocationPrecision } from '@/features/location/types/location'
+import { LOCATION_TARGET_ACCURACY_METERS } from '@/features/location/config/location-quality'
 
 export const HOME_LOCATION_COORDINATE_DECIMALS = 3
-export const PRECISE_LOCATION_ACCURACY_THRESHOLD_METERS = 100
+export const PRECISE_LOCATION_ACCURACY_THRESHOLD_METERS = LOCATION_TARGET_ACCURACY_METERS
 
 const HOME_LOCATION_PURPOSES = ['MAP_CENTER', 'WEATHER', 'NEARBY_PLACES'] as const
 

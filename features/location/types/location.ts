@@ -14,6 +14,8 @@ export type LocationFailureCode =
   | 'unavailable'
   | 'unsupported'
   | 'invalid'
+  | 'low_accuracy'
+  | 'cancelled'
   | 'unknown'
 
 export interface DevicePosition {
@@ -33,6 +35,7 @@ export interface LocationRequestOptions {
   enableHighAccuracy?: boolean
   timeoutMs?: number
   maximumAgeMs?: number
+  signal?: AbortSignal
 }
 
 export interface LocationProvider {

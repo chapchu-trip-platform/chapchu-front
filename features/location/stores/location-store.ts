@@ -2,6 +2,7 @@
 
 import { create } from 'zustand'
 import { webLocationProvider } from '@/features/location/providers/web-location-provider'
+import { LOCATION_QUALITY_SAMPLING_WINDOW_MS } from '@/features/location/config/location-quality'
 import type {
   DevicePosition,
   LocationFailureCode,
@@ -18,6 +19,7 @@ interface LocationState {
   error: LocationFailureCode | null
   requestId: number
   refreshLocation: (provider?: LocationProvider) => Promise<DevicePosition | null>
+  cancelLocationRequest: () => void
   reset: () => void
 }
 
@@ -30,6 +32,7 @@ const initialState = {
 }
 
 let activeRequest: { id: number; promise: Promise<DevicePosition | null> } | null = null
+let activeAbortController: AbortController | null = null
 
 export const useLocationStore = create<LocationState>((set, get) => ({
   ...initialState,
@@ -37,6 +40,8 @@ export const useLocationStore = create<LocationState>((set, get) => ({
     if (activeRequest) return activeRequest.promise
 
     const requestId = get().requestId + 1
+    const abortController = new AbortController()
+    activeAbortController = abortController
     set({
       status: 'requesting',
       error: null,
@@ -61,12 +66,13 @@ export const useLocationStore = create<LocationState>((set, get) => ({
       const result = await provider.requestCurrentPosition({
         enableHighAccuracy: true,
         maximumAgeMs: 0,
-        timeoutMs: 15_000,
+        timeoutMs: LOCATION_QUALITY_SAMPLING_WINDOW_MS,
+        signal: abortController.signal,
       })
       if (get().requestId !== requestId) return null
 
       if (!result.ok) {
-        set({ status: 'error', error: result.code })
+        set({ position: null, status: 'error', error: result.code })
         return null
       }
 
@@ -79,12 +85,25 @@ export const useLocationStore = create<LocationState>((set, get) => ({
       return result.position
     })().finally(() => {
       if (activeRequest?.id === requestId) activeRequest = null
+      if (activeAbortController === abortController) activeAbortController = null
     })
 
     activeRequest = { id: requestId, promise }
     return promise
   },
+  cancelLocationRequest: () => {
+    activeAbortController?.abort()
+    activeAbortController = null
+    activeRequest = null
+    set((state) => ({
+      requestId: state.requestId + 1,
+      status: state.position ? 'success' : 'idle',
+      error: null,
+    }))
+  },
   reset: () => {
+    activeAbortController?.abort()
+    activeAbortController = null
     activeRequest = null
     set((state) => ({ ...initialState, requestId: state.requestId + 1 }))
   },

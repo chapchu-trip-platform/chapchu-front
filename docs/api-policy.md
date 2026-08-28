@@ -144,23 +144,30 @@ for later withdrawal, temporary suspension, or consent-history evidence. Browser
 operating-system permission remains a separate device-level control.
 
 Location acquisition is isolated under `features/location`. Home and Map automatically
-start a fresh one-shot foreground request when their route is entered. The browser or
-operating system may still show its own device-permission prompt. The resulting latitude,
+start a bounded foreground quality-sampling window when their route is entered. The web
+provider watches fresh high-accuracy samples for at most 12 seconds, accepts immediately
+at 100 m or better, otherwise keeps the best sample, and rejects the result when the best
+reported accuracy remains worse than 1 km. This short quality window is not continuous
+trip tracking. The browser or operating system may still show its own device-permission prompt. The resulting latitude,
 longitude, accuracy, and capture time are held only in the non-persisted Zustand store
 and are reset on logout; they are not written to browser storage or the Chapchu backend.
-Home passes the precise position only to the in-browser TMAP component.
+Home keeps the precise position in non-persistent device memory and passes it to the
+in-browser TMAP component. TMAP may receive or infer the displayed map center/area while
+serving map tiles, so this use must be reflected in the location/privacy notice.
 Weather converts it in the browser to a KMA 5 km grid and sends only `nx` and `ny` to the
 internal weather Route Handler. If the position is unavailable, weather falls back to
 the existing Suseong-gu representative point. Dynamic grid weather omits UV until a
 trustworthy coordinate-to-area-code mapping is available.
 
 The Home TMAP receives the browser's original JavaScript latitude and longitude without
-decimal rounding, requests a fresh high-accuracy fix (`maximumAge: 0`), and exposes the
+decimal rounding, requests fresh high-accuracy fixes (`maximumAge: 0`), and exposes the
 reported `accuracyMeters` separately from coordinate precision. More decimal digits do
 not compensate for GPS, Wi-Fi, or cell-location error. Browser Geolocation coordinates
 are passed directly to TMAP's WGS84 `LatLng` without a second coordinate conversion. The compact Home map is read-only,
 uses a temporary profile-photo pin, and updates its center/marker without rebuilding the
-TMAP instance when a newer coordinate reaches Zustand.
+TMAP instance when a newer coordinate reaches Zustand. The bounded browser position watch
+is aborted immediately when Home/Map unmounts or the location store is reset; transient
+`unavailable`/`timeout` callbacks do not stop the quality window before a better sample can arrive.
 
 Home now reads `petNames` from `GET /home` and shows the first name plus the remaining
 count. Its three HOT cards come from `GET /posts?sort=popular`. Because that list contract

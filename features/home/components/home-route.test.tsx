@@ -149,6 +149,29 @@ describe('HomeRoute data and location flow', () => {
     )
   })
 
+  it('rejects a low-quality position and explains the fallback map location', async () => {
+    vi.mocked(webLocationProvider.requestCurrentPosition).mockResolvedValue({
+      ok: false,
+      code: 'low_accuracy',
+    })
+    const fetchMock = vi.fn().mockResolvedValue(
+      weatherResponse({ ...weather, locationName: '대구광역시 수성구' })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<HomeRoute />)
+
+    expect(await screen.findByText('27°C')).toBeInTheDocument()
+    expect(screen.getByTestId('home-map')).toHaveAttribute(
+      'data-location-label',
+      '대구 수성구 기준 · 위치 정확도 부족'
+    )
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/weather/current',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+  })
+
   it('can retry HOT posts without blocking the rest of Home', async () => {
     vi.mocked(fetchPopularPosts)
       .mockRejectedValueOnce(new Error('network'))

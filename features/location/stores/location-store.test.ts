@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useLocationStore } from '@/features/location/stores/location-store'
-import type { DevicePosition, LocationProvider } from '@/features/location/types/location'
+import type {
+  DevicePosition,
+  LocationProvider,
+  LocationResult,
+} from '@/features/location/types/location'
 
 const position: DevicePosition = {
   latitude: 35.858,
@@ -32,7 +36,8 @@ describe('location store', () => {
     expect(provider.requestCurrentPosition).toHaveBeenCalledWith({
       enableHighAccuracy: true,
       maximumAgeMs: 0,
-      timeoutMs: 15_000,
+      timeoutMs: 12_000,
+      signal: expect.any(AbortSignal),
     })
   })
 
@@ -84,5 +89,52 @@ describe('location store', () => {
     await expect(Promise.all([firstRequest, secondRequest])).resolves.toEqual([position, position])
     expect(provider.checkPermission).toHaveBeenCalledOnce()
     expect(provider.requestCurrentPosition).toHaveBeenCalledOnce()
+  })
+
+  it('clears an older position when the fresh result has unusable accuracy', async () => {
+    useLocationStore.setState({ position, status: 'success' })
+    const provider: LocationProvider = {
+      checkPermission: vi.fn().mockResolvedValue('granted'),
+      requestCurrentPosition: vi.fn().mockResolvedValue({
+        ok: false,
+        code: 'low_accuracy',
+      }),
+    }
+
+    await expect(useLocationStore.getState().refreshLocation(provider)).resolves.toBeNull()
+    expect(useLocationStore.getState()).toMatchObject({
+      position: null,
+      status: 'error',
+      error: 'low_accuracy',
+    })
+  })
+
+  it('cancels an active hardware request when the store is reset', async () => {
+    let requestedSignal: AbortSignal | undefined
+    const provider: LocationProvider = {
+      checkPermission: vi.fn().mockResolvedValue('granted'),
+      requestCurrentPosition: vi.fn((options) => {
+        requestedSignal = options?.signal
+        return new Promise<LocationResult>((resolve) => {
+          options?.signal?.addEventListener(
+            'abort',
+            () => resolve({ ok: false, code: 'cancelled' }),
+            { once: true }
+          )
+        })
+      }),
+    }
+
+    const request = useLocationStore.getState().refreshLocation(provider)
+    await vi.waitFor(() => expect(provider.requestCurrentPosition).toHaveBeenCalledOnce())
+    useLocationStore.getState().reset()
+
+    expect(requestedSignal?.aborted).toBe(true)
+    await expect(request).resolves.toBeNull()
+    expect(useLocationStore.getState()).toMatchObject({
+      position: null,
+      status: 'idle',
+      error: null,
+    })
   })
 })

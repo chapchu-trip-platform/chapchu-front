@@ -111,8 +111,9 @@ export default function LocationConsentStep({
           </dd>
           <dt className="font-medium text-warm-gray">보유 기간</dt>
           <dd className="text-deep-brown">
-            원본 위치는 요청 처리 중에만 사용하고 처리 완료 후 보관하지 않음. 동의
-            여부는 철회 또는 회원 탈퇴 시까지 보관
+            원본 위치는 지도·날씨·주변 추천 기능 이용 중 로그인 세션의 기기
+            메모리에만 임시 보관하며, 로그아웃 또는 세션 종료 시 삭제. 동의 여부는
+            철회 또는 회원 탈퇴 시까지 보관
           </dd>
         </dl>
       </section>

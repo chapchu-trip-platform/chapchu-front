@@ -26,11 +26,13 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
   const currentPosition = useLocationStore((state) => state.position)
   const locationStatus = useLocationStore((state) => state.status)
   const refreshLocation = useLocationStore((state) => state.refreshLocation)
+  const cancelLocationRequest = useLocationStore((state) => state.cancelLocationRequest)
 
   useEffect(() => {
     if (initialErrorType || step !== 'setup') return
     void refreshLocation()
-  }, [initialErrorType, refreshLocation, step])
+    return () => cancelLocationRequest()
+  }, [cancelLocationRequest, initialErrorType, refreshLocation, step])
 
   if (initialErrorType) {
     return (
