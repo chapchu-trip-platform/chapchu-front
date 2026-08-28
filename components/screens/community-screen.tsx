@@ -2,12 +2,28 @@
 
 import Image from 'next/image'
 import { useState } from 'react'
-import { ThumbsUp, MessageCircle, Bookmark, Eye, ChevronLeft, Flag, Send, MoreHorizontal, Share2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import {
+  ThumbsUp,
+  MessageCircle,
+  Bookmark,
+  ChevronLeft,
+  Flag,
+  Send,
+  MoreHorizontal,
+  Share2,
+  PawPrint,
+  Route,
+} from 'lucide-react'
 import TopBar from '@/components/top-bar'
+import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
+import { Input } from '@/components/ui/input'
+import { InteractiveCard } from '@/components/ui/interactive-card'
 import { cn } from '@/lib/utils'
 
 interface CommunityScreenProps {
-  initialPostView?: boolean
+  initialPostId?: string
 }
 
 const tabs = ['HOT', '자유게시판', '여행 리뷰']
@@ -25,8 +41,13 @@ const posts = [
     date: '2024.07.02',
     image: '/images/album-cover.png',
     tab: 'HOT',
-    petName: '봄이 · 비글',
-    course: '제주 올레 7코스',
+    pet: { name: '봄이', breed: '비글', size: '중형견', age: '4살' },
+    course: {
+      name: '제주 올레 7코스',
+      distance: '17.6km',
+      duration: '5시간 30분',
+      places: ['제주올레 여행자센터', '법환포구', '월평포구', '월평 아왜낭목 쉼터'],
+    },
   },
   {
     id: 2,
@@ -40,8 +61,13 @@ const posts = [
     date: '2024.06.30',
     image: '/images/place-park.png',
     tab: 'HOT',
-    petName: '루나 · 말라뮤트',
-    course: '가평 자라섬 코스',
+    pet: { name: '루나', breed: '알래스칸 말라뮤트', size: '대형견', age: '5살' },
+    course: {
+      name: '가평 자라섬 캠핑 코스',
+      distance: '8.3km',
+      duration: '3시간 10분',
+      places: ['가평역', '자라섬 남도 꽃정원', '자라섬 반려동물 놀이터', '자라섬 오토캠핑장'],
+    },
   },
   {
     id: 3,
@@ -55,8 +81,13 @@ const posts = [
     date: '2024.06.28',
     image: '/images/place-cafe.png',
     tab: '자유게시판',
-    petName: '코코 · 포메라니안',
-    course: '성수동 애견 카페',
+    pet: { name: '코코', breed: '포메라니안', size: '소형견', age: '3살' },
+    course: {
+      name: '성수동 애견 카페 투어',
+      distance: '4.2km',
+      duration: '2시간 40분',
+      places: ['서울숲', '성수 펫 카페', '뚝섬 산책로', '서울숲 반려견 놀이터', '성수 수제간식 공방'],
+    },
   },
 ]
 
@@ -75,25 +106,23 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
 
   return (
     <div className="flex flex-col flex-1 bg-warm-beige overflow-hidden">
-      <div className="flex items-center justify-between px-4 h-14 bg-card-surface border-b border-border sticky top-0 z-40">
-        <button onClick={onBack} className="w-9 h-9 flex items-center justify-center" aria-label="뒤로가기">
+      <div className="sticky top-0 z-40 flex h-14 flex-shrink-0 items-center justify-between border-b border-border bg-card-surface px-4">
+        <IconButton onClick={onBack} aria-label="뒤로가기">
           <ChevronLeft className="w-5 h-5 text-deep-brown" />
-        </button>
+        </IconButton>
         <div className="flex gap-1">
-          <button
+          <IconButton
             onClick={() => setBookmarked(!bookmarked)}
-            className="w-9 h-9 flex items-center justify-center"
             aria-label="북마크"
           >
             <Bookmark className={cn('w-5 h-5', bookmarked ? 'text-soft-orange fill-soft-orange' : 'text-deep-brown')} />
-          </button>
-          <button
+          </IconButton>
+          <IconButton
             onClick={() => setShowReport(!showReport)}
-            className="w-9 h-9 flex items-center justify-center"
             aria-label="더보기"
           >
             <MoreHorizontal className="w-5 h-5 text-deep-brown" />
-          </button>
+          </IconButton>
         </div>
       </div>
 
@@ -124,42 +153,84 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
           {/* Body */}
           <p className="text-[14px] text-deep-brown leading-relaxed py-4 border-b border-border">{post.body}</p>
 
-          {/* Course info */}
-          <div className="py-3 border-b border-border flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-[12px] font-semibold text-warm-gray">동행 반려동물</span>
-              <span className="text-[12px] text-deep-brown">{post.petName}</span>
+          {/* Pet and course info */}
+          <div className="py-4 border-b border-border flex flex-col gap-3">
+            <div className="rounded-card border border-border bg-card-surface p-3.5">
+              <div className="mb-3 flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sage-green-light">
+                  <PawPrint className="h-4 w-4 text-sage-green" />
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-warm-gray">동행 반려동물</p>
+                  <p className="text-[15px] font-bold text-deep-brown">{post.pet.name}</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-sage-green/10 px-2.5 py-1 text-[12px] font-semibold text-sage-green">
+                  견종 · {post.pet.breed}
+                </span>
+                <span className="rounded-full bg-muted px-2.5 py-1 text-[12px] text-deep-brown">{post.pet.size}</span>
+                <span className="rounded-full bg-muted px-2.5 py-1 text-[12px] text-deep-brown">{post.pet.age}</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[12px] font-semibold text-warm-gray">코스 정보</span>
-              <span className="text-[12px] text-deep-brown">{post.course}</span>
+
+            <div className="rounded-card border border-border bg-card-surface p-3.5">
+              <div className="mb-3 flex items-start gap-2">
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-soft-orange/15">
+                  <Route className="h-4 w-4 text-soft-orange" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium text-warm-gray">코스 정보</p>
+                  <p className="text-[14px] font-bold text-deep-brown">{post.course.name}</p>
+                  <p className="mt-0.5 text-[11px] text-warm-gray">
+                    총 {post.course.distance} · {post.course.duration} · {post.course.places.length}개 장소
+                  </p>
+                </div>
+              </div>
+              <ol aria-label={`${post.course.name} 경유 장소`} className="pl-1">
+                {post.course.places.map((place, index) => (
+                  <li key={place} className="relative flex min-h-9 gap-2.5 last:min-h-0">
+                    {index < post.course.places.length - 1 && (
+                      <span className="absolute left-[11px] top-5 h-[calc(100%-4px)] w-px bg-sage-green/30" />
+                    )}
+                    <span className="relative z-10 flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full bg-sage-green text-[10px] font-bold text-white">
+                      {index + 1}
+                    </span>
+                    <span className="pt-0.5 text-[12px] font-medium text-deep-brown">{place}</span>
+                  </li>
+                ))}
+              </ol>
             </div>
           </div>
 
           {/* Actions */}
           <div className="flex gap-4 py-3 border-b border-border">
-            <button
+            <Button
               onClick={() => setLiked(!liked)}
-              className={cn('flex items-center gap-1.5', liked ? 'text-sage-green' : 'text-warm-gray')}
+              variant="ghost"
+              size="sm"
+              className={cn('h-auto px-0 py-1', liked ? 'text-sage-green' : 'text-warm-gray')}
             >
               <ThumbsUp className={cn('w-5 h-5', liked ? 'fill-sage-green' : '')} />
               <span className="text-[13px] font-medium">{post.likes + (liked ? 1 : 0)}</span>
-            </button>
-            <button className="flex items-center gap-1.5 text-warm-gray">
+            </Button>
+            <Button variant="ghost" size="sm" className="h-auto px-0 py-1 text-warm-gray">
               <MessageCircle className="w-5 h-5" />
               <span className="text-[13px] font-medium">{post.comments}</span>
-            </button>
-            <button className="flex items-center gap-1.5 text-warm-gray">
+            </Button>
+            <Button variant="ghost" size="sm" className="h-auto px-0 py-1 text-warm-gray">
               <Share2 className="w-5 h-5" />
               <span className="text-[13px] font-medium">공유</span>
-            </button>
-            <button
-              className="flex items-center gap-1.5 text-warm-gray ml-auto"
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-auto px-0 py-1 text-warm-gray"
               onClick={() => alert('신고가 접수되었습니다.')}
             >
               <Flag className="w-4 h-4" />
               <span className="text-[12px]">신고</span>
-            </button>
+            </Button>
           </div>
 
           {/* Comments */}
@@ -178,11 +249,11 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
                     </div>
                     <p className="text-[13px] text-deep-brown mt-0.5 leading-relaxed">{c.text}</p>
                     <div className="flex items-center gap-3 mt-1.5">
-                      <button className="flex items-center gap-1 text-warm-gray">
+                      <Button variant="ghost" size="sm" className="h-auto gap-1 p-0 text-warm-gray">
                         <ThumbsUp className="w-3.5 h-3.5" />
                         <span className="text-[11px]">{c.likes}</span>
-                      </button>
-                      <button className="text-[11px] text-warm-gray">답글</button>
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-auto p-0 text-[11px] text-warm-gray">답글</Button>
                     </div>
                     {/* Replies */}
                     {c.replies.map((r, j) => (
@@ -208,33 +279,46 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
       </div>
 
       {/* Comment input */}
-      <div className="border-t border-border bg-card-surface px-4 py-3 flex gap-2">
-        <input
+      <div className="border-t border-border bg-card-surface px-4 py-3 mb-20 flex gap-2">
+        <Input
           type="text"
           value={commentText}
           onChange={(e) => setCommentText(e.target.value)}
           placeholder="댓글을 입력하세요..."
-          className="flex-1 h-10 px-3 rounded-full bg-muted text-[13px] text-deep-brown placeholder:text-warm-gray focus:outline-none focus:ring-2 focus:ring-sage-green/50"
+          size="compact"
+          className="h-10 flex-1 rounded-full border-transparent bg-muted"
         />
-        <button
-          className={cn('w-10 h-10 rounded-full flex items-center justify-center transition-colors',
-            commentText.trim() ? 'bg-sage-green' : 'bg-muted'
-          )}
+        <IconButton
+          variant={commentText.trim() ? 'primary' : 'muted'}
+          size="lg"
           aria-label="댓글 전송"
         >
           <Send className={cn('w-4 h-4', commentText.trim() ? 'text-white' : 'text-warm-gray')} />
-        </button>
+        </IconButton>
       </div>
     </div>
   )
 }
 
-export default function CommunityScreen({ initialPostView }: CommunityScreenProps) {
+export default function CommunityScreen({ initialPostId }: CommunityScreenProps) {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState(0)
-  const [selectedPost, setSelectedPost] = useState<typeof posts[0] | null>(null)
+  const [selectedPost, setSelectedPost] = useState<typeof posts[0] | null>(() =>
+    posts.find((post) => String(post.id) === initialPostId) ?? null
+  )
 
   if (selectedPost) {
-    return <PostDetailView post={selectedPost} onBack={() => setSelectedPost(null)} />
+    return (
+      <PostDetailView
+        post={selectedPost}
+        onBack={() => {
+          setSelectedPost(null)
+          if (initialPostId) {
+            router.replace('/community')
+          }
+        }}
+      />
+    )
   }
 
   const filteredPosts = activeTab === 0
@@ -248,28 +332,31 @@ export default function CommunityScreen({ initialPostView }: CommunityScreenProp
       {/* Tabs */}
       <div className="flex border-b border-border bg-card-surface">
         {tabs.map((tab, i) => (
-          <button
+          <Button
             key={i}
             onClick={() => setActiveTab(i)}
+            variant="ghost"
+            aria-pressed={activeTab === i}
             className={cn(
-              'flex-1 py-3 text-[13px] font-medium transition-colors',
+              'h-auto flex-1 rounded-none py-3 text-[13px] font-medium',
               activeTab === i
                 ? 'text-sage-green border-b-2 border-sage-green'
                 : 'text-warm-gray'
             )}
           >
             {tab}
-          </button>
+          </Button>
         ))}
       </div>
 
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
         <div className="flex flex-col gap-3 p-4">
           {filteredPosts.map((post, i) => (
-            <button
+            <InteractiveCard
               key={post.id}
               onClick={() => setSelectedPost(post)}
-              className="bg-card-surface rounded-card border border-border overflow-hidden text-left active:opacity-80 shadow-sm"
+              padding="none"
+              className="overflow-hidden"
             >
               <div className="relative h-36">
                 <Image src={post.image} alt={post.title} fill className="object-cover" />
@@ -283,6 +370,18 @@ export default function CommunityScreen({ initialPostView }: CommunityScreenProp
                 <h3 className="text-[14px] font-semibold text-deep-brown leading-snug line-clamp-2 text-balance mb-2">
                   {post.title}
                 </h3>
+                <div className="mb-2.5 flex flex-col gap-1 rounded-xl bg-muted/55 px-2.5 py-2">
+                  <p className="flex items-center gap-1.5 text-[11px] text-deep-brown">
+                    <PawPrint className="h-3 w-3 flex-shrink-0 text-sage-green" />
+                    <span className="truncate">
+                      {post.pet.name} · {post.pet.breed} · {post.pet.size} · {post.pet.age}
+                    </span>
+                  </p>
+                  <p className="flex items-center gap-1.5 text-[11px] text-deep-brown">
+                    <Route className="h-3 w-3 flex-shrink-0 text-soft-orange" />
+                    <span className="truncate">{post.course.name} · 경유 {post.course.places.length}곳</span>
+                  </p>
+                </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <div className="w-5 h-5 rounded-full bg-sage-green/20 flex items-center justify-center">
@@ -305,7 +404,7 @@ export default function CommunityScreen({ initialPostView }: CommunityScreenProp
                   </div>
                 </div>
               </div>
-            </button>
+            </InteractiveCard>
           ))}
         </div>
       </div>

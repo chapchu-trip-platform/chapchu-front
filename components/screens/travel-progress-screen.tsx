@@ -2,7 +2,11 @@
 
 import Image from 'next/image'
 import { useState } from 'react'
-import { MapPin, Navigation, Clock, ChevronRight, X, Camera, Star, BookOpen, AlertTriangle } from 'lucide-react'
+import { MapPin, X, Camera, Star, BookOpen, AlertTriangle } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
+import { Textarea } from '@/components/ui/input'
+import { ModalActions } from '@/components/ui/modal-actions'
 import { cn } from '@/lib/utils'
 
 interface TravelProgressScreenProps {
@@ -35,9 +39,9 @@ function TravelNoteSheet({ placeName, onClose, onSave }: TravelNoteSheetProps) {
         <div className="flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 rounded-full bg-border" />
         </div>
-        <button onClick={onClose} className="absolute top-3 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-muted" aria-label="닫기">
+        <IconButton onClick={onClose} className="absolute top-3 right-4" variant="muted" size="sm" aria-label="닫기">
           <X className="w-4 h-4 text-warm-gray" />
-        </button>
+        </IconButton>
 
         <div className="px-4 pb-8 max-h-[85vh] overflow-y-auto no-scrollbar">
           <h3 className="text-[16px] font-bold text-deep-brown mb-1">{placeName}</h3>
@@ -54,12 +58,12 @@ function TravelNoteSheet({ placeName, onClose, onSave }: TravelNoteSheetProps) {
           {/* Note input */}
           <div className="mb-4">
             <label className="text-[13px] font-semibold text-deep-brown mb-2 block">간단 후기</label>
-            <textarea
+            <Textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="이 장소에서의 느낌을 자유롭게 기록해보세요..."
               rows={3}
-              className="w-full px-3 py-2.5 rounded-xl border border-border bg-muted text-[14px] text-deep-brown placeholder:text-warm-gray focus:outline-none focus:ring-2 focus:ring-sage-green/50 resize-none"
+              className="rounded-xl bg-muted px-3 py-2.5"
             />
           </div>
 
@@ -68,15 +72,16 @@ function TravelNoteSheet({ placeName, onClose, onSave }: TravelNoteSheetProps) {
             <label className="text-[13px] font-semibold text-deep-brown mb-2 block">만족도</label>
             <div className="flex gap-2">
               {[1, 2, 3, 4, 5].map((v) => (
-                <button
+                <IconButton
                   key={v}
                   onClick={() => setRating(v)}
                   aria-label={`${v}점`}
+                  size="sm"
                 >
                   <Star
                     className={cn('w-7 h-7 transition-colors', v <= rating ? 'text-soft-orange fill-soft-orange' : 'text-border')}
                   />
-                </button>
+                </IconButton>
               ))}
             </div>
           </div>
@@ -87,20 +92,21 @@ function TravelNoteSheet({ placeName, onClose, onSave }: TravelNoteSheetProps) {
               <span className="text-sage-green font-semibold text-[15px]">임시저장 완료!</span>
             </div>
           ) : (
-            <div className="flex gap-2">
-              <button
+            <ModalActions>
+              <Button
                 onClick={handleSave}
-                className="flex-1 h-12 rounded-btn bg-muted text-warm-gray font-semibold text-[14px] border border-border active:opacity-80"
+                variant="secondary"
+                size="lg"
               >
                 임시저장
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={onSave}
-                className="flex-1 h-12 rounded-btn bg-sage-green text-white font-semibold text-[14px] active:opacity-80"
+                size="lg"
               >
                 다음 장소로
-              </button>
-            </div>
+              </Button>
+            </ModalActions>
           )}
         </div>
       </div>
@@ -125,14 +131,14 @@ function AbortConfirmSheet({ onCancel, onConfirm }: AbortConfirmSheetProps) {
         <p className="text-[13px] text-warm-gray text-center mb-6 leading-relaxed">
           지금까지 저장된 노트와 사진은 앨범에 임시저장됩니다.
         </p>
-        <div className="flex gap-2">
-          <button onClick={onCancel} className="flex-1 h-11 rounded-btn border border-border text-warm-gray font-semibold text-[14px]">
+        <ModalActions>
+          <Button onClick={onCancel} variant="outline">
             계속 여행
-          </button>
-          <button onClick={onConfirm} className="flex-1 h-11 rounded-btn bg-danger text-white font-semibold text-[14px]">
+          </Button>
+          <Button onClick={onConfirm} variant="destructive">
             중도 종료
-          </button>
-        </div>
+          </Button>
+        </ModalActions>
       </div>
     </div>
   )
@@ -266,27 +272,32 @@ export default function TravelProgressScreen({ onEndTrip, onAbort }: TravelProgr
           </div>
 
           {/* Actions */}
-          <div className="flex gap-2">
-            <button
+          <ModalActions>
+            <Button
               onClick={() => setShowAbortConfirm(true)}
-              className="flex-1 h-11 rounded-btn border border-border text-warm-gray font-semibold text-[13px] active:opacity-80"
+              variant="outline"
+              size="sm"
+              className="h-11"
             >
               중도 종료
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => setShowNoteSheet(true)}
-              className="flex-1 h-11 rounded-btn bg-muted text-deep-brown font-semibold text-[13px] border border-border active:opacity-80 flex items-center justify-center gap-1.5"
+              variant="secondary"
+              size="sm"
+              className="h-11"
             >
               <BookOpen className="w-4 h-4" />
               여행 노트
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={onEndTrip}
-              className="flex-1 h-11 rounded-btn bg-sage-green text-white font-semibold text-[13px] active:opacity-80"
+              size="sm"
+              className="h-11"
             >
               여행 완료
-            </button>
-          </div>
+            </Button>
+          </ModalActions>
         </div>
       </div>
 

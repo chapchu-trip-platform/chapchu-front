@@ -8,12 +8,9 @@ import {
 } from 'lucide-react'
 import TopBar from '@/components/top-bar'
 import CourseDetailScreen from '@/components/screens/course-detail-screen'
+import { InteractiveCard } from '@/components/ui/interactive-card'
 import { mockAlbums, mockCourseDetails, type AlbumSummary } from '@/data/mock'
 import { cn } from '@/lib/utils'
-
-interface AlbumScreenProps {
-  onViewDetail: () => void
-}
 
 // ─── Star row helper ──────────────────────────────────────────────────────────
 
@@ -43,9 +40,10 @@ function AlbumCard({
   onClick: () => void
 }) {
   return (
-    <button
+    <InteractiveCard
       onClick={onClick}
-      className="w-full bg-card-surface rounded-card border border-border overflow-hidden shadow-sm text-left active:opacity-80 transition-opacity"
+      padding="none"
+      className="overflow-hidden"
     >
       {/* Cover image */}
       <div className="relative h-48">
@@ -94,13 +92,13 @@ function AlbumCard({
         </div>
         <span className="text-[11px] text-warm-gray">{album.pet}</span>
       </div>
-    </button>
+    </InteractiveCard>
   )
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function AlbumScreen({ onViewDetail }: AlbumScreenProps) {
+export default function AlbumScreen() {
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(null)
 
   const selectedAlbum = selectedAlbumId ? mockAlbums.find((a) => a.id === selectedAlbumId) : null

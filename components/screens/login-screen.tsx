@@ -2,26 +2,34 @@
 
 import Image from 'next/image'
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 
 interface LoginScreenProps {
-  onLogin: () => void
+  notice?: string
+  onLogin?: () => void
+  onGoogleLogin: () => void | Promise<void>
 }
 
-export default function LoginScreen({ onLogin }: LoginScreenProps) {
+export default function LoginScreen({ notice, onGoogleLogin, onLogin }: LoginScreenProps) {
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleLogin = () => {
+  const handleGoogleLogin = async () => {
     setLoading(true)
-    setTimeout(() => {
+    setError(null)
+
+    try {
+      await onGoogleLogin?.()
+    } catch {
       setLoading(false)
-      onLogin()
-    }, 800)
+      setError('Google 로그인을 시작하지 못했습니다. 잠시 후 다시 시도해주세요.')
+    }
   }
 
   return (
     <div className="flex flex-col flex-1 bg-warm-beige">
       {/* Top illustration area */}
-      <div className="relative h-72">
+      <div className="relative z-0 h-[clamp(18rem,36dvh,22rem)] flex-shrink-0">
         <Image
           src="/images/dog-hero.png"
           alt="반려동물과 함께하는 여행"
@@ -29,13 +37,13 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           className="object-cover"
           priority
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-warm-beige" />
+        <div className="absolute inset-0 z-10 bg-gradient-to-b from-transparent via-transparent to-warm-beige" />
       </div>
 
       {/* Content */}
-      <div className="flex flex-col px-6 gap-2 -mt-4">
+      <div className="relative z-20 -mt-4 flex flex-col gap-2 px-6">
         {/* Logo + Name */}
-        <div className="flex items-center gap-2 mb-1">
+        <div className="relative z-30 mb-1 flex items-center gap-2">
           <div className="relative w-7 h-7">
             <Image src="/images/paw-logo.png" alt="PawRoute" fill className="object-contain" />
           </div>
@@ -49,22 +57,14 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           로그인하고 나만의 여행 코스와 앨범을 만들어보세요.
         </p>
 
-        {/* Social Login Buttons */}
-        <button
-          onClick={handleLogin}
+        {/* Google Login */}
+        <Button
+          onClick={handleGoogleLogin}
           disabled={loading}
-          className="w-full h-12 rounded-btn flex items-center justify-center gap-3 bg-[#FEE500] text-[#3C1E1E] font-semibold text-[15px] active:opacity-80 transition-opacity shadow-sm"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M12 2C6.477 2 2 6.077 2 11.1c0 3.16 1.657 5.953 4.204 7.712-.184.683-.667 2.469-.765 2.852 0 0-.015.12.065.167.079.047.173.008.173.008.228-.032 2.638-1.73 3.047-2.006A11.3 11.3 0 0 0 12 20.2c5.523 0 10-4.077 10-9.1C22 6.077 17.523 2 12 2Z" fill="#3C1E1E"/>
-          </svg>
-          카카오로 계속하기
-        </button>
-
-        <button
-          onClick={handleLogin}
-          disabled={loading}
-          className="w-full h-12 rounded-btn flex items-center justify-center gap-3 bg-white text-deep-brown font-semibold text-[15px] border border-border active:opacity-80 transition-opacity shadow-sm"
+          variant="outline"
+          size="lg"
+          fullWidth
+          className="gap-3 bg-white shadow-sm hover:bg-white/90"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -73,34 +73,37 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
           </svg>
           Google로 계속하기
-        </button>
+        </Button>
 
-        <button
-          onClick={handleLogin}
-          disabled={loading}
-          className="w-full h-12 rounded-btn flex items-center justify-center gap-3 bg-deep-brown text-white font-semibold text-[15px] active:opacity-80 transition-opacity shadow-sm"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="white" aria-hidden="true">
-            <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.7 9.05 7.4c1.32.07 2.22.72 2.98.76 1.13-.19 2.2-.9 3.43-.77 1.47.18 2.58.75 3.31 1.88-3.03 1.83-2.52 5.85.37 6.98-.69 1.93-1.62 3.83-3.09 4.03zM13 3.5c.07 1.7-1.28 3.1-2.96 3.23-2.07-1.15-.38-3.65 2.96-3.23z"/>
-          </svg>
-          Apple로 계속하기
-        </button>
+        {onLogin && (
+          <>
+            <div className="flex items-center gap-3 my-1">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-[12px] text-warm-gray">또는</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
 
-        <div className="flex items-center gap-3 my-1">
-          <div className="flex-1 h-px bg-border" />
-          <span className="text-[12px] text-warm-gray">또는</span>
-          <div className="flex-1 h-px bg-border" />
-        </div>
+            <Button
+              onClick={onLogin}
+              variant="outline"
+              fullWidth
+              className="text-warm-gray"
+            >
+              테스트 계정으로 로그인
+            </Button>
+          </>
+        )}
 
-        <button
-          onClick={handleLogin}
-          className="w-full h-11 rounded-btn border border-border text-warm-gray font-medium text-[14px] active:opacity-80 transition-opacity"
-        >
-          테스트 계정으로 로그인
-        </button>
+        {notice && <p role="status" className="mt-1 text-center text-[12px] text-danger">{notice}</p>}
+
+        {error && (
+          <p role="alert" className="mt-1 text-center text-[12px] text-danger">
+            {error}
+          </p>
+        )}
       </div>
 
-      <p className="text-center text-[11px] text-warm-gray px-6 mt-4 pb-8 leading-relaxed">
+      <p className="safe-bottom-login mt-4 px-6 text-center text-[11px] leading-relaxed text-warm-gray">
         로그인 시 서비스 이용약관 및 개인정보처리방침에 동의하게 됩니다.
       </p>
     </div>

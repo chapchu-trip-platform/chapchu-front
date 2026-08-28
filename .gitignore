@@ -7,7 +7,9 @@ __v0_jsx-dev-runtime.ts
 .vercel/
 
 # Environment variables
-.env*.local
+.env
+.env.*
+!.env.example
 
 # Common ignores
 node_modules
@@ -27,17 +29,26 @@ out/
 # production
 build/
 dist/
+storybook-static/
 
 # cache
 .cache/
 .turbo/
+.npm-cache/
 
 # logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 bun-debug.log*
+
+# markdown policy
+*.md
+!README.md
+!docs/api-policy.md
+!docs/home-development-plan.md
 
 # testing
 coverage/
@@ -50,8 +61,11 @@ coverage/
 # local editor / OS
 .DS_Store
 Thumbs.db
+Desktop.ini
 .vscode/
 .idea/
+*.swp
+*.swo
 
 # TypeScript
 *.tsbuildinfo
@@ -59,10 +73,6 @@ next-env.d.ts
 
 # Codex local/project rules
 .codex/
-
-# local docs
-*.md
-!README.md
 
 # local temporary files
 *.tmp

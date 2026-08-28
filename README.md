@@ -1,207 +1,124 @@
-# PawRoute 🐾
+# PawRoute
 
-반려동물과 함께하는 따뜻한 여행 다이어리 모바일 웹앱 프로토타입
+PawRoute is a mobile-first pet-friendly travel web app migrated from a v0 prototype into a maintainable Next.js App Router project.
 
-## 개요
+## Tech Stack
 
-PawRoute는 반려동물 주인들이 여행을 계획하고, 기록하고, 공유할 수 있는 통합 플랫폼입니다. 지도 기반의 경로 추천, 반려동물 친화적 장소 검색, 여행 기록 및 커뮤니티 기능을 제공합니다.
+- Next.js App Router
+- TypeScript
+- React
+- Tailwind CSS
+- lucide-react
+- axios
+- Zustand
+- Vitest
+- React Testing Library
 
-## 주요 기능
+## Development
 
-### 1. 초기 가입 흐름
-- Splash → Onboarding → Login → Signup → Home
-- 사용자 기본 정보(닉네임, 선호 테마, 지역) 입력
-- 반려동물 등록 및 관리
-
-### 2. 여행 계획 (지도 플로우)
-- **Route Setup**: 출발지/목적지 선택 또는 주소 직접 입력
-- **Recommended Route**: 중간 거점 선택 (반려동물/날씨 적합도 표시)
-- **Travel Progress**: 실시간 여행 추적 및 노트 작성
-- **Trip End**: 여행 완료, 앨범 저장, 게시글 공유
-
-### 3. 중간 거점 선택
-- 반려동물 친화도 배지 (0-100점)
-- 날씨 적합도 배지
-- 운영시간 주의 경고
-- 추천 이유 카드
-- "이 장소 선택하기" 기능
-
-### 4. 여행 노트 저장
-- 각 거점에서 사진 및 노트 작성
-- 여행 종료 시 "거점별 여행 노트" 자동 표시
-- 별점 평가
-
-### 5. 게시글 공유
-- 여행 후기 작성 (제목, 내용)
-- 대표 사진 선택
-- 게시판 선택 (전체, 여행후기, 팁/정보, 장소리뷰, 포토)
-- 위치 공개 범위 선택 (정확한 위치/대략적 지역/비공개)
-- 동행 반려동물, 코스 정보 자동 포함
-
-### 6. 앨범 상세
-- 여행 기록 조회
-- 코스별 사진 열람
-- 코스 상세: 출발지→도착지, 거리, 소요시간, 이동 경로, 사진 위치 정보
-
-### 7. 내 정보 (My Page)
-- **반려동물 관리**: 펫 등록/수정/삭제, 추억 앨범
-- **스탬프**: 지역별 획득 현황
-- **추억 앨범**: 추억의 반려동물 기념
-- **닉네임 변경**: 프로필 닉네임 수정
-- **사용자 정보 수정**: 이메일, 소개 수정
-- **내가 작성한 글**: 게시글 목록 조회
-- **장소 위시리스트**: 방문 희망 장소
-- **게시글 북마크**: 저장한 글
-
-### 8. 오류 상태 화면
-- 위치 권한 요청/거부 (대체 경로: 주소 직접 입력)
-- 날씨 정보 로드 실패
-- 추천 경로 없음
-- 주변 반려동물 동반 장소 없음
-- 사진 업로드 실패
-- 세션 만료
-
-### 9. 커뮤니티 보드
-- 여행 후기 피드
-- 좋아요, 댓글, 북마크 기능
-
-## 기술 스택
-
-- **Framework**: Next.js 16 (App Router)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS 4
-- **UI Components**: shadcn/ui
-- **Icons**: Lucide React
-- **Image**: Next.js Image
-
-## 디자인 시스템
-
-### 색상 팔레트
-- **Primary**: Sage Green (#6FAF8E)
-- **Accent**: Soft Orange (#F4A261)
-- **Background**: Warm Beige (#F7F1E7)
-- **Text**: Deep Brown (#3A2F2A)
-- **Secondary**: Warm Gray (#7A706A)
-- **Sky**: Sky Blue (#8ECAE6)
-- **Danger**: Danger Red (#E76F51)
-
-### 타이포그래피
-- **Font Family**: Inter (Google Fonts)
-- **Body**: 14px line-height 1.6
-- **Heading**: Bold weight
-
-### 컴포넌트 Radius
-- **Cards**: 20px (rounded-card)
-- **Buttons**: 16px (rounded-btn)
-
-## 프로젝트 구조
-
-```
-/components
-  /screens          # 각 화면 컴포넌트
-  /ui               # UI 기본 컴포넌트
-  bottom-nav.tsx    # 하단 네비게이션
-  top-bar.tsx       # 상단 바
-  mobile-shell.tsx  # 모바일 쉘
-
-/app
-  layout.tsx        # 루트 레이아웃
-  page.tsx          # 메인 라우터 (상태 관리)
-  globals.css       # 글로벌 스타일
-
-/data
-  mock.ts           # 더미 데이터
-
-/types
-  index.ts          # 타입 정의
-
-/lib
-  utils.ts          # 유틸리티 함수
-
-/public
-  /images           # 이미지 자산
-```
-
-## 상태 관리
-
-- **Client-side state**: React `useState`
-- **App Screen**: splash → onboarding → login → signup → main
-- **Map Flow**: setup → route → progress → end (또는 error, sharing)
-- **Active Tab**: home, map, board, album, profile
-- **Modal Overlays**: Error screen, Post share sheet, Course detail, Profile settings
-
-## 더미 데이터
-
-모든 데이터는 `data/mock.ts`에서 관리:
-- `mockNearbyPlaces`: 주변 장소
-- `mockHotPosts`: 인기 게시글
-- `mockWaypoints`: 여행 거점
-- `mockMyPosts`: 내 게시글
-- `mockWishlist`: 위시리스트
-- `mockBookmarks`: 북마크
-- `mockAlbums`: 앨범
-- `mockUserProfile`: 사용자 프로필
-
-## 라우팅 흐름
-
-```
-Splash (2.2s auto-advance)
-  ↓
-Onboarding (Skip or complete)
-  ↓
-Login (Test account or signup)
-  ↓
-Signup (User info + Pet registration)
-  ↓
-Main App
-  ├─ Home Tab
-  │   └─ 여행 시작 → Map Setup
-  ├─ Community Tab
-  │   └─ 게시글 피드
-  ├─ Album Tab
-  │   └─ 여행 기록 → Course Detail
-  └─ Profile Tab
-      └─ My Page
-          ├─ Pets
-          ├─ Stamps
-          ├─ Memory Album
-          ├─ Nickname Change
-          ├─ User Info Edit
-          ├─ My Posts
-          ├─ Wishlist
-          └─ Bookmarks
-```
-
-## 개발 시작
+Use npm for this project. The canonical lockfile is `package-lock.json`.
 
 ```bash
-# 프로젝트 설치
-pnpm install
-
-# 개발 서버 실행
-pnpm dev
-
-# 빌드
-pnpm build
-
-# 프로덕션 시작
-pnpm start
-
-# Lint 검사
-pnpm lint
+npm install
+npm run dev
 ```
 
-## 주요 개선사항
+## Validation Commands
 
-✅ 초기 가입 플로우 연결  
-✅ 중간 거점 선택 UI 고도화  
-✅ 여행 노트 저장 흐름 강화  
-✅ 오류 상태 화면 추가  
-✅ 게시글 공유 기능  
-✅ 앨범 상세 화면  
-✅ My Page 하위 화면  
-✅ 개발 구조 정리 (types, mock data)  
+```bash
+npm run lint
+npm run typecheck
+npm run test
+npm run test:watch
+npm run test:coverage
+npm run build
+npm audit
+```
 
-## 라이선스
+## Environment Variables
 
-MIT License
+Copy placeholder values from `.env.example` into your local-only `.env.local` file when needed. Do not commit real `.env` files.
+
+```env
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+```
+
+## TMAP Configuration
+
+TMAP API Key is read only from a local server-side environment variable. Do not expose TMAP keys through `NEXT_PUBLIC_*` variables, client components, or `next.config` env settings.
+
+Create `.env.local` yourself and keep it out of Git:
+
+```env
+T_MAP_APIKEY=your-tmap-api-key
+```
+
+The map screen loads the TMAP SDK through the internal `/api/tmap/sdk` endpoint so client code does not build a public SDK URL with the key.
+
+## Google OAuth
+
+Google login is handled by the `chapchu-api` BFF. The browser navigates to
+`{NEXT_PUBLIC_API_BASE_URL}/auth/login?redirect={frontend-origin}/auth/callback`.
+The redirect is built from `window.location.origin`, so localhost and deployed
+frontends use the same code. Frontend code does not exchange the Google
+authorization code or contain an OAuth client secret.
+
+The BFF must validate the complete supplied callback URL (scheme, host, port,
+and `/auth/callback` path) against an exact allowlist. Wildcard preview domains
+must not be accepted. Both OAuth outcomes return to the single callback:
+
+```txt
+existing user: {frontend-origin}/auth/callback#access_token={JWT}
+new user:      {frontend-origin}/auth/callback?registration_token={token}
+```
+
+Access tokens are kept only in non-persisted client memory. The BFF refresh
+token remains in an HttpOnly cookie and is used through `/auth/refresh`.
+The frontend keeps only a short-lived, one-time, non-credential transaction
+marker in the initiating tab's `sessionStorage` and rejects unsolicited callback
+links that do not have that marker.
+
+New users load signup choices from `/preferences/options`, `/breeds`, and
+`/activities`, then submit nickname, preferences, and optional pets together
+through `POST /auth/signup`. After a successful `201 Created` response, the
+frontend starts a fresh Google login to receive the first access token. This
+signup flow is separate from access-token refresh.
+
+## Project Structure
+
+```txt
+app/
+  (auth)/
+  (main)/
+components/
+  layout/
+  screens/
+  ui/
+features/
+  auth/
+  home/
+  map/
+  travel/
+  community/
+  album/
+  profile/
+lib/
+  api/
+test/
+  setup.ts
+  utils/
+```
+
+## Testing
+
+Vitest is configured with `jsdom`, React Testing Library, jest-dom matchers, and the `@/*` path alias.
+
+Prefer focused tests for:
+
+- API error normalization
+- utility functions
+- route/config helpers
+- Zustand store state transitions
+- shared layout components
+
+E2E tests are not configured yet.
