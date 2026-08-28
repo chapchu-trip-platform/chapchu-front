@@ -197,7 +197,7 @@ export default function HomeScreen({
       >
         <TmapMap
           center={mapCenter}
-          zoom={15}
+          zoom={16}
           locationLabel={mapLocationLabel}
           showMarker={locationStatus === 'success'}
           showZoomControl={false}

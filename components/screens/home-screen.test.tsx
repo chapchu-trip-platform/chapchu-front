@@ -72,7 +72,7 @@ describe('HomeScreen', () => {
     const map = screen.getByTestId('home-tmap')
     expect(map).toHaveAttribute('data-lat', '35.858')
     expect(map).toHaveAttribute('data-lng', '128.63')
-    expect(map).toHaveAttribute('data-zoom', '15')
+    expect(map).toHaveAttribute('data-zoom', '16')
     expect(map).toHaveAttribute('data-location-label', '현재 위치')
     expect(map).toHaveAttribute('data-show-marker', 'true')
     expect(map).toHaveAttribute('data-show-zoom-control', 'false')
