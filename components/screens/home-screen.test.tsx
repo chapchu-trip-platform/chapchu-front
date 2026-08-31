@@ -116,6 +116,9 @@ describe('HomeScreen', () => {
     expect(carousel).not.toHaveClass('scroll-smooth', 'snap-x', 'snap-mandatory')
     expect(carousel).toHaveStyle({ touchAction: 'auto' })
     expect(carousel.querySelectorAll('article')).toHaveLength(3)
+    const distanceBadge = screen.getByText('0.3km').parentElement
+    expect(distanceBadge).toHaveClass('flex', 'items-center', 'justify-center')
+    expect(screen.getByText('0.3km')).toHaveClass('leading-none')
   })
 
   it('applies Motion transitions only to the Home content sections', () => {

@@ -321,8 +321,8 @@ export default function HomeScreen({
                 <div className="absolute top-2 left-2 bg-sage-green rounded-full px-2 py-0.5 flex items-center gap-1">
                   <span className="text-[10px] text-white font-medium">반려동물 OK</span>
                 </div>
-                <div className="absolute bottom-2 right-2 bg-black/50 rounded-full px-2 py-0.5">
-                  <span className="text-[10px] text-white">{place.distance}</span>
+                <div className="absolute bottom-2 right-2 flex min-h-5 items-center justify-center rounded-full bg-black/50 px-2 py-0.5">
+                  <span className="text-[10px] leading-none text-white">{place.distance}</span>
                 </div>
               </div>
               <div className="p-2.5">
