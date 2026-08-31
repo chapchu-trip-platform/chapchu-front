@@ -28,7 +28,7 @@
 ### 2.2 Home 화면
 
 - 지도와 날씨는 Home 진입 시 자동으로 현재 위치와 연결되며, 위치를 사용할 수 없으면 수성구 대표 지점을 사용한다.
-- 반려견 이름은 `GET /home`, HOT 카드 3개는 `GET /posts?sort=popular` 결과를 사용한다.
+- 반려견 이름은 `GET /home`, HOT 카드 3개는 `GET /posts?sort=popular&size=3`의 `{ posts, nextCursor }` 결과를 사용한다.
 - 주변 장소는 실제 위치 API 연동 전이므로 화면에 예시 데이터임을 명시한다.
 - Home 상단 알림은 제외했고, 각 데이터 영역에 독립적인 로딩·오류·빈 상태가 있다.
 - 기존 TMAP SDK 로더와 지도 컴포넌트를 재사용하며 Home 지도에서만 줌 컨트롤을 숨긴다.
@@ -70,13 +70,13 @@
 | 주변 추천 장소 | `GET /places/nearby?lat&lng&radiusMeters` | 부분 가능 | 장소명, 이미지, 주소, 좌표, 평점, 리뷰 수, 반려동물 정책을 받을 수 있다. 거리, 테마명, 정렬 기준은 없다. |
 | 날씨 카드 | 없음 | 불가 | 기상청 adapter 또는 Chapchu 날씨 API가 필요하다. |
 | 여행 시작 CTA | `GET /home` | 부분 가능 | 반려견 이름은 가능하지만 대표 반려견 사진은 불가하다. |
-| HOT 게시글 | `GET /posts?sort=popular` | 부분 가능 | ID, 제목, 본문, 조회 수, 추천 수는 있다. 작성자, 대표 이미지 URL, 댓글 수, 북마크 수가 없다. |
+| HOT 게시글 | `GET /posts?sort=popular&size=3` | 부분 가능 | 응답은 `{ posts, nextCursor }`이고 ID, 제목, 본문, 조회 수, 추천 수, 작성자, 댓글 수, 대표 이미지 URL을 포함한다. Home의 원격 이미지 정책이 확정되기 전까지 이미지는 로컬 대체 자산을 사용한다. |
 | 알림 | 제외 | 제외 | Home의 `NotificationButton`과 관련 props를 제거한다. 다른 화면의 공용 알림 UI는 건드리지 않는다. |
 
 ### 4.1 프론트 계약 불일치
 
 - `lib/api/endpoints.ts`에는 문서의 `GET /home`, `GET /places/nearby`, `GET /posts` 경로를 분리해 둔다.
-- Home HOT 목록은 문서의 실제 `/posts?sort=popular` 계약을 사용한다.
+- Home HOT 목록은 문서의 실제 `/posts?sort=popular&size=3` 페이지 계약을 사용한다.
 - API 응답 타입과 Home UI 모델을 분리하고 mapper에서 변환해야 문서 변경의 영향이 화면까지 번지지 않는다.
 
 ## 5. 백엔드/API 요청문
@@ -102,11 +102,11 @@ Home 실제 데이터 연동을 위해 아래 계약의 확인 또는 보완이 
    - 최소 응답: `displayAddress`, `regionCode`.
    - API 준비 전 Home은 정확한 주소 대신 “현재 위치 주변”을 표시할 수 있습니다.
 
-4. `GET /posts?sort=popular`
+4. `GET /posts?sort=popular&size=3`
    - Home 카드용 `limit` 또는 pagination 계약이 필요합니다.
    - 인기 기준이 단순 추천 수인지, 최근 기간·조회·댓글을 포함한 hot score인지 정의가 필요합니다.
    - 권장 추가 필드: `author.nickname`, `coverImageUrl`, `commentCount`, `bookmarkCount`.
-   - `photoId`만 반환하면 Home에서 이미지를 표시할 수 없으므로 조회 가능한 URL이 필요합니다.
+   - `photoUrl`의 허용 호스트와 만료·실패 시 처리 방식을 확정해야 합니다.
 
 5. 날씨
    - 제안 API: `GET /weather/current?lat={lat}&lng={lng}`.

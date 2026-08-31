@@ -19,8 +19,13 @@ interface PostDto {
   createdAt: string | null
 }
 
-function isNonNegativeNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+interface PostPageDto {
+  posts: PostDto[]
+  nextCursor: string | null
+}
+
+function isNonNegativeCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
 }
 
 function isBoundedString(value: unknown, maxLength: number): value is string {
@@ -46,9 +51,21 @@ function isPostDto(value: unknown): value is PostDto {
     (post.photoId === null || isBoundedString(post.photoId, 100)) &&
     isBoundedString(post.title, 500) &&
     isBoundedString(post.content, 20_000) &&
-    isNonNegativeNumber(post.viewCount) &&
-    isNonNegativeNumber(post.recommendationCount) &&
+    isNonNegativeCount(post.viewCount) &&
+    isNonNegativeCount(post.recommendationCount) &&
     (post.createdAt === null || isBoundedString(post.createdAt, 100))
+  )
+}
+
+function isPostPageDto(value: unknown): value is PostPageDto {
+  if (!value || typeof value !== 'object') return false
+  const page = value as Partial<PostPageDto>
+  return (
+    Array.isArray(page.posts) &&
+    page.posts.length <= 3 &&
+    page.posts.every(isPostDto) &&
+    (page.nextCursor === null ||
+      (isBoundedString(page.nextCursor, 512) && page.nextCursor.trim().length > 0))
   )
 }
 
@@ -66,14 +83,14 @@ export async function fetchHomeSummary(signal?: AbortSignal): Promise<HomeSummar
 
 export async function fetchPopularPosts(signal?: AbortSignal): Promise<HotPost[]> {
   const { data }: { data: unknown } = await apiClient.get(API_ENDPOINTS.community.posts, {
-    params: { sort: 'popular' },
+    params: { sort: 'popular', size: 3 },
     signal,
   })
-  if (!Array.isArray(data) || data.length > 1_000 || !data.every(isPostDto)) {
+  if (!isPostPageDto(data)) {
     throw new Error('Popular posts response was invalid.')
   }
 
-  return data
+  return data.posts
     .map((post) => ({
       id: post.id,
       title: post.title.trim(),

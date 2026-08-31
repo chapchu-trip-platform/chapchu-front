@@ -90,6 +90,9 @@ export default function HomeScreen({
   )
 
   const handleNearbyPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    // Touch devices get smoother and more reliable momentum from the browser's
+    // native overflow scrolling. Manual pointer dragging is only for mouse/pen.
+    if (event.pointerType === 'touch') return
     if (event.pointerType === 'mouse' && event.button !== 0) return
 
     nearbyMomentumRef.current?.stop()
@@ -290,7 +293,7 @@ export default function HomeScreen({
           onPointerDown={handleNearbyPointerDown}
           onPointerMove={handleNearbyPointerMove}
           onPointerUp={stopNearbyDrag}
-          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'auto' }}
         >
           {nearbyPlaces.map((place, i) => (
             <m.article

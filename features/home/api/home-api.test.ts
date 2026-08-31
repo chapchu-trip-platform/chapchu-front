@@ -9,6 +9,18 @@ function response(config: InternalAxiosRequestConfig, data: unknown): AxiosRespo
   return { config, data, headers: {}, status: 200, statusText: 'OK' }
 }
 
+function post(recommendationCount: number) {
+  return {
+    id: `post-${recommendationCount}`,
+    photoId: recommendationCount === 4 ? 'photo-id' : null,
+    title: `게시글 ${recommendationCount}`,
+    content: '내용',
+    viewCount: recommendationCount * 10,
+    recommendationCount,
+    createdAt: null,
+  }
+}
+
 afterEach(() => {
   apiClient.defaults.adapter = originalAdapter
 })
@@ -45,15 +57,10 @@ describe('Home API', () => {
       capturedConfig = config
       return response(
         config,
-        [1, 4, 2, 3].map((recommendationCount) => ({
-          id: `post-${recommendationCount}`,
-          photoId: recommendationCount === 4 ? 'photo-id' : null,
-          title: `게시글 ${recommendationCount}`,
-          content: '내용',
-          viewCount: recommendationCount * 10,
-          recommendationCount,
-          createdAt: null,
-        }))
+        {
+          posts: [4, 2, 3].map(post),
+          nextCursor: null,
+        }
       )
     }
 
@@ -62,6 +69,7 @@ describe('Home API', () => {
     expect(capturedConfig?.url).toBe('/posts')
     expect(capturedConfig?.method).toBe('get')
     expect(capturedConfig?.params?.sort).toBe('popular')
+    expect(capturedConfig?.params?.size).toBe(3)
     expect(capturedConfig?.signal).toBe(signal)
     expect(posts.map((post) => post.id)).toEqual(['post-4', 'post-3', 'post-2'])
     expect(posts[0].hasPhoto).toBe(true)
@@ -69,7 +77,40 @@ describe('Home API', () => {
 
   it('rejects an invalid post response instead of rendering partial data', async () => {
     apiClient.defaults.adapter = async (config) =>
-      response(config, [{ id: 'post-1', recommendationCount: 'many' }])
+      response(config, {
+        posts: [{ id: 'post-1', recommendationCount: 'many' }],
+        nextCursor: null,
+      })
+
+    await expect(fetchPopularPosts()).rejects.toThrow('response was invalid')
+  })
+
+  it('accepts empty pages and non-empty cursor values', async () => {
+    apiClient.defaults.adapter = async (config) =>
+      response(config, { posts: [], nextCursor: 'next-page' })
+
+    await expect(fetchPopularPosts()).resolves.toEqual([])
+  })
+
+  it('rejects pages larger than the requested size', async () => {
+    apiClient.defaults.adapter = async (config) =>
+      response(config, { posts: [1, 2, 3, 4].map(post), nextCursor: null })
+
+    await expect(fetchPopularPosts()).rejects.toThrow('response was invalid')
+  })
+
+  it('rejects invalid counts and cursor values', async () => {
+    apiClient.defaults.adapter = async (config) =>
+      response(config, {
+        posts: [{ ...post(1), recommendationCount: 1.5 }],
+        nextCursor: '',
+      })
+
+    await expect(fetchPopularPosts()).rejects.toThrow('response was invalid')
+  })
+
+  it('rejects the legacy top-level array because the API now returns a cursor page', async () => {
+    apiClient.defaults.adapter = async (config) => response(config, [])
 
     await expect(fetchPopularPosts()).rejects.toThrow('response was invalid')
   })
