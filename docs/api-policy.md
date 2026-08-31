@@ -177,7 +177,8 @@ Home now reads `petNames` from `GET /home` and shows the first name plus the rem
 count. Its three HOT cards come from `GET /posts?sort=popular&size=3`; the frontend validates
 the current `{ posts, nextCursor }` cursor-page contract before mapping the cards. Although the
 contract now includes `photoUrl`, the current Home card keeps local fallback images until the
-remote-image host policy and failure handling are finalized.
+remote-image host policy and failure handling are finalized. Public post `nickname` and
+`commentCount` values are validated, mapped, and displayed on each HOT card.
 
 Before production location rollout, backend coordination still needs to provide:
 

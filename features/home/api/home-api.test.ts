@@ -13,10 +13,12 @@ function post(recommendationCount: number) {
   return {
     id: `post-${recommendationCount}`,
     photoId: recommendationCount === 4 ? 'photo-id' : null,
+    nickname: `작성자 ${recommendationCount}`,
     title: `게시글 ${recommendationCount}`,
     content: '내용',
     viewCount: recommendationCount * 10,
     recommendationCount,
+    commentCount: recommendationCount + 1,
     createdAt: null,
   }
 }
@@ -73,6 +75,7 @@ describe('Home API', () => {
     expect(capturedConfig?.signal).toBe(signal)
     expect(posts.map((post) => post.id)).toEqual(['post-4', 'post-3', 'post-2'])
     expect(posts[0].hasPhoto).toBe(true)
+    expect(posts[0]).toMatchObject({ nickname: '작성자 4', commentCount: 5 })
   })
 
   it('rejects an invalid post response instead of rendering partial data', async () => {
@@ -105,6 +108,17 @@ describe('Home API', () => {
         posts: [{ ...post(1), recommendationCount: 1.5 }],
         nextCursor: '',
       })
+
+    await expect(fetchPopularPosts()).rejects.toThrow('response was invalid')
+  })
+
+  it.each([
+    ['an empty nickname', { ...post(1), nickname: '   ' }],
+    ['a negative comment count', { ...post(1), commentCount: -1 }],
+    ['a fractional comment count', { ...post(1), commentCount: 1.5 }],
+  ])('rejects posts with %s', async (_caseName, invalidPost) => {
+    apiClient.defaults.adapter = async (config) =>
+      response(config, { posts: [invalidPost], nextCursor: null })
 
     await expect(fetchPopularPosts()).rejects.toThrow('response was invalid')
   })

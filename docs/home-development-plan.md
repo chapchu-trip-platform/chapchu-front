@@ -70,7 +70,7 @@
 | 주변 추천 장소 | `GET /places/nearby?lat&lng&radiusMeters` | 부분 가능 | 장소명, 이미지, 주소, 좌표, 평점, 리뷰 수, 반려동물 정책을 받을 수 있다. 거리, 테마명, 정렬 기준은 없다. |
 | 날씨 카드 | 없음 | 불가 | 기상청 adapter 또는 Chapchu 날씨 API가 필요하다. |
 | 여행 시작 CTA | `GET /home` | 부분 가능 | 반려견 이름은 가능하지만 대표 반려견 사진은 불가하다. |
-| HOT 게시글 | `GET /posts?sort=popular&size=3` | 부분 가능 | 응답은 `{ posts, nextCursor }`이고 ID, 제목, 본문, 조회 수, 추천 수, 작성자, 댓글 수, 대표 이미지 URL을 포함한다. Home의 원격 이미지 정책이 확정되기 전까지 이미지는 로컬 대체 자산을 사용한다. |
+| HOT 게시글 | `GET /posts?sort=popular&size=3` | 부분 가능 | 응답은 `{ posts, nextCursor }`이고 ID, 제목, 본문, 조회 수, 추천 수, 작성자, 댓글 수, 대표 이미지 URL을 포함한다. Home에는 작성자 닉네임과 댓글 수도 표시하며, 원격 이미지 정책이 확정되기 전까지 이미지는 로컬 대체 자산을 사용한다. |
 | 알림 | 제외 | 제외 | Home의 `NotificationButton`과 관련 props를 제거한다. 다른 화면의 공용 알림 UI는 건드리지 않는다. |
 
 ### 4.1 프론트 계약 불일치

@@ -38,10 +38,12 @@ vi.mock('@/features/map/components/tmap-map', () => ({
 const hotPosts: HotPost[] = [
   {
     id: 'post-1',
+    nickname: '멍멍이아빠',
     title: '첫추 인기 여행기',
     content: '반려견과 함께 다녀왔어요.',
     viewCount: 120,
     recommendationCount: 42,
+    commentCount: 7,
     createdAt: null,
     hasPhoto: false,
   },
@@ -93,6 +95,8 @@ describe('HomeScreen', () => {
     expect(screen.getByText('반려견과 함께 다녀왔어요.')).toBeInTheDocument()
     expect(screen.getByText('120')).toBeInTheDocument()
     expect(screen.getByText('42')).toBeInTheDocument()
+    expect(screen.getByText('멍멍이아빠')).toBeInTheDocument()
+    expect(screen.getByLabelText('댓글 7개')).toHaveTextContent('7')
     expect(screen.getByText('추천 장소 예시')).toBeInTheDocument()
     expect(screen.getByText('위치 기반 추천 API 연결 전 예시 데이터예요.')).toBeInTheDocument()
     const hotBadge = screen.getByText('HOT').parentElement

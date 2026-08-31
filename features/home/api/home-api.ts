@@ -12,10 +12,12 @@ interface HomeSummaryDto {
 interface PostDto {
   id: string
   photoId: string | null
+  nickname: string
   title: string
   content: string
   viewCount: number
   recommendationCount: number
+  commentCount: number
   createdAt: string | null
 }
 
@@ -49,10 +51,13 @@ function isPostDto(value: unknown): value is PostDto {
   return (
     isBoundedString(post.id, 100) &&
     (post.photoId === null || isBoundedString(post.photoId, 100)) &&
+    isBoundedString(post.nickname, 100) &&
+    post.nickname.trim().length > 0 &&
     isBoundedString(post.title, 500) &&
     isBoundedString(post.content, 20_000) &&
     isNonNegativeCount(post.viewCount) &&
     isNonNegativeCount(post.recommendationCount) &&
+    isNonNegativeCount(post.commentCount) &&
     (post.createdAt === null || isBoundedString(post.createdAt, 100))
   )
 }
@@ -93,10 +98,12 @@ export async function fetchPopularPosts(signal?: AbortSignal): Promise<HotPost[]
   return data.posts
     .map((post) => ({
       id: post.id,
+      nickname: post.nickname.trim(),
       title: post.title.trim(),
       content: post.content.trim(),
       viewCount: post.viewCount,
       recommendationCount: post.recommendationCount,
+      commentCount: post.commentCount,
       createdAt: post.createdAt,
       hasPhoto: Boolean(post.photoId?.trim()),
     }))
