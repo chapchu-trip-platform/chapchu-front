@@ -21,9 +21,17 @@ export const API_ENDPOINTS = {
   },
   places: {
     nearby: '/places/nearby',
+    detail: (placeId: string) => `/places/${pathId(placeId)}`,
   },
   users: {
     me: '/users/me',
+    mypage: '/users/me/mypage',
+    preferences: '/users/me/preferences',
+    posts: '/users/me/posts',
+    bookmarks: '/users/me/bookmarks',
+    wishlist: '/users/me/wishlist',
+    wishlistPlace: (placeId: string) => `/users/me/wishlist/${pathId(placeId)}`,
+    reviews: '/users/me/reviews',
     nicknameAvailability: '/users/nickname/availability',
   },
   pets: {
@@ -42,6 +50,7 @@ export const API_ENDPOINTS = {
   community: {
     posts: '/posts',
     post: (postId: string) => `/posts/${pathId(postId)}`,
+    bookmark: (postId: string) => `/posts/${pathId(postId)}/bookmarks`,
   },
   albums: {
     list: '/albums',

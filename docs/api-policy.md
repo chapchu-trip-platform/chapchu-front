@@ -200,3 +200,35 @@ If the current `GET /places/nearby` contract is used temporarily, it must only r
 explicit service consent and device permission, and the request coordinates must be reduced
 to the minimum precision needed for Home. The client diagnostics redact location fields and
 coordinate query parameters before any future integration.
+
+## My Page API Status
+
+My Page uses authenticated API calls for the summary, pets, written posts, bookmarks,
+wishlist, reviews, nickname changes, and account withdrawal. Breed, activity, and nickname
+availability lookups remain public according to the published onboarding contract.
+
+The profile API adapter validates response shapes before updating UI state. My Page summary
+and pets load in parallel, while collection sub-screens load on demand. Wishlist entries are
+returned as place IDs, so the frontend preserves those authoritative IDs for removal and
+hydrates display fields through place-detail requests with bounded concurrency. This fan-out
+should still be replaced by an aggregated or embedded-place backend response if wishlist
+size grows or pagination is introduced.
+
+The current contracts do not provide travel-distance, visited-place, stamp, memorial-album,
+profile-photo, or pet-photo data suitable for the existing design. The UI keeps those visual
+positions without presenting fabricated API values. The trip-photo API is not reused because
+it requires a course-place association.
+
+Account withdrawal sends the documented `accountStatus: WITHDRAWN` update. The UI does not
+claim that this hard-deletes all related data because deletion, retention, and restoration
+semantics are not defined in the published contract. After a successful withdrawal update,
+the frontend also calls the cookie-session logout route and clears all in-memory auth and pet
+state before returning to login. Backend coordination must confirm that withdrawal atomically
+revokes every refresh session, not only the current browser cookie, and should define a recent
+reauthentication requirement for this sensitive action.
+
+Protected mutation requests are not automatically replayed after a token refresh because
+replaying a POST, PATCH, or DELETE can duplicate a non-idempotent operation. If a token expires
+during a My Page mutation, the UI reports the failure and requires an explicit user retry.
+The backend should make DELETE operations idempotent and provide idempotency support for any
+future non-idempotent mutation that needs transparent retry.

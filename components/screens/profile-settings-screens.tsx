@@ -1,73 +1,192 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Image from 'next/image'
-import { Heart, Bookmark } from 'lucide-react'
+import { Bookmark, Heart, Star } from 'lucide-react'
 import TopBar from '@/components/top-bar'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
-import { Input, Textarea } from '@/components/ui/input'
-import { mockMyPosts, mockWishlist, mockBookmarks, mockUserProfile } from '@/data/mock'
+import { Input } from '@/components/ui/input'
+import {
+  fetchBookmarks,
+  fetchMyPosts,
+  fetchMyReviews,
+  fetchWishlist,
+  getProfileErrorMessage,
+  removeBookmark,
+  removeWishlistPlace,
+} from '@/features/profile/api/profile-api'
+import type {
+  ProfileLoadStatus,
+  ProfilePost,
+  ProfileReview,
+  WishlistPlace,
+} from '@/features/profile/types/profile'
 
-export type SettingsTab = 'nickname' | 'info' | 'posts' | 'wishlist' | 'bookmarks'
+export type SettingsTab = 'nickname' | 'posts' | 'wishlist' | 'bookmarks' | 'reviews'
 
 interface ProfileSettingsProps {
   initialTab: SettingsTab
+  currentNickname: string
+  onNicknameSaved: (nickname: string) => Promise<string>
   onBack: () => void
 }
 
-export default function ProfileSettings({ initialTab, onBack }: ProfileSettingsProps) {
-  const [tab] = useState<SettingsTab>(initialTab)
-  const [nickname, setNickname] = useState(mockUserProfile.nickname)
-  const [email, setEmail] = useState(mockUserProfile.email)
-  const [bio, setBio] = useState(mockUserProfile.bio)
-  const [isSaving, setIsSaving] = useState(false)
+const titleByTab: Record<SettingsTab, string> = {
+  nickname: '닉네임 변경',
+  posts: '내가 작성한 글',
+  wishlist: '장소 위시리스트',
+  bookmarks: '게시글 북마크',
+  reviews: '내가 작성한 리뷰',
+}
 
-  const handleSave = async () => {
+function formatDate(value: string | null) {
+  if (!value) return '날짜 정보 없음'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '날짜 정보 없음'
+  return new Intl.DateTimeFormat('ko-KR', {
+    dateStyle: 'medium',
+    timeZone: 'Asia/Seoul',
+  }).format(date)
+}
+
+function LoadingState() {
+  return <p className="py-12 text-center text-[13px] text-warm-gray">불러오는 중...</p>
+}
+
+function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="px-4 py-12 text-center" role="alert">
+      <p className="text-[13px] text-danger">{message}</p>
+      <Button className="mt-4" variant="outline" size="sm" onClick={onRetry}>
+        다시 불러오기
+      </Button>
+    </div>
+  )
+}
+
+export default function ProfileSettings({
+  initialTab,
+  currentNickname,
+  onNicknameSaved,
+  onBack,
+}: ProfileSettingsProps) {
+  const [nickname, setNickname] = useState(currentNickname)
+  const [status, setStatus] = useState<ProfileLoadStatus>(
+    initialTab === 'nickname' ? 'success' : 'loading'
+  )
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [removingId, setRemovingId] = useState<string | null>(null)
+  const [posts, setPosts] = useState<ProfilePost[]>([])
+  const [bookmarks, setBookmarks] = useState<ProfilePost[]>([])
+  const [wishlist, setWishlist] = useState<WishlistPlace[]>([])
+  const [reviews, setReviews] = useState<ProfileReview[]>([])
+  const [reloadKey, setReloadKey] = useState(0)
+
+  useEffect(() => {
+    if (initialTab === 'nickname') return
+    const controller = new AbortController()
+
+    const request =
+      initialTab === 'posts'
+        ? fetchMyPosts(controller.signal).then(setPosts)
+        : initialTab === 'bookmarks'
+          ? fetchBookmarks(controller.signal).then(setBookmarks)
+          : initialTab === 'wishlist'
+            ? fetchWishlist(controller.signal).then(setWishlist)
+            : fetchMyReviews(controller.signal).then(setReviews)
+
+    void request
+      .then(() => {
+        if (!controller.signal.aborted) setStatus('success')
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return
+        setErrorMessage(getProfileErrorMessage(error))
+        setStatus('error')
+      })
+
+    return () => controller.abort()
+  }, [initialTab, reloadKey])
+
+  const retry = useCallback(() => {
+    setStatus('loading')
+    setErrorMessage(null)
+    setReloadKey((key) => key + 1)
+  }, [])
+
+  const handleSaveNickname = async () => {
+    if (!nickname.trim() || nickname.trim().length > 20) return
     setIsSaving(true)
-    await new Promise((r) => setTimeout(r, 600))
-    setIsSaving(false)
-    alert('저장되었습니다!')
+    setErrorMessage(null)
+    setSuccessMessage(null)
+    try {
+      const savedNickname = await onNicknameSaved(nickname)
+      setNickname(savedNickname)
+      setSuccessMessage('닉네임이 변경되었습니다.')
+    } catch (error) {
+      setErrorMessage(getProfileErrorMessage(error))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleRemoveWishlist = async (placeId: string) => {
+    setRemovingId(placeId)
+    setErrorMessage(null)
+    try {
+      await removeWishlistPlace(placeId)
+      setWishlist((items) => items.filter((item) => item.placeId !== placeId))
+    } catch (error) {
+      setErrorMessage(getProfileErrorMessage(error))
+    } finally {
+      setRemovingId(null)
+    }
+  }
+
+  const handleRemoveBookmark = async (postId: string) => {
+    setRemovingId(postId)
+    setErrorMessage(null)
+    try {
+      await removeBookmark(postId)
+      setBookmarks((items) => items.filter((item) => item.id !== postId))
+    } catch (error) {
+      setErrorMessage(getProfileErrorMessage(error))
+    } finally {
+      setRemovingId(null)
+    }
   }
 
   return (
     <div className="flex flex-col flex-1 bg-warm-beige overflow-hidden">
-      <TopBar
-        title={
-          tab === 'nickname'
-            ? '닉네임 변경'
-            : tab === 'info'
-              ? '사용자 정보 수정'
-              : tab === 'posts'
-                ? '내가 작성한 글'
-                : tab === 'wishlist'
-                  ? '장소 위시리스트'
-                  : '게시글 북마크'
-        }
-        showBack
-        onBack={onBack}
-      />
+      <TopBar title={titleByTab[initialTab]} showBack onBack={onBack} />
 
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
-        {/* Nickname change */}
-        {tab === 'nickname' && (
+        {initialTab === 'nickname' && (
           <div className="p-4 space-y-4">
             <div>
-              <label className="text-[13px] font-semibold text-deep-brown mb-2 block">
+              <label className="mb-2 block text-[13px] font-semibold text-deep-brown" htmlFor="profile-nickname">
                 현재 닉네임
               </label>
               <Input
+                id="profile-nickname"
                 type="text"
                 value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
+                onChange={(event) => {
+                  setNickname(event.target.value)
+                  setSuccessMessage(null)
+                }}
                 maxLength={20}
               />
-              <p className="text-[11px] text-warm-gray mt-1 text-right">{nickname.length}/20</p>
+              <p className="mt-1 text-right text-[11px] text-warm-gray">{nickname.length}/20</p>
             </div>
-
+            {errorMessage && <p className="text-[12px] text-danger" role="alert">{errorMessage}</p>}
+            {successMessage && <p className="text-[12px] text-sage-green" role="status">{successMessage}</p>}
             <Button
-              onClick={handleSave}
-              disabled={isSaving}
+              onClick={handleSaveNickname}
+              disabled={isSaving || !nickname.trim() || nickname.trim() === currentNickname}
               fullWidth
               size="lg"
             >
@@ -76,149 +195,122 @@ export default function ProfileSettings({ initialTab, onBack }: ProfileSettingsP
           </div>
         )}
 
-        {/* User info edit */}
-        {tab === 'info' && (
-          <div className="p-4 space-y-4">
-            <div>
-              <label className="text-[13px] font-semibold text-deep-brown mb-2 block">
-                이메일
-              </label>
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="text-[13px] font-semibold text-deep-brown mb-2 block">
-                소개
-              </label>
-              <Textarea
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                maxLength={100}
-                rows={3}
-              />
-              <p className="text-[11px] text-warm-gray mt-1 text-right">{bio.length}/100</p>
-            </div>
-
-            <Button
-              onClick={handleSave}
-              disabled={isSaving}
-              fullWidth
-              size="lg"
-            >
-              {isSaving ? '저장 중...' : '저장하기'}
-            </Button>
-          </div>
+        {initialTab !== 'nickname' && status === 'loading' && <LoadingState />}
+        {initialTab !== 'nickname' && status === 'error' && errorMessage && (
+          <ErrorState message={errorMessage} onRetry={retry} />
         )}
 
-        {/* My posts */}
-        {tab === 'posts' && (
+        {initialTab === 'posts' && status === 'success' && (
           <div className="px-4 pt-4">
-            {mockMyPosts.length > 0 ? (
+            {posts.length > 0 ? (
               <div className="space-y-3">
-                {mockMyPosts.map((post) => (
-                  <div key={post.id} className="flex gap-3 p-3 rounded-card border border-border bg-card-surface">
-                    <div className="relative w-20 h-20 rounded-card overflow-hidden flex-shrink-0">
-                      <Image
-                        src={post.image}
-                        alt={post.title}
-                        fill
-                        className="object-cover"
-                      />
+                {posts.map((post) => (
+                  <article key={post.id} className="flex gap-3 rounded-card border border-border bg-card-surface p-3">
+                    <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-card">
+                      <Image src="/images/place-beach.png" alt="" fill className="object-cover" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-semibold text-deep-brown line-clamp-1">
-                        {post.title}
-                      </p>
-                      <p className="text-[12px] text-warm-gray mt-1 line-clamp-2">
-                        {post.excerpt}
-                      </p>
-                      <p className="text-[11px] text-warm-gray mt-2">{post.date}</p>
-                      <div className="flex gap-3 mt-2 text-[11px] text-warm-gray">
-                        <span>조회 {post.views}</span>
-                        <span>좋아요 {post.likes}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-1 text-[13px] font-semibold text-deep-brown">{post.title}</p>
+                      <p className="mt-1 line-clamp-2 text-[12px] text-warm-gray">{post.content}</p>
+                      <p className="mt-2 text-[11px] text-warm-gray">{formatDate(post.createdAt)}</p>
+                      <div className="mt-2 flex gap-3 text-[11px] text-warm-gray">
+                        <span>조회 {post.viewCount}</span>
+                        <span>추천 {post.recommendationCount}</span>
+                        <span>댓글 {post.commentCount}</span>
                       </div>
                     </div>
-                  </div>
+                  </article>
                 ))}
               </div>
             ) : (
-              <div className="py-12 text-center">
-                <p className="text-[13px] text-warm-gray">작성한 글이 없습니다</p>
-              </div>
+              <p className="py-12 text-center text-[13px] text-warm-gray">작성한 글이 없습니다</p>
             )}
           </div>
         )}
 
-        {/* Wishlist */}
-        {tab === 'wishlist' && (
+        {initialTab === 'wishlist' && status === 'success' && (
           <div className="px-4 pt-4">
-            {mockWishlist.length > 0 ? (
+            {errorMessage && <p className="mb-3 text-[12px] text-danger" role="alert">{errorMessage}</p>}
+            {wishlist.length > 0 ? (
               <div className="space-y-3">
-                {mockWishlist.map((place) => (
-                  <div
-                    key={place.id}
-                    className="p-3 rounded-card border border-border bg-card-surface flex items-center justify-between"
-                  >
+                {wishlist.map((place) => (
+                  <div key={place.placeId} className="flex items-center justify-between rounded-card border border-border bg-card-surface p-3">
                     <div className="flex-1">
-                      <p className="text-[13px] font-semibold text-deep-brown">{place.name}</p>
-                      <p className="text-[12px] text-warm-gray mt-0.5">{place.address}</p>
-                      <div className="flex gap-3 mt-1 text-[11px] text-warm-gray">
-                        <span>⭐ {place.rating}</span>
-                        <span>{place.distance}</span>
+                      <p className="text-[13px] font-semibold text-deep-brown">{place.placeName}</p>
+                      <p className="mt-0.5 text-[12px] text-warm-gray">{place.address}</p>
+                      <div className="mt-1 flex gap-3 text-[11px] text-warm-gray">
+                        <span>⭐ {place.rating.toFixed(1)}</span>
+                        <span>리뷰 {place.reviewCount}</span>
                       </div>
                     </div>
-                    <IconButton aria-label={`${place.name} 위시리스트에서 제거`}>
-                      <Heart className="w-5 h-5 text-soft-orange fill-soft-orange" />
+                    <IconButton
+                      aria-label={`${place.placeName} 위시리스트에서 제거`}
+                      disabled={removingId === place.placeId}
+                      onClick={() => handleRemoveWishlist(place.placeId)}
+                    >
+                      <Heart className="h-5 w-5 fill-soft-orange text-soft-orange" />
                     </IconButton>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="py-12 text-center">
-                <p className="text-[13px] text-warm-gray">위시리스트가 비어있습니다</p>
-              </div>
+              <p className="py-12 text-center text-[13px] text-warm-gray">위시리스트가 비어있습니다</p>
             )}
           </div>
         )}
 
-        {/* Bookmarks */}
-        {tab === 'bookmarks' && (
+        {initialTab === 'bookmarks' && status === 'success' && (
           <div className="px-4 pt-4">
-            {mockBookmarks.length > 0 ? (
+            {errorMessage && <p className="mb-3 text-[12px] text-danger" role="alert">{errorMessage}</p>}
+            {bookmarks.length > 0 ? (
               <div className="space-y-3">
-                {mockBookmarks.map((bookmark) => (
-                  <div
-                    key={bookmark.id}
-                    className="p-3 rounded-card border border-border bg-card-surface flex items-center justify-between"
-                  >
-                    <div className="flex-1">
-                      <p className="text-[13px] font-semibold text-deep-brown">{bookmark.title}</p>
-                      <div className="flex gap-3 mt-1 text-[11px] text-warm-gray">
-                        <span>{bookmark.author}</span>
+                {bookmarks.map((bookmark) => (
+                  <div key={bookmark.id} className="flex items-center justify-between rounded-card border border-border bg-card-surface p-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-1 text-[13px] font-semibold text-deep-brown">{bookmark.title}</p>
+                      <div className="mt-1 flex gap-2 text-[11px] text-warm-gray">
+                        <span>{bookmark.nickname}</span>
                         <span>•</span>
-                        <span>{bookmark.date}</span>
+                        <span>{formatDate(bookmark.createdAt)}</span>
                       </div>
                     </div>
-                    <IconButton aria-label={`${bookmark.title} 북마크 해제`}>
-                      <Bookmark className="w-5 h-5 text-soft-orange fill-soft-orange" />
+                    <IconButton
+                      aria-label={`${bookmark.title} 북마크 해제`}
+                      disabled={removingId === bookmark.id}
+                      onClick={() => handleRemoveBookmark(bookmark.id)}
+                    >
+                      <Bookmark className="h-5 w-5 fill-soft-orange text-soft-orange" />
                     </IconButton>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="py-12 text-center">
-                <p className="text-[13px] text-warm-gray">북마크한 글이 없습니다</p>
+              <p className="py-12 text-center text-[13px] text-warm-gray">북마크한 글이 없습니다</p>
+            )}
+          </div>
+        )}
+
+        {initialTab === 'reviews' && status === 'success' && (
+          <div className="px-4 pt-4">
+            {reviews.length > 0 ? (
+              <div className="space-y-3">
+                {reviews.map((review) => (
+                  <article key={review.id} className="rounded-card border border-border bg-card-surface p-4">
+                    <div className="flex items-center gap-1 text-soft-orange" aria-label={`별점 ${review.rating}점`}>
+                      <Star className="h-4 w-4 fill-current" />
+                      <span className="text-[13px] font-semibold">{review.rating.toFixed(1)}</span>
+                    </div>
+                    <p className="mt-2 text-[13px] leading-relaxed text-deep-brown">{review.contents}</p>
+                    <p className="mt-2 text-[11px] text-warm-gray">{formatDate(review.createdAt)}</p>
+                  </article>
+                ))}
               </div>
+            ) : (
+              <p className="py-12 text-center text-[13px] text-warm-gray">작성한 리뷰가 없습니다</p>
             )}
           </div>
         )}
       </div>
-
-
     </div>
   )
 }
