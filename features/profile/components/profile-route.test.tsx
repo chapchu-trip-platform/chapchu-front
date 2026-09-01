@@ -148,7 +148,7 @@ describe('ProfileRoute', () => {
 
     await screen.findByRole('heading', { name: '초코맘' })
     await user.click(screen.getByRole('button', { name: /반려동물 관리.*초코 · 1마리/ }))
-    await user.click(screen.getByRole('button', { name: '반려동물 추가하기' }))
+    await user.click(await screen.findByRole('button', { name: '반려동물 추가하기' }))
     await user.type(await screen.findByPlaceholderText('반려견 이름'), '보리')
     await user.selectOptions(screen.getByLabelText('견종'), '7')
     await user.type(screen.getByPlaceholderText('3'), '2')
@@ -215,7 +215,7 @@ describe('ProfileRoute', () => {
 
     await screen.findByRole('heading', { name: '초코맘' })
     await user.click(screen.getByRole('button', { name: /반려동물 관리.*초코 · 1마리/ }))
-    await user.click(screen.getByRole('button', { name: '반려동물 추가하기' }))
+    await user.click(await screen.findByRole('button', { name: '반려동물 추가하기' }))
     await screen.findByRole('alert')
     await user.click(screen.getByRole('button', { name: '다시 시도' }))
 
@@ -233,7 +233,7 @@ describe('ProfileRoute', () => {
 
     await screen.findByRole('heading', { name: '초코맘' })
     await user.click(screen.getByRole('button', { name: /반려동물 관리.*초코 · 1마리/ }))
-    await user.click(screen.getByRole('button', { name: '초코 삭제' }))
+    await user.click(await screen.findByRole('button', { name: '초코 삭제' }))
     const deleteButton = screen.getByRole('button', { name: /완전히 삭제하기/ })
     await user.click(deleteButton)
     expect(deleteButton).toBeDisabled()
@@ -250,10 +250,28 @@ describe('ProfileRoute', () => {
 
     await screen.findByRole('heading', { name: '초코맘' })
     await user.click(screen.getByRole('button', { name: /반려동물 관리.*초코 · 1마리/ }))
-    await user.click(screen.getByRole('button', { name: '반려동물 추가하기' }))
+    await user.click(await screen.findByRole('button', { name: '반려동물 추가하기' }))
     await user.type(await screen.findByPlaceholderText('반려견 이름'), '보리')
 
     expect(screen.getByRole('button', { name: '저장하기' })).toBeDisabled()
     expect(screen.getByLabelText('견종')).toHaveValue('')
+  })
+
+  it('traps focus in settings and restores it after the exit transition', async () => {
+    const user = userEvent.setup()
+    render(<ProfileRoute />)
+
+    await screen.findByRole('heading', { name: '초코맘' })
+    const settingsTrigger = screen.getByRole('button', { name: /작성한 글.*내 작성글 보기/ })
+    await user.click(settingsTrigger)
+
+    const settingsDialog = await screen.findByRole('dialog', { name: '내정보 설정' })
+    expect(settingsDialog).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '뒤로 가기' })).toHaveFocus()
+    expect(settingsTrigger.closest('[inert]')).not.toBeNull()
+
+    await user.click(screen.getByRole('button', { name: '뒤로 가기' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '내정보 설정' })).not.toBeInTheDocument())
+    expect(settingsTrigger).toHaveFocus()
   })
 })

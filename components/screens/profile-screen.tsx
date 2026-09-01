@@ -1,7 +1,8 @@
 'use client'
 
 import Image from 'next/image'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { AnimatePresence, m, useIsPresent, useReducedMotion } from 'motion/react'
 import {
   AlertTriangle,
   Archive,
@@ -79,6 +80,35 @@ const sizeLabel: Record<PetSize, string> = {
   LARGE: '대형',
 }
 
+const PROFILE_MOTION_EASE = [0.22, 1, 0.36, 1] as const
+
+function ProfilePane({
+  children,
+  direction,
+}: {
+  children: ReactNode
+  direction: 'forward' | 'back'
+}) {
+  const prefersReducedMotion = useReducedMotion()
+  const isPresent = useIsPresent()
+  const enterX = direction === 'forward' ? 28 : -16
+  const exitX = direction === 'forward' ? 28 : -20
+
+  return (
+    <m.div
+      inert={isPresent ? undefined : true}
+      aria-hidden={isPresent ? undefined : true}
+      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: enterX }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: exitX }}
+      transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: PROFILE_MOTION_EASE }}
+      className="absolute inset-0 flex min-h-0 flex-col overflow-hidden bg-warm-beige"
+    >
+      {children}
+    </m.div>
+  )
+}
+
 function useModalFocus(onClose: () => void, isBlocked = false) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
@@ -150,6 +180,7 @@ function DeletePetModal({
   const [isDeleting, setIsDeleting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const dialogRef = useModalFocus(onClose, isDeleting)
+  const prefersReducedMotion = useReducedMotion()
 
   const handleDelete = async () => {
     if (isDeleting) return
@@ -164,9 +195,26 @@ function DeletePetModal({
   }
 
   return (
-    <div className="absolute inset-0 z-[70] flex items-end justify-center">
-      <div className="absolute inset-0 bg-black/40" aria-hidden="true" onClick={() => !isDeleting && onClose()} />
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="delete-pet-title" tabIndex={-1} className="relative w-full rounded-t-[24px] bg-card-surface p-5 pb-10 slide-up">
+    <m.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
+      className="absolute inset-0 z-[70] flex items-end justify-center"
+    >
+      <m.div className="absolute inset-0 bg-black/40" aria-hidden="true" onClick={() => !isDeleting && onClose()} />
+      <m.div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-pet-title"
+        tabIndex={-1}
+        initial={prefersReducedMotion ? false : { y: '100%' }}
+        animate={{ y: 0 }}
+        exit={prefersReducedMotion ? { opacity: 0 } : { y: '100%' }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.32, ease: PROFILE_MOTION_EASE }}
+        className="relative w-full rounded-t-[24px] bg-card-surface p-5 pb-10"
+      >
         <h3 id="delete-pet-title" className="mb-2 text-[16px] font-bold text-deep-brown">{pet.petName} 삭제</h3>
         <p className="mb-5 text-[13px] leading-relaxed text-warm-gray">삭제 방법을 선택해주세요.</p>
         <div className="flex flex-col gap-2">
@@ -191,8 +239,8 @@ function DeletePetModal({
           {errorMessage && <p className="text-[12px] text-danger" role="alert">{errorMessage}</p>}
           <Button onClick={onClose} variant="ghost" fullWidth disabled={isDeleting}>취소</Button>
         </div>
-      </div>
-    </div>
+      </m.div>
+    </m.div>
   )
 }
 
@@ -201,6 +249,7 @@ function WithdrawModal({ onClose, onConfirm }: { onClose: () => void; onConfirm:
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const dialogRef = useModalFocus(onClose, isSubmitting)
+  const prefersReducedMotion = useReducedMotion()
 
   const handleConfirm = async () => {
     setIsSubmitting(true)
@@ -214,9 +263,26 @@ function WithdrawModal({ onClose, onConfirm }: { onClose: () => void; onConfirm:
   }
 
   return (
-    <div className="absolute inset-0 z-[70] flex items-center justify-center p-6">
-      <div className="absolute inset-0 bg-black/50" aria-hidden="true" onClick={() => !isSubmitting && onClose()} />
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="withdraw-title" tabIndex={-1} className="relative w-full rounded-card bg-card-surface p-6">
+    <m.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: prefersReducedMotion ? 0 : 0.18 }}
+      className="absolute inset-0 z-[70] flex items-center justify-center p-6"
+    >
+      <m.div className="absolute inset-0 bg-black/50" aria-hidden="true" onClick={() => !isSubmitting && onClose()} />
+      <m.div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="withdraw-title"
+        tabIndex={-1}
+        initial={prefersReducedMotion ? false : { opacity: 0, y: 16, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 10, scale: 0.98 }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.26, ease: PROFILE_MOTION_EASE }}
+        className="relative w-full rounded-card bg-card-surface p-6"
+      >
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-danger/10">
           <AlertTriangle className="h-6 w-6 text-danger" />
         </div>
@@ -239,8 +305,8 @@ function WithdrawModal({ onClose, onConfirm }: { onClose: () => void; onConfirm:
             {isSubmitting ? '처리 중...' : '탈퇴하기'}
           </Button>
         </ModalActions>
-      </div>
-    </div>
+      </m.div>
+    </m.div>
   )
 }
 
@@ -265,6 +331,7 @@ function PetEditor({
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const dialogRef = useModalFocus(onClose, isSaving)
+  const prefersReducedMotion = useReducedMotion()
 
   const parsedAge = Number(age)
   const canSubmit =
@@ -294,9 +361,26 @@ function PetEditor({
   }
 
   return (
-    <div className="absolute inset-0 z-[70] flex items-end justify-center">
-      <div className="absolute inset-0 bg-black/40" aria-hidden="true" onClick={() => !isSaving && onClose()} />
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="pet-editor-title" tabIndex={-1} className="relative max-h-[88%] w-full overflow-y-auto rounded-t-[24px] bg-card-surface p-5 pb-10 slide-up">
+    <m.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
+      className="absolute inset-0 z-[70] flex items-end justify-center"
+    >
+      <m.div className="absolute inset-0 bg-black/40" aria-hidden="true" onClick={() => !isSaving && onClose()} />
+      <m.div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pet-editor-title"
+        tabIndex={-1}
+        initial={prefersReducedMotion ? false : { y: '100%' }}
+        animate={{ y: 0 }}
+        exit={prefersReducedMotion ? { opacity: 0 } : { y: '100%' }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.34, ease: PROFILE_MOTION_EASE }}
+        className="relative max-h-[88%] w-full overflow-y-auto rounded-t-[24px] bg-card-surface p-5 pb-10"
+      >
         <h3 id="pet-editor-title" className="mb-4 text-[17px] font-bold text-deep-brown">{pet ? '반려견 정보 수정' : '반려견 등록'}</h3>
         <div className="space-y-4">
           <div>
@@ -359,8 +443,8 @@ function PetEditor({
             <Button onClick={handleSubmit} disabled={!canSubmit || isSaving}>{isSaving ? '저장 중...' : '저장하기'}</Button>
           </ModalActions>
         </div>
-      </div>
-    </div>
+      </m.div>
+    </m.div>
   )
 }
 
@@ -386,6 +470,7 @@ function PetsSubScreen({
   const [optionsError, setOptionsError] = useState<string | null>(null)
   const [optionsRequestKey, setOptionsRequestKey] = useState(0)
   const [memoryNotice, setMemoryNotice] = useState<string | null>(null)
+  const prefersReducedMotion = useReducedMotion()
 
   useEffect(() => {
     if (!showEditor || options) return
@@ -408,10 +493,32 @@ function PetsSubScreen({
     <div className="relative flex flex-1 flex-col overflow-hidden bg-warm-beige">
       <TopBar title="반려동물 관리" showBack onBack={onBack} />
       <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-24 pt-4">
-        {memoryNotice && <p className="mb-3 rounded-card bg-sage-green-light p-3 text-[12px] text-sage-green" role="status">{memoryNotice}</p>}
+        <AnimatePresence initial={false}>
+          {memoryNotice && (
+            <m.p
+              initial={{ opacity: 0, height: 0, y: prefersReducedMotion ? 0 : -6 }}
+              animate={{ opacity: 1, height: 'auto', y: 0 }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.22 }}
+              className="mb-3 rounded-card bg-sage-green-light p-3 text-[12px] text-sage-green"
+              role="status"
+            >
+              {memoryNotice}
+            </m.p>
+          )}
+        </AnimatePresence>
         {pets.length === 0 && <p className="py-8 text-center text-[13px] text-warm-gray">등록된 반려견이 없습니다.</p>}
-        {pets.map((pet) => (
-          <div key={pet.id} className="mb-3 rounded-card border border-border bg-card-surface p-4 shadow-sm">
+        <AnimatePresence initial={false}>
+          {pets.map((pet) => (
+          <m.div
+            layout={!prefersReducedMotion}
+            key={pet.id}
+            initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -24, height: 0, marginBottom: 0 }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: PROFILE_MOTION_EASE }}
+            className="mb-3 overflow-hidden rounded-card border border-border bg-card-surface p-4 shadow-sm"
+          >
             <div className="flex items-start gap-3">
               <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-full border-2 border-sage-green/30">
                 <Image src="/images/dog-hero.png" alt={pet.petName} fill className="object-cover" />
@@ -434,14 +541,24 @@ function PetsSubScreen({
                 </div>
               </div>
             </div>
-          </div>
-        ))}
-        <Button variant="outline" fullWidth size="lg" className="rounded-card border-2 border-dashed text-warm-gray" onClick={() => openEditor(null)}>
-          <Plus className="h-4 w-4" />
-          <span className="text-[14px] font-medium">반려동물 추가하기</span>
-        </Button>
-        {showEditor && !options && (
-          <div className="mt-3 rounded-card border border-border bg-card-surface p-4 text-center">
+          </m.div>
+          ))}
+        </AnimatePresence>
+        <m.div whileTap={prefersReducedMotion ? undefined : { scale: 0.985 }}>
+          <Button variant="outline" fullWidth size="lg" className="rounded-card border-2 border-dashed text-warm-gray" onClick={() => openEditor(null)}>
+            <Plus className="h-4 w-4" />
+            <span className="text-[14px] font-medium">반려동물 추가하기</span>
+          </Button>
+        </m.div>
+        <AnimatePresence initial={false}>
+          {showEditor && !options && (
+          <m.div
+            initial={{ opacity: 0, height: 0, y: prefersReducedMotion ? 0 : 8 }}
+            animate={{ opacity: 1, height: 'auto', y: 0 }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.22 }}
+            className="mt-3 overflow-hidden rounded-card border border-border bg-card-surface p-4 text-center"
+          >
             {optionsError ? (
               <>
                 <p className="mb-3 text-[12px] text-danger" role="alert">{optionsError}</p>
@@ -459,36 +576,41 @@ function PetsSubScreen({
             ) : (
               <p className="text-[12px] text-warm-gray" role="status">견종과 활동 정보를 불러오는 중...</p>
             )}
-          </div>
-        )}
+          </m.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      {deleteTarget && (
-        <DeletePetModal
-          pet={deleteTarget}
-          onClose={() => setDeleteTarget(null)}
-          onDelete={async () => {
-            await onDelete(deleteTarget.id)
-            setDeleteTarget(null)
-          }}
-          onMemory={() => {
-            setDeleteTarget(null)
-            setMemoryNotice('추억 보관 API가 준비되면 연결할 예정입니다.')
-          }}
-        />
-      )}
-      {showEditor && options && (
-        <PetEditor
-          pet={editorPet}
-          options={options}
-          onClose={() => setShowEditor(false)}
-          onSubmit={async (input) => {
-            if (editorPet) await onUpdate(editorPet.id, input)
-            else await onCreate(input)
-            setShowEditor(false)
-          }}
-        />
-      )}
+      <AnimatePresence initial={false}>
+        {deleteTarget && (
+          <DeletePetModal
+            key={`delete-${deleteTarget.id}`}
+            pet={deleteTarget}
+            onClose={() => setDeleteTarget(null)}
+            onDelete={async () => {
+              await onDelete(deleteTarget.id)
+              setDeleteTarget(null)
+            }}
+            onMemory={() => {
+              setDeleteTarget(null)
+              setMemoryNotice('추억 보관 API가 준비되면 연결할 예정입니다.')
+            }}
+          />
+        )}
+        {showEditor && options && (
+          <PetEditor
+            key={editorPet ? `edit-${editorPet.id}` : 'create-pet'}
+            pet={editorPet}
+            options={options}
+            onClose={() => setShowEditor(false)}
+            onSubmit={async (input) => {
+              if (editorPet) await onUpdate(editorPet.id, input)
+              else await onCreate(input)
+              setShowEditor(false)
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -559,6 +681,7 @@ export default function ProfileScreen({
 }: ProfileScreenProps) {
   const [subScreen, setSubScreen] = useState<SubScreen>(null)
   const [showWithdraw, setShowWithdraw] = useState(false)
+  const prefersReducedMotion = useReducedMotion()
   const firstPet = pets[0]
   const menuItems = useMemo(() => [
     { icon: PawPrint, iconColor: 'text-sage-green', label: '반려동물 관리', sub: 'pets' as const, desc: firstPet ? `${firstPet.petName} · ${summary?.petCount ?? pets.length}마리` : '등록된 반려견 없음' },
@@ -570,21 +693,46 @@ export default function ProfileScreen({
     { icon: MessageSquareText, iconColor: 'text-sage-green', label: '작성한 리뷰', tab: 'reviews' as const, desc: '내 리뷰 보기' },
   ], [firstPet, pets.length, summary?.petCount])
 
-  if (subScreen === 'pets') return <PetsSubScreen pets={pets} onBack={() => setSubScreen(null)} onLoadOptions={onLoadPetOptions} onCreate={onCreatePet} onUpdate={onUpdatePet} onDelete={onDeletePet} />
-  if (subScreen === 'stamps') return <StampsSubScreen onBack={() => setSubScreen(null)} />
-  if (subScreen === 'memory-album') return <MemoryAlbumSubScreen onBack={() => setSubScreen(null)} />
-
   return (
-    <div className="relative flex flex-1 flex-col overflow-hidden bg-warm-beige">
+    <div className="relative flex min-h-0 flex-1 overflow-hidden bg-warm-beige">
+    <AnimatePresence initial={false} mode="wait">
+      {subScreen === 'pets' ? (
+        <ProfilePane key="pets" direction="forward">
+          <PetsSubScreen pets={pets} onBack={() => setSubScreen(null)} onLoadOptions={onLoadPetOptions} onCreate={onCreatePet} onUpdate={onUpdatePet} onDelete={onDeletePet} />
+        </ProfilePane>
+      ) : subScreen === 'stamps' ? (
+        <ProfilePane key="stamps" direction="forward">
+          <StampsSubScreen onBack={() => setSubScreen(null)} />
+        </ProfilePane>
+      ) : subScreen === 'memory-album' ? (
+        <ProfilePane key="memory-album" direction="forward">
+          <MemoryAlbumSubScreen onBack={() => setSubScreen(null)} />
+        </ProfilePane>
+      ) : (
+    <ProfilePane key="profile-main" direction="back">
       <TopBar title="내정보" rightAction={<span />} />
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
-        {status === 'error' && errorMessage && (
-          <div className="mx-4 mt-4 rounded-card border border-danger/20 bg-danger/5 p-3" role="alert">
+        <AnimatePresence initial={false}>
+          {status === 'error' && errorMessage && (
+          <m.div
+            initial={{ opacity: 0, height: 0, y: prefersReducedMotion ? 0 : -8 }}
+            animate={{ opacity: 1, height: 'auto', y: 0 }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.22 }}
+            className="mx-4 mt-4 overflow-hidden rounded-card border border-danger/20 bg-danger/5 p-3"
+            role="alert"
+          >
             <p className="text-[12px] text-danger">{errorMessage}</p>
             <Button className="mt-2" variant="outline" size="sm" onClick={onRetry}>다시 불러오기</Button>
-          </div>
-        )}
-        <div className="mx-4 mt-4 rounded-card border border-border bg-card-surface p-4 shadow-sm">
+          </m.div>
+          )}
+        </AnimatePresence>
+        <m.div
+          initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.3, delay: prefersReducedMotion ? 0 : 0.03, ease: PROFILE_MOTION_EASE }}
+          className="mx-4 mt-4 rounded-card border border-border bg-card-surface p-4 shadow-sm"
+        >
           <div className="flex items-center gap-4">
             <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-full border-2 border-sage-green/30">
               <Image src="/images/dog-hero.png" alt="프로필" fill className="object-cover" loading="eager" />
@@ -600,23 +748,47 @@ export default function ProfileScreen({
               </div>
             </div>
           </div>
-        </div>
+        </m.div>
 
-        <div className="mx-4 mt-4 rounded-card border border-border bg-card-surface p-4 shadow-sm">
+        <m.div
+          initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.3, delay: prefersReducedMotion ? 0 : 0.08, ease: PROFILE_MOTION_EASE }}
+          className="mx-4 mt-4 rounded-card border border-border bg-card-surface p-4 shadow-sm"
+        >
           <div className="mb-3 flex items-center justify-between"><p className="text-[14px] font-semibold text-deep-brown">나의 반려동물</p><Button onClick={() => setSubScreen('pets')} variant="link" size="sm" className="h-auto p-0 text-[12px] no-underline">관리</Button></div>
           {firstPet ? <div className="flex items-center gap-3"><div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-full border border-border"><Image src="/images/dog-hero.png" alt={firstPet.petName} fill className="object-cover" /></div><div><p className="text-[14px] font-semibold text-deep-brown">{firstPet.petName}</p><p className="text-[12px] text-warm-gray">{firstPet.breedName} · {sizeLabel[firstPet.size]} · {firstPet.age}살</p></div></div> : <p className="text-[12px] text-warm-gray">등록된 반려견이 없습니다.</p>}
-        </div>
+        </m.div>
 
-        <div className="mx-4 mt-4 overflow-hidden rounded-card border border-border bg-card-surface shadow-sm">
-          {menuItems.map((item) => <MenuRow key={item.label} label={item.label} description={item.desc} icon={<item.icon className={cn('h-5 w-5', item.iconColor)} />} onClick={() => item.sub ? setSubScreen(item.sub) : item.tab ? onOpenSettings?.(item.tab) : undefined} />)}
-        </div>
+        <m.div
+          initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.3, delay: prefersReducedMotion ? 0 : 0.13, ease: PROFILE_MOTION_EASE }}
+          className="mx-4 mt-4 overflow-hidden rounded-card border border-border bg-card-surface shadow-sm"
+        >
+          {menuItems.map((item) => (
+            <m.div key={item.label} whileTap={prefersReducedMotion ? undefined : { scale: 0.985 }}>
+              <MenuRow label={item.label} description={item.desc} icon={<item.icon className={cn('h-5 w-5', item.iconColor)} />} onClick={() => item.sub ? setSubScreen(item.sub) : item.tab ? onOpenSettings?.(item.tab) : undefined} />
+            </m.div>
+          ))}
+        </m.div>
 
-        <div className="mx-4 mb-4 mt-4 flex items-center gap-4">
+        <m.div
+          initial={prefersReducedMotion ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.25, delay: prefersReducedMotion ? 0 : 0.18 }}
+          className="mx-4 mb-4 mt-4 flex items-center gap-4"
+        >
           {onLogout && <Button onClick={onLogout} variant="link" size="sm" className="h-auto p-0 text-[13px] text-warm-gray underline underline-offset-2">로그아웃</Button>}
           <Button onClick={() => setShowWithdraw(true)} variant="link" size="sm" className="h-auto p-0 text-[13px] text-warm-gray/60 underline underline-offset-2">회원 탈퇴</Button>
-        </div>
+        </m.div>
       </div>
-      {showWithdraw && <WithdrawModal onClose={() => setShowWithdraw(false)} onConfirm={onWithdraw} />}
+      <AnimatePresence initial={false}>
+        {showWithdraw && <WithdrawModal onClose={() => setShowWithdraw(false)} onConfirm={onWithdraw} />}
+      </AnimatePresence>
+    </ProfilePane>
+      )}
+    </AnimatePresence>
     </div>
   )
 }

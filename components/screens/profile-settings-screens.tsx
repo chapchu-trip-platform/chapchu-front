@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Image from 'next/image'
 import { Bookmark, Heart, Star } from 'lucide-react'
+import { AnimatePresence, m, useReducedMotion } from 'motion/react'
 import TopBar from '@/components/top-bar'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
@@ -40,6 +41,8 @@ const titleByTab: Record<SettingsTab, string> = {
   reviews: '내가 작성한 리뷰',
 }
 
+const PROFILE_MOTION_EASE = [0.22, 1, 0.36, 1] as const
+
 function formatDate(value: string | null) {
   if (!value) return '날짜 정보 없음'
   const date = new Date(value)
@@ -71,6 +74,7 @@ export default function ProfileSettings({
   onNicknameSaved,
   onBack,
 }: ProfileSettingsProps) {
+  const prefersReducedMotion = useReducedMotion()
   const [nickname, setNickname] = useState(currentNickname)
   const [status, setStatus] = useState<ProfileLoadStatus>(
     initialTab === 'nickname' ? 'success' : 'loading'
@@ -163,7 +167,12 @@ export default function ProfileSettings({
     <div className="flex flex-col flex-1 bg-warm-beige overflow-hidden">
       <TopBar title={titleByTab[initialTab]} showBack onBack={onBack} />
 
-      <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
+      <m.div
+        initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.25, ease: PROFILE_MOTION_EASE }}
+        className="flex-1 overflow-y-auto no-scrollbar pb-24"
+      >
         {initialTab === 'nickname' && (
           <div className="p-4 space-y-4">
             <div>
@@ -182,8 +191,14 @@ export default function ProfileSettings({
               />
               <p className="mt-1 text-right text-[11px] text-warm-gray">{nickname.length}/20</p>
             </div>
-            {errorMessage && <p className="text-[12px] text-danger" role="alert">{errorMessage}</p>}
-            {successMessage && <p className="text-[12px] text-sage-green" role="status">{successMessage}</p>}
+            <AnimatePresence initial={false} mode="popLayout">
+              {errorMessage && (
+                <m.p key="nickname-error" initial={prefersReducedMotion ? false : { opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: prefersReducedMotion ? 0 : 0.2 }} className="text-[12px] text-danger" role="alert">{errorMessage}</m.p>
+              )}
+              {successMessage && (
+                <m.p key="nickname-success" initial={prefersReducedMotion ? false : { opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: prefersReducedMotion ? 0 : 0.2 }} className="text-[12px] text-sage-green" role="status">{successMessage}</m.p>
+              )}
+            </AnimatePresence>
             <Button
               onClick={handleSaveNickname}
               disabled={isSaving || !nickname.trim() || nickname.trim() === currentNickname}
@@ -195,17 +210,20 @@ export default function ProfileSettings({
           </div>
         )}
 
-        {initialTab !== 'nickname' && status === 'loading' && <LoadingState />}
+        {initialTab !== 'nickname' && status === 'loading' && (
+          <m.div initial={prefersReducedMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}><LoadingState /></m.div>
+        )}
         {initialTab !== 'nickname' && status === 'error' && errorMessage && (
-          <ErrorState message={errorMessage} onRetry={retry} />
+          <m.div initial={prefersReducedMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}><ErrorState message={errorMessage} onRetry={retry} /></m.div>
         )}
 
         {initialTab === 'posts' && status === 'success' && (
           <div className="px-4 pt-4">
             {posts.length > 0 ? (
               <div className="space-y-3">
+                <AnimatePresence initial={false}>
                 {posts.map((post) => (
-                  <article key={post.id} className="flex gap-3 rounded-card border border-border bg-card-surface p-3">
+                  <m.article layout={!prefersReducedMotion} key={post.id} initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -18 }} transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: PROFILE_MOTION_EASE }} className="flex gap-3 rounded-card border border-border bg-card-surface p-3">
                     <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-card">
                       <Image src="/images/place-beach.png" alt="" fill className="object-cover" />
                     </div>
@@ -219,8 +237,9 @@ export default function ProfileSettings({
                         <span>댓글 {post.commentCount}</span>
                       </div>
                     </div>
-                  </article>
+                  </m.article>
                 ))}
+                </AnimatePresence>
               </div>
             ) : (
               <p className="py-12 text-center text-[13px] text-warm-gray">작성한 글이 없습니다</p>
@@ -231,10 +250,10 @@ export default function ProfileSettings({
         {initialTab === 'wishlist' && status === 'success' && (
           <div className="px-4 pt-4">
             {errorMessage && <p className="mb-3 text-[12px] text-danger" role="alert">{errorMessage}</p>}
-            {wishlist.length > 0 ? (
-              <div className="space-y-3">
-                {wishlist.map((place) => (
-                  <div key={place.placeId} className="flex items-center justify-between rounded-card border border-border bg-card-surface p-3">
+            <div className="space-y-3">
+              <AnimatePresence initial={false} mode="popLayout">
+                {wishlist.length > 0 ? wishlist.map((place) => (
+                  <m.div layout={!prefersReducedMotion} key={place.placeId} initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -22, height: 0 }} transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: PROFILE_MOTION_EASE }} className="flex items-center justify-between overflow-hidden rounded-card border border-border bg-card-surface p-3">
                     <div className="flex-1">
                       <p className="text-[13px] font-semibold text-deep-brown">{place.placeName}</p>
                       <p className="mt-0.5 text-[12px] text-warm-gray">{place.address}</p>
@@ -250,22 +269,22 @@ export default function ProfileSettings({
                     >
                       <Heart className="h-5 w-5 fill-soft-orange text-soft-orange" />
                     </IconButton>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="py-12 text-center text-[13px] text-warm-gray">위시리스트가 비어있습니다</p>
-            )}
+                  </m.div>
+                )) : (
+                  <m.p key="wishlist-empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-12 text-center text-[13px] text-warm-gray">위시리스트가 비어있습니다</m.p>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         )}
 
         {initialTab === 'bookmarks' && status === 'success' && (
           <div className="px-4 pt-4">
             {errorMessage && <p className="mb-3 text-[12px] text-danger" role="alert">{errorMessage}</p>}
-            {bookmarks.length > 0 ? (
-              <div className="space-y-3">
-                {bookmarks.map((bookmark) => (
-                  <div key={bookmark.id} className="flex items-center justify-between rounded-card border border-border bg-card-surface p-3">
+            <div className="space-y-3">
+              <AnimatePresence initial={false} mode="popLayout">
+                {bookmarks.length > 0 ? bookmarks.map((bookmark) => (
+                  <m.div layout={!prefersReducedMotion} key={bookmark.id} initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -22, height: 0 }} transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: PROFILE_MOTION_EASE }} className="flex items-center justify-between overflow-hidden rounded-card border border-border bg-card-surface p-3">
                     <div className="min-w-0 flex-1">
                       <p className="line-clamp-1 text-[13px] font-semibold text-deep-brown">{bookmark.title}</p>
                       <div className="mt-1 flex gap-2 text-[11px] text-warm-gray">
@@ -281,12 +300,12 @@ export default function ProfileSettings({
                     >
                       <Bookmark className="h-5 w-5 fill-soft-orange text-soft-orange" />
                     </IconButton>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="py-12 text-center text-[13px] text-warm-gray">북마크한 글이 없습니다</p>
-            )}
+                  </m.div>
+                )) : (
+                  <m.p key="bookmarks-empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-12 text-center text-[13px] text-warm-gray">북마크한 글이 없습니다</m.p>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         )}
 
@@ -294,23 +313,25 @@ export default function ProfileSettings({
           <div className="px-4 pt-4">
             {reviews.length > 0 ? (
               <div className="space-y-3">
+                <AnimatePresence initial={false}>
                 {reviews.map((review) => (
-                  <article key={review.id} className="rounded-card border border-border bg-card-surface p-4">
+                  <m.article layout={!prefersReducedMotion} key={review.id} initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: PROFILE_MOTION_EASE }} className="rounded-card border border-border bg-card-surface p-4">
                     <div className="flex items-center gap-1 text-soft-orange" aria-label={`별점 ${review.rating}점`}>
                       <Star className="h-4 w-4 fill-current" />
                       <span className="text-[13px] font-semibold">{review.rating.toFixed(1)}</span>
                     </div>
                     <p className="mt-2 text-[13px] leading-relaxed text-deep-brown">{review.contents}</p>
                     <p className="mt-2 text-[11px] text-warm-gray">{formatDate(review.createdAt)}</p>
-                  </article>
+                  </m.article>
                 ))}
+                </AnimatePresence>
               </div>
             ) : (
               <p className="py-12 text-center text-[13px] text-warm-gray">작성한 리뷰가 없습니다</p>
             )}
           </div>
         )}
-      </div>
+      </m.div>
     </div>
   )
 }

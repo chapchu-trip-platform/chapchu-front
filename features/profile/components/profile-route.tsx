@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { AnimatePresence, LazyMotion, domMax, m, useReducedMotion } from 'motion/react'
 import ProfileScreen from '@/components/screens/profile-screen'
 import ProfileSettings, { type SettingsTab } from '@/components/screens/profile-settings-screens'
 import { logout } from '@/features/auth/api/auth-api'
@@ -26,11 +27,15 @@ import type {
 
 export default function ProfileRoute() {
   const router = useRouter()
+  const prefersReducedMotion = useReducedMotion()
   const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(null)
+  const [settingsLayerActive, setSettingsLayerActive] = useState(false)
   const [summary, setSummary] = useState<ProfileSummary | null>(null)
   const [status, setStatus] = useState<ProfileLoadStatus>('loading')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const loadControllerRef = useRef<AbortController | null>(null)
+  const settingsPanelRef = useRef<HTMLDivElement | null>(null)
+  const settingsTriggerRef = useRef<HTMLElement | null>(null)
   const pets = usePetStore((state) => state.pets)
   const setPets = usePetStore((state) => state.setPets)
   const upsertPet = usePetStore((state) => state.upsertPet)
@@ -67,6 +72,74 @@ export default function ProfileRoute() {
       usePetStore.getState().setPets([])
     }
   }, [requestProfile])
+
+  const closeSettings = useCallback(() => setSettingsTab(null), [])
+
+  const openSettings = useCallback((tab: SettingsTab) => {
+    settingsTriggerRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setSettingsLayerActive(true)
+    setSettingsTab(tab)
+  }, [])
+
+  useEffect(() => {
+    if (!settingsLayerActive) return
+    const bottomNav = document.querySelector<HTMLElement>('[data-bottom-nav]')
+    const previousAriaHidden = bottomNav?.getAttribute('aria-hidden')
+    bottomNav?.setAttribute('inert', '')
+    bottomNav?.setAttribute('aria-hidden', 'true')
+
+    return () => {
+      bottomNav?.removeAttribute('inert')
+      if (previousAriaHidden === null) bottomNav?.removeAttribute('aria-hidden')
+      else if (previousAriaHidden !== undefined) {
+        bottomNav?.setAttribute('aria-hidden', previousAriaHidden)
+      }
+    }
+  }, [settingsLayerActive])
+
+  useEffect(() => {
+    if (settingsLayerActive || settingsTab || !settingsTriggerRef.current) return
+    const trigger = settingsTriggerRef.current
+    settingsTriggerRef.current = null
+    trigger.focus()
+  }, [settingsLayerActive, settingsTab])
+
+  useEffect(() => {
+    if (!settingsTab) return
+    const panel = settingsPanelRef.current
+    if (!panel) return
+
+    const focusableSelector =
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    const focusableElements = () =>
+      Array.from(panel.querySelectorAll<HTMLElement>(focusableSelector))
+    focusableElements()[0]?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        closeSettings()
+        return
+      }
+      if (event.key !== 'Tab') return
+
+      const elements = focusableElements()
+      if (elements.length === 0) return
+      const first = elements[0]
+      const last = elements[elements.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [closeSettings, settingsTab])
 
   const retryProfile = useCallback(() => {
     setStatus('loading')
@@ -131,31 +204,58 @@ export default function ProfileRoute() {
   }
 
   return (
-    <>
-      <ProfileScreen
-        summary={summary}
-        pets={pets}
-        status={status}
-        errorMessage={errorMessage}
-        onRetry={retryProfile}
-        onLogout={handleLogout}
-        onOpenSettings={setSettingsTab}
-        onLoadPetOptions={fetchPetOptions}
-        onCreatePet={handleCreatePet}
-        onUpdatePet={handleUpdatePet}
-        onDeletePet={handleDeletePet}
-        onWithdraw={handleWithdraw}
-      />
-      {settingsTab && (
-        <div className="absolute inset-0 z-[60] bg-warm-beige flex flex-col">
-          <ProfileSettings
-            initialTab={settingsTab}
-            currentNickname={summary?.nickname ?? ''}
-            onNicknameSaved={handleSaveNickname}
-            onBack={() => setSettingsTab(null)}
-          />
-        </div>
-      )}
-    </>
+    <LazyMotion features={domMax}>
+      <div
+        className="contents"
+        aria-hidden={settingsLayerActive || undefined}
+        inert={settingsLayerActive || undefined}
+      >
+        <ProfileScreen
+          summary={summary}
+          pets={pets}
+          status={status}
+          errorMessage={errorMessage}
+          onRetry={retryProfile}
+          onLogout={handleLogout}
+          onOpenSettings={openSettings}
+          onLoadPetOptions={fetchPetOptions}
+          onCreatePet={handleCreatePet}
+          onUpdatePet={handleUpdatePet}
+          onDeletePet={handleDeletePet}
+          onWithdraw={handleWithdraw}
+        />
+      </div>
+      <AnimatePresence
+        initial={false}
+        onExitComplete={() => {
+          setSettingsLayerActive(false)
+        }}
+      >
+        {settingsTab && (
+          <m.div
+            ref={settingsPanelRef}
+            key={settingsTab}
+            role="dialog"
+            aria-modal="true"
+            aria-label="내정보 설정"
+            initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: '100%' }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: '100%' }}
+            transition={{
+              duration: prefersReducedMotion ? 0 : 0.3,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+            className="absolute inset-0 z-[60] flex flex-col bg-warm-beige"
+          >
+            <ProfileSettings
+              initialTab={settingsTab}
+              currentNickname={summary?.nickname ?? ''}
+              onNicknameSaved={handleSaveNickname}
+              onBack={closeSettings}
+            />
+          </m.div>
+        )}
+      </AnimatePresence>
+    </LazyMotion>
   )
 }
