@@ -38,10 +38,12 @@ vi.mock('@/features/map/components/tmap-map', () => ({
 const hotPosts: HotPost[] = [
   {
     id: 'post-1',
+    nickname: '멍멍이아빠',
     title: '첫추 인기 여행기',
     content: '반려견과 함께 다녀왔어요.',
     viewCount: 120,
     recommendationCount: 42,
+    commentCount: 7,
     createdAt: null,
     hasPhoto: false,
   },
@@ -93,6 +95,8 @@ describe('HomeScreen', () => {
     expect(screen.getByText('반려견과 함께 다녀왔어요.')).toBeInTheDocument()
     expect(screen.getByText('120')).toBeInTheDocument()
     expect(screen.getByText('42')).toBeInTheDocument()
+    expect(screen.getByText('멍멍이아빠')).toBeInTheDocument()
+    expect(screen.getByLabelText('댓글 7개')).toHaveTextContent('7')
     expect(screen.getByText('추천 장소 예시')).toBeInTheDocument()
     expect(screen.getByText('위치 기반 추천 API 연결 전 예시 데이터예요.')).toBeInTheDocument()
     const hotBadge = screen.getByText('HOT').parentElement
@@ -100,7 +104,7 @@ describe('HomeScreen', () => {
     expect(screen.getByText('HOT')).toHaveClass('leading-none')
   })
 
-  it('keeps the example places in a touch-scrollable snap carousel', () => {
+  it('keeps the example places in a native free-scroll carousel', () => {
     render(<HomeScreen {...defaultProps} />)
 
     const carousel = screen.getByTestId('nearby-place-carousel')
@@ -110,8 +114,11 @@ describe('HomeScreen', () => {
       'px-4'
     )
     expect(carousel).not.toHaveClass('scroll-smooth', 'snap-x', 'snap-mandatory')
-    expect(carousel).toHaveStyle({ touchAction: 'pan-y' })
+    expect(carousel).toHaveStyle({ touchAction: 'auto' })
     expect(carousel.querySelectorAll('article')).toHaveLength(3)
+    const distanceBadge = screen.getByText('0.3km').parentElement
+    expect(distanceBadge).toHaveClass('flex', 'items-center', 'justify-center')
+    expect(screen.getByText('0.3km')).toHaveClass('leading-none')
   })
 
   it('applies Motion transitions only to the Home content sections', () => {
@@ -144,6 +151,28 @@ describe('HomeScreen', () => {
     fireEvent.pointerUp(carousel, { pointerId: 1, pointerType: 'mouse' })
 
     expect(carousel.scrollLeft).toBe(180)
+  })
+
+  it('leaves touch gestures to native overflow scrolling on mobile', () => {
+    render(<HomeScreen {...defaultProps} />)
+
+    const carousel = screen.getByTestId('nearby-place-carousel')
+    fireEvent.pointerDown(carousel, {
+      clientX: 280,
+      clientY: 100,
+      pointerId: 2,
+      pointerType: 'touch',
+    })
+    fireEvent.pointerMove(carousel, {
+      clientX: 100,
+      clientY: 104,
+      pointerId: 2,
+      pointerType: 'touch',
+    })
+    fireEvent.pointerUp(carousel, { pointerId: 2, pointerType: 'touch' })
+
+    expect(carousel).toHaveStyle({ touchAction: 'auto' })
+    expect(carousel.scrollLeft).toBe(0)
   })
 
   it('does not place a second service-consent action over the Home map', () => {

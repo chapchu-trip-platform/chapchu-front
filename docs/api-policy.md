@@ -128,7 +128,8 @@ The Chapchu API documentation updated on 2026-08-25 publishes:
 - public integrated signup `POST /auth/signup`, requiring
   `user.locationConsent` as a boolean
 - authenticated `GET /home`, returning `nickname` and `petNames`
-- authenticated `GET /posts?sort=popular`, returning recommendation-sorted post summaries
+- authenticated `GET /posts?sort=popular&size=3`, returning a cursor page shaped as
+  `{ posts, nextCursor }`
 - authenticated `GET /places/nearby`, accepting `lat`, `lng`, and optional
   `radiusMeters` query parameters
 
@@ -173,9 +174,11 @@ is aborted immediately when Home/Map unmounts or the location store is reset; tr
 `unavailable`/`timeout` callbacks do not stop the quality window before a better sample can arrive.
 
 Home now reads `petNames` from `GET /home` and shows the first name plus the remaining
-count. Its three HOT cards come from `GET /posts?sort=popular`. Because that list contract
-only includes a `photoId`, not a displayable image URL, the frontend uses local fallback
-images and does not invent author, comment, or bookmark values.
+count. Its three HOT cards come from `GET /posts?sort=popular&size=3`; the frontend validates
+the current `{ posts, nextCursor }` cursor-page contract before mapping the cards. Although the
+contract now includes `photoUrl`, the current Home card keeps local fallback images until the
+remote-image host policy and failure handling are finalized. Public post `nickname` and
+`commentCount` values are validated, mapped, and displayed on each HOT card.
 
 Before production location rollout, backend coordination still needs to provide:
 

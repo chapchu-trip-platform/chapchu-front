@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react'
-import { Eye, Star, ThumbsUp } from 'lucide-react'
+import { Eye, MessageCircle, Star, ThumbsUp } from 'lucide-react'
 import { LazyMotion, animate, domAnimation, m, useReducedMotion } from 'motion/react'
 import { Button } from '@/components/ui/button'
 import { mockNearbyPlaces } from '@/data/mock'
@@ -90,6 +90,9 @@ export default function HomeScreen({
   )
 
   const handleNearbyPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    // Touch devices get smoother and more reliable momentum from the browser's
+    // native overflow scrolling. Manual pointer dragging is only for mouse/pen.
+    if (event.pointerType === 'touch') return
     if (event.pointerType === 'mouse' && event.button !== 0) return
 
     nearbyMomentumRef.current?.stop()
@@ -290,7 +293,7 @@ export default function HomeScreen({
           onPointerDown={handleNearbyPointerDown}
           onPointerMove={handleNearbyPointerMove}
           onPointerUp={stopNearbyDrag}
-          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'auto' }}
         >
           {nearbyPlaces.map((place, i) => (
             <m.article
@@ -318,8 +321,8 @@ export default function HomeScreen({
                 <div className="absolute top-2 left-2 bg-sage-green rounded-full px-2 py-0.5 flex items-center gap-1">
                   <span className="text-[10px] text-white font-medium">반려동물 OK</span>
                 </div>
-                <div className="absolute bottom-2 right-2 bg-black/50 rounded-full px-2 py-0.5">
-                  <span className="text-[10px] text-white">{place.distance}</span>
+                <div className="absolute bottom-2 right-2 flex min-h-5 items-center justify-center rounded-full bg-black/50 px-2 py-0.5">
+                  <span className="text-[10px] leading-none text-white">{place.distance}</span>
                 </div>
               </div>
               <div className="p-2.5">
@@ -421,13 +424,25 @@ export default function HomeScreen({
                 <p className="line-clamp-1 text-[11px] text-warm-gray">
                   {post.content || '게시글 내용이 없어요.'}
                 </p>
-                <p className="text-[10px] text-warm-gray/80">{formatPostDate(post.createdAt)}</p>
+                <p className="flex min-w-0 items-center gap-1 text-[10px] text-warm-gray/80">
+                  <span className="truncate font-medium text-deep-brown/70" title={post.nickname}>
+                    {post.nickname}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span className="shrink-0">{formatPostDate(post.createdAt)}</span>
+                </p>
                 <div className="flex items-center gap-2 mt-auto">
                   <span className="flex items-center gap-0.5 text-[11px] text-warm-gray">
                     <Eye className="w-3 h-3" /> {post.viewCount.toLocaleString()}
                   </span>
                   <span className="flex items-center gap-0.5 text-[11px] text-warm-gray">
                     <ThumbsUp className="w-3 h-3" /> {post.recommendationCount.toLocaleString()}
+                  </span>
+                  <span
+                    aria-label={`댓글 ${post.commentCount.toLocaleString()}개`}
+                    className="flex items-center gap-0.5 text-[11px] text-warm-gray"
+                  >
+                    <MessageCircle className="w-3 h-3" /> {post.commentCount.toLocaleString()}
                   </span>
                 </div>
               </div>
