@@ -24,6 +24,7 @@ import { useAuthStore } from '@/features/auth/stores/auth-store'
 import { usePetStore } from '@/features/profile/stores/pet-store'
 import { mockRouter, resetNextNavigationMocks } from '@/test/mocks/next-navigation'
 import {
+  PROFILE_MOCK_COUNTS,
   mockProfileBookmarks,
   mockProfileMemoryAlbums,
   mockProfilePetOptions,
@@ -58,6 +59,16 @@ vi.mock('@/features/profile/api/profile-api', () => ({
 }))
 
 const pet = mockProfilePets[0]
+
+function expectScrollSizedMock(items: unknown[], expectedCount: number) {
+  expect(items).toHaveLength(expectedCount)
+  expect(items.length).toBeGreaterThanOrEqual(10)
+  expect(items.length).toBeLessThanOrEqual(50)
+}
+
+function expectUnique(values: string[]) {
+  expect(new Set(values).size).toBe(values.length)
+}
 
 beforeEach(() => {
   vi.mocked(fetchProfileSummary).mockResolvedValue({ ...mockProfileSummary, petCount: 1 })
@@ -128,13 +139,18 @@ describe('ProfileRoute', () => {
 
   it('renders every pet in the pet management list', async () => {
     const user = userEvent.setup()
-    expect(mockProfilePets.length).toBeGreaterThan(1)
+    expectScrollSizedMock(mockProfilePets, PROFILE_MOCK_COUNTS.pets)
+    expectUnique(mockProfilePets.map((item) => item.id))
     vi.mocked(fetchProfileSummary).mockResolvedValue(mockProfileSummary)
     vi.mocked(fetchPets).mockResolvedValue(mockProfilePets)
     render(<ProfileRoute />)
 
     await screen.findByRole('heading', { name: '초코맘' })
-    await user.click(screen.getByRole('button', { name: /반려동물 관리.*초코 · 3마리/ }))
+    await user.click(
+      screen.getByRole('button', {
+        name: new RegExp(`반려동물 관리.*초코 · ${mockProfilePets.length}마리`),
+      })
+    )
     expect(await screen.findByRole('button', { name: '반려동물 추가하기' })).toBeInTheDocument()
 
     for (const profilePet of mockProfilePets) {
@@ -144,14 +160,15 @@ describe('ProfileRoute', () => {
         screen.getByText(`${profilePet.breedName} · ${profilePet.size === 'SMALL' ? '소형' : profilePet.size === 'MEDIUM' ? '중형' : '대형'} · ${profilePet.age}살`)
       ).toBeInTheDocument()
       for (const activity of profilePet.activities) {
-        expect(screen.getByText(activity.name)).toBeInTheDocument()
+        expect(screen.getAllByText(activity.name).length).toBeGreaterThan(0)
       }
     }
   })
 
   it('renders acquired and locked stamps from the profile mock list', async () => {
     const user = userEvent.setup()
-    expect(mockProfileStamps.length).toBeGreaterThan(1)
+    expectScrollSizedMock(mockProfileStamps, PROFILE_MOCK_COUNTS.stamps)
+    expectUnique(mockProfileStamps.map((item) => item.id))
     render(<ProfileRoute />)
 
     await screen.findByRole('heading', { name: '초코맘' })
@@ -161,7 +178,7 @@ describe('ProfileRoute', () => {
     for (const stamp of mockProfileStamps) {
       expect(screen.getByText(stamp.region)).toBeInTheDocument()
       if (stamp.acquired) {
-        expect(screen.getByText(`${stamp.count}회 방문`)).toBeInTheDocument()
+        expect(screen.getAllByText(`${stamp.count}회 방문`).length).toBeGreaterThan(0)
         expect(screen.getByText(stamp.date)).toBeInTheDocument()
       }
     }
@@ -172,7 +189,8 @@ describe('ProfileRoute', () => {
 
   it('renders every memory album from the profile mock list', async () => {
     const user = userEvent.setup()
-    expect(mockProfileMemoryAlbums.length).toBeGreaterThan(1)
+    expectScrollSizedMock(mockProfileMemoryAlbums, PROFILE_MOCK_COUNTS.memoryAlbums)
+    expectUnique(mockProfileMemoryAlbums.map((item) => item.id))
     render(<ProfileRoute />)
 
     await screen.findByRole('heading', { name: '초코맘' })
@@ -181,7 +199,7 @@ describe('ProfileRoute', () => {
 
     for (const album of mockProfileMemoryAlbums) {
       expect(screen.getByText(album.petName)).toBeInTheDocument()
-      expect(screen.getByText(album.breed)).toBeInTheDocument()
+      expect(screen.getAllByText(album.breed).length).toBeGreaterThan(0)
       expect(screen.getByText(album.period)).toBeInTheDocument()
       expect(screen.getByText(album.note, { exact: false })).toBeInTheDocument()
       expect(screen.getByText(`${album.albumCount}개의 여행 앨범`)).toBeInTheDocument()
@@ -190,7 +208,8 @@ describe('ProfileRoute', () => {
 
   it('renders every written post with list metrics', async () => {
     const user = userEvent.setup()
-    expect(mockProfilePosts.length).toBeGreaterThan(1)
+    expectScrollSizedMock(mockProfilePosts, PROFILE_MOCK_COUNTS.posts)
+    expectUnique(mockProfilePosts.map((item) => item.id))
     vi.mocked(fetchMyPosts).mockResolvedValue(mockProfilePosts)
     render(<ProfileRoute />)
 
@@ -200,15 +219,16 @@ describe('ProfileRoute', () => {
 
     for (const post of mockProfilePosts) {
       expect(screen.getByText(post.title)).toBeInTheDocument()
-      expect(screen.getByText(`조회 ${post.viewCount}`)).toBeInTheDocument()
-      expect(screen.getByText(`추천 ${post.recommendationCount}`)).toBeInTheDocument()
-      expect(screen.getByText(`댓글 ${post.commentCount}`)).toBeInTheDocument()
+      expect(screen.getAllByText(`조회 ${post.viewCount}`).length).toBeGreaterThan(0)
+      expect(screen.getAllByText(`추천 ${post.recommendationCount}`).length).toBeGreaterThan(0)
+      expect(screen.getAllByText(`댓글 ${post.commentCount}`).length).toBeGreaterThan(0)
     }
   })
 
   it('renders every wishlist place with its removal action', async () => {
     const user = userEvent.setup()
-    expect(mockProfileWishlist.length).toBeGreaterThan(1)
+    expectScrollSizedMock(mockProfileWishlist, PROFILE_MOCK_COUNTS.wishlist)
+    expectUnique(mockProfileWishlist.map((item) => item.placeId))
     vi.mocked(fetchWishlist).mockResolvedValue(mockProfileWishlist)
     render(<ProfileRoute />)
 
@@ -226,7 +246,8 @@ describe('ProfileRoute', () => {
 
   it('renders every bookmarked post with its removal action', async () => {
     const user = userEvent.setup()
-    expect(mockProfileBookmarks.length).toBeGreaterThan(1)
+    expectScrollSizedMock(mockProfileBookmarks, PROFILE_MOCK_COUNTS.bookmarks)
+    expectUnique(mockProfileBookmarks.map((item) => item.id))
     vi.mocked(fetchBookmarks).mockResolvedValue(mockProfileBookmarks)
     render(<ProfileRoute />)
 
@@ -236,14 +257,15 @@ describe('ProfileRoute', () => {
 
     for (const bookmark of mockProfileBookmarks) {
       expect(screen.getByText(bookmark.title)).toBeInTheDocument()
-      expect(screen.getByText(bookmark.nickname)).toBeInTheDocument()
+      expect(screen.getAllByText(bookmark.nickname).length).toBeGreaterThan(0)
       expect(screen.getByRole('button', { name: `${bookmark.title} 북마크 해제` })).toBeInTheDocument()
     }
   })
 
   it('renders every review with rating and contents', async () => {
     const user = userEvent.setup()
-    expect(mockProfileReviews.length).toBeGreaterThan(1)
+    expectScrollSizedMock(mockProfileReviews, PROFILE_MOCK_COUNTS.reviews)
+    expectUnique(mockProfileReviews.map((item) => item.id))
     vi.mocked(fetchMyReviews).mockResolvedValue(mockProfileReviews)
     render(<ProfileRoute />)
 
@@ -253,7 +275,7 @@ describe('ProfileRoute', () => {
 
     for (const review of mockProfileReviews) {
       expect(screen.getByText(review.contents)).toBeInTheDocument()
-      expect(screen.getByLabelText(`별점 ${review.rating}점`)).toBeInTheDocument()
+      expect(screen.getAllByLabelText(`별점 ${review.rating}점`).length).toBeGreaterThan(0)
     }
   })
 

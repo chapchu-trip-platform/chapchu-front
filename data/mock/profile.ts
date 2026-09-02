@@ -9,179 +9,231 @@ import type {
   WishlistPlace,
 } from '@/features/profile/types/profile'
 
-export const mockProfileSummary = {
-  nickname: '초코맘',
-  email: 'user@example.com',
-  petCount: 3,
-} satisfies ProfileSummary
+export const PROFILE_MOCK_COUNTS = {
+  pets: 12,
+  stamps: 30,
+  memoryAlbums: 12,
+  posts: 24,
+  wishlist: 24,
+  bookmarks: 24,
+  reviews: 24,
+} as const
 
-export const mockProfilePets = [
-  {
-    id: 'pet-choco',
-    petName: '초코',
-    breedId: 7,
-    breedName: '골든리트리버',
-    size: 'MEDIUM',
-    age: 3,
-    activities: [
-      { id: 'activity-walk', name: '산책' },
-      { id: 'activity-water', name: '물놀이' },
-    ],
-  },
-  {
-    id: 'pet-bori',
-    petName: '보리',
-    breedId: 3,
-    breedName: '포메라니안',
-    size: 'SMALL',
-    age: 5,
-    activities: [{ id: 'activity-cafe', name: '카페' }],
-  },
-  {
-    id: 'pet-maru',
-    petName: '마루',
-    breedId: 11,
-    breedName: '진돗개',
-    size: 'LARGE',
-    age: 2,
-    activities: [{ id: 'activity-hiking', name: '등산' }],
-  },
-] satisfies ProfilePet[]
-
-export const mockProfilePetOptions = {
+export const mockProfilePetOptions: PetOptions = {
   breeds: [
     { id: 7, name: '골든리트리버' },
     { id: 3, name: '포메라니안' },
     { id: 11, name: '진돗개' },
+    { id: 15, name: '말티즈' },
+    { id: 18, name: '비숑 프리제' },
+    { id: 22, name: '웰시코기' },
   ],
   activities: [
     { id: 'activity-walk', name: '산책' },
     { id: 'activity-water', name: '물놀이' },
     { id: 'activity-cafe', name: '카페' },
     { id: 'activity-hiking', name: '등산' },
+    { id: 'activity-camping', name: '캠핑' },
+    { id: 'activity-drive', name: '드라이브' },
   ],
-} satisfies PetOptions
+}
 
-export const mockProfileStamps = [
-  { id: 'stamp-seoul', region: '서울', acquired: true, date: '2026.08.24', count: 8, color: '#6FAF8E', mascot: '해치' },
-  { id: 'stamp-jeju', region: '제주', acquired: true, date: '2026.07.15', count: 3, color: '#F4A261', mascot: '돌하르방' },
-  { id: 'stamp-gangwon', region: '강원', acquired: true, date: '2026.06.20', count: 2, color: '#8ECAE6', mascot: '반달곰' },
-  { id: 'stamp-gyeonggi', region: '경기', acquired: false, date: null, count: 0, color: '#DDD4C0', mascot: '?' },
-  { id: 'stamp-busan', region: '부산', acquired: false, date: null, count: 0, color: '#DDD4C0', mascot: '?' },
-  { id: 'stamp-jeonnam', region: '전남', acquired: false, date: null, count: 0, color: '#DDD4C0', mascot: '?' },
-] satisfies ProfileStamp[]
+const petNames = [
+  '초코',
+  '보리',
+  '마루',
+  '두부',
+  '콩이',
+  '호두',
+  '구름',
+  '몽이',
+  '탄이',
+  '봄이',
+  '별이',
+  '라떼',
+] as const
 
-export const mockProfileMemoryAlbums = [
-  {
-    id: 'memory-haru',
-    petName: '하루',
-    breed: '포메라니안',
-    period: '2019.03 ~ 2023.11',
-    coverImage: '/images/album-cover.png',
-    albumCount: 12,
-    note: '영원히 기억할게, 하루야',
-  },
-  {
-    id: 'memory-byeori',
-    petName: '별이',
-    breed: '말티즈',
-    period: '2015.05 ~ 2022.09',
-    coverImage: '/images/dog-hero.png',
-    albumCount: 7,
-    note: '함께한 모든 길이 행복했어',
-  },
-] satisfies ProfileMemoryAlbum[]
+const petSizes: ProfilePet['size'][] = ['SMALL', 'MEDIUM', 'LARGE']
 
-export const mockProfilePosts = [
-  {
-    id: 'post-trip-choco',
-    title: '초코와 여행 기록',
-    content: '강릉 바닷길을 함께 걸으며 즐거운 시간을 보냈어요.',
-    viewCount: 128,
-    recommendationCount: 24,
-    commentCount: 9,
+export const mockProfilePets: ProfilePet[] = Array.from(
+  { length: PROFILE_MOCK_COUNTS.pets },
+  (_, index) => {
+    const breed = mockProfilePetOptions.breeds[index % mockProfilePetOptions.breeds.length]
+    const activity = mockProfilePetOptions.activities[index % mockProfilePetOptions.activities.length]
+    const nextActivity =
+      mockProfilePetOptions.activities[(index + 1) % mockProfilePetOptions.activities.length]
+
+    return {
+      id: `pet-${String(index + 1).padStart(2, '0')}`,
+      petName: petNames[index % petNames.length],
+      breedId: breed.id,
+      breedName: breed.name,
+      size: petSizes[index % petSizes.length],
+      age: (index % 9) + 1,
+      activities: [activity, nextActivity],
+    }
+  }
+)
+
+export const mockProfileSummary = {
+  nickname: '초코맘',
+  email: 'user@example.com',
+  petCount: mockProfilePets.length,
+} satisfies ProfileSummary
+
+const stampRegions = [
+  '서울',
+  '제주',
+  '강원',
+  '경기',
+  '부산',
+  '전남',
+  '인천',
+  '대구',
+  '대전',
+  '광주',
+  '울산',
+  '세종',
+  '충북',
+  '충남',
+  '전북',
+  '경북',
+  '경남',
+  '수원',
+  '춘천',
+  '강릉',
+  '속초',
+  '여수',
+  '순천',
+  '목포',
+  '포항',
+  '경주',
+  '통영',
+  '거제',
+  '공주',
+  '안동',
+] as const
+
+const stampColors = ['#6FAF8E', '#F4A261', '#8ECAE6', '#E9C46A', '#B8A1D9'] as const
+const stampMascots = ['해치', '돌하르방', '반달곰', '수달', '갈매기'] as const
+
+export const mockProfileStamps: ProfileStamp[] = stampRegions.map(
+  (region, index): ProfileStamp => {
+    const common = {
+      id: `stamp-${String(index + 1).padStart(2, '0')}`,
+      region,
+      color: stampColors[index % stampColors.length],
+      mascot: stampMascots[index % stampMascots.length],
+    }
+
+    return index < 18
+      ? {
+          ...common,
+          acquired: true,
+          date: `2026.${String(8 - (index % 6)).padStart(2, '0')}.${String((index % 27) + 1).padStart(2, '0')}`,
+          count: (index % 9) + 1,
+        }
+      : { ...common, acquired: false, date: null, count: 0 }
+  }
+)
+
+const memoryPetNames = [
+  '하루',
+  '별이',
+  '사랑이',
+  '해피',
+  '뭉치',
+  '복실이',
+  '나나',
+  '꼬미',
+  '루루',
+  '미소',
+  '단추',
+  '토리',
+] as const
+
+const memoryNotes = [
+  '영원히 기억할게',
+  '함께한 모든 길이 행복했어',
+  '우리의 여행은 언제나 반짝여',
+  '매일 웃게 해줘서 고마워',
+] as const
+
+export const mockProfileMemoryAlbums: ProfileMemoryAlbum[] = Array.from(
+  { length: PROFILE_MOCK_COUNTS.memoryAlbums },
+  (_, index) => ({
+    id: `memory-${String(index + 1).padStart(2, '0')}`,
+    petName: memoryPetNames[index % memoryPetNames.length],
+    breed: mockProfilePetOptions.breeds[index % mockProfilePetOptions.breeds.length].name,
+    period: `${2010 + index}.03 ~ ${2021 + (index % 5)}.11`,
+    coverImage: index % 2 === 0 ? '/images/album-cover.png' : '/images/dog-hero.png',
+    albumCount: 6 + index * 2,
+    note: `${memoryNotes[index % memoryNotes.length]}, ${memoryPetNames[index % memoryPetNames.length]}야`,
+  })
+)
+
+const postSubjects = ['바닷길 여행', '숲길 산책', '펫 카페 방문', '캠핑 기록'] as const
+
+export const mockProfilePosts: ProfilePost[] = Array.from(
+  { length: PROFILE_MOCK_COUNTS.posts },
+  (_, index) => ({
+    id: `post-${String(index + 1).padStart(2, '0')}`,
+    title: index === 0 ? '초코와 여행 기록' : `${petNames[index % petNames.length]}와 ${postSubjects[index % postSubjects.length]} ${index + 1}`,
+    content: `${index + 1}번째 반려견 동반 여행에서 찾은 장소와 준비물을 기록했어요. 산책 동선과 쉬어가기 좋은 지점도 함께 소개합니다.`,
+    viewCount: 64 + index * 17,
+    recommendationCount: 8 + index * 2,
+    commentCount: 2 + (index % 12),
     nickname: '초코맘',
     photoUrl: null,
-    createdAt: '2026-08-24T10:00:00+09:00',
-  },
-  {
-    id: 'post-cafe-bori',
-    title: '보리와 찾은 조용한 카페',
-    content: '테라스가 넓고 물그릇도 준비된 반려견 동반 카페예요.',
-    viewCount: 64,
-    recommendationCount: 12,
-    commentCount: 4,
-    nickname: '초코맘',
-    photoUrl: null,
-    createdAt: '2026-08-19T14:30:00+09:00',
-  },
-] satisfies ProfilePost[]
+    createdAt: `2026-08-${String(24 - (index % 20)).padStart(2, '0')}T10:00:00+09:00`,
+  })
+)
 
-export const mockProfileWishlist = [
-  {
-    placeId: 'place-forest',
-    createdAt: '2026-08-28T09:00:00+09:00',
-    placeName: '서울숲 반려견 산책길',
-    address: '서울특별시 성동구 뚝섬로',
-    rating: 4.8,
-    reviewCount: 132,
-  },
-  {
-    placeId: 'place-beach',
-    createdAt: '2026-08-26T11:00:00+09:00',
-    placeName: '안목해변 펫존',
-    address: '강원특별자치도 강릉시 창해로',
-    rating: 4.6,
-    reviewCount: 87,
-  },
-] satisfies WishlistPlace[]
+const placeNames = ['반려견 산책길', '해변 펫존', '숲속 캠핑장', '테라스 카페'] as const
+const placeCities = ['서울특별시', '강원특별자치도', '제주특별자치도', '부산광역시'] as const
 
-export const mockProfileBookmarks = [
-  {
-    id: 'bookmark-jeju',
-    title: '제주 반려견 동반 여행 체크리스트',
-    content: '이동장과 산책 용품을 미리 준비해요.',
-    viewCount: 251,
-    recommendationCount: 38,
-    commentCount: 16,
-    nickname: '제주멍멍이',
-    photoUrl: null,
-    createdAt: '2026-08-17T08:15:00+09:00',
-  },
-  {
-    id: 'bookmark-camping',
-    title: '대형견과 캠핑할 때 준비할 것',
-    content: '긴 리드줄과 야외용 방석을 챙겨주세요.',
-    viewCount: 144,
-    recommendationCount: 27,
-    commentCount: 11,
-    nickname: '마루아빠',
-    photoUrl: null,
-    createdAt: '2026-08-11T19:20:00+09:00',
-  },
-] satisfies ProfilePost[]
+export const mockProfileWishlist: WishlistPlace[] = Array.from(
+  { length: PROFILE_MOCK_COUNTS.wishlist },
+  (_, index) => ({
+    placeId: `wishlist-place-${String(index + 1).padStart(2, '0')}`,
+    createdAt: `2026-08-${String(28 - (index % 20)).padStart(2, '0')}T09:00:00+09:00`,
+    placeName: `${placeCities[index % placeCities.length]} ${placeNames[index % placeNames.length]} ${index + 1}`,
+    address: `${placeCities[index % placeCities.length]} 여행로 ${index + 1}길`,
+    rating: 4 + (index % 10) / 10,
+    reviewCount: 32 + index * 7,
+  })
+)
 
-export const mockProfileReviews = [
-  {
-    id: 'review-forest',
-    placeId: 'place-forest',
-    petId: 'pet-choco',
-    rating: 4.8,
-    contents: '그늘이 많고 산책로가 넓어서 초코와 걷기 좋았어요.',
-    weather: 'SUNNY',
-    recommendationCount: 14,
-    createdAt: '2026-08-29T13:10:00+09:00',
+const bookmarkAuthors = ['제주멍멍이', '마루아빠', '두부누나', '보리엄마'] as const
+
+export const mockProfileBookmarks: ProfilePost[] = Array.from(
+  { length: PROFILE_MOCK_COUNTS.bookmarks },
+  (_, index) => ({
+    id: `bookmark-${String(index + 1).padStart(2, '0')}`,
+    title: `${postSubjects[index % postSubjects.length]} 준비 체크리스트 ${index + 1}`,
+    content: '이동장, 물그릇, 긴 리드줄과 야외용 방석을 미리 준비해요.',
+    viewCount: 120 + index * 13,
+    recommendationCount: 12 + index * 2,
+    commentCount: 3 + (index % 10),
+    nickname: bookmarkAuthors[index % bookmarkAuthors.length],
+    photoUrl: null,
+    createdAt: `2026-07-${String(28 - (index % 20)).padStart(2, '0')}T08:15:00+09:00`,
+  })
+)
+
+const reviewWeather: ProfileReview['weather'][] = ['SUNNY', 'CLOUDY', 'RAINY', 'SNOWY']
+
+export const mockProfileReviews: ProfileReview[] = Array.from(
+  { length: PROFILE_MOCK_COUNTS.reviews },
+  (_, index) => ({
+    id: `review-${String(index + 1).padStart(2, '0')}`,
+    placeId: mockProfileWishlist[index % mockProfileWishlist.length].placeId,
+    petId: mockProfilePets[index % mockProfilePets.length].id,
+    rating: 4 + (index % 10) / 10,
+    contents: `${index + 1}번째 방문 후기예요. 산책로가 넓고 쉬어갈 공간이 있어 반려견과 편안하게 머물렀어요.`,
+    weather: reviewWeather[index % reviewWeather.length],
+    recommendationCount: 4 + index,
+    createdAt: `2026-08-${String(29 - (index % 20)).padStart(2, '0')}T13:10:00+09:00`,
     coursePlaceId: null,
-  },
-  {
-    id: 'review-beach',
-    placeId: 'place-beach',
-    petId: 'pet-bori',
-    rating: 4.5,
-    contents: '이른 아침에는 모래가 시원하고 사람도 적어서 편안했어요.',
-    weather: 'CLOUDY',
-    recommendationCount: 8,
-    createdAt: '2026-08-22T07:40:00+09:00',
-    coursePlaceId: null,
-  },
-] satisfies ProfileReview[]
+  })
+)
