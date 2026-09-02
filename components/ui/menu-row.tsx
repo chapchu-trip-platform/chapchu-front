@@ -24,7 +24,7 @@ function MenuRow({
     <button
       type={type}
       className={cn(
-        'flex w-full items-center gap-3 border-b border-border px-4 py-3.5 text-left outline-none transition-[color,background-color,border-color,filter] last:border-0 hover:bg-muted/50 hover:brightness-[0.97] active:bg-muted active:brightness-[0.94] focus-visible:bg-muted/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sage-green/50',
+        'flex w-full items-center gap-3 border-b border-border px-4 py-3.5 text-left outline-none transition-[color,background-color,border-color,filter] last:border-0 hover:bg-muted/50 hover:brightness-[0.97] active:bg-muted active:brightness-[0.94] focus-visible:bg-muted/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sage-green/50 disabled:pointer-events-none disabled:opacity-60',
         className
       )}
       {...props}

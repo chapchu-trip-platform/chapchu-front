@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ProfileRoute from '@/features/profile/components/profile-route'
@@ -70,6 +70,14 @@ function expectUnique(values: string[]) {
   expect(new Set(values).size).toBe(values.length)
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve
+  })
+  return { promise, resolve }
+}
+
 beforeEach(() => {
   vi.mocked(fetchProfileSummary).mockResolvedValue({ ...mockProfileSummary, petCount: 1 })
   vi.mocked(fetchPets).mockResolvedValue([pet])
@@ -100,6 +108,55 @@ afterEach(() => {
 })
 
 describe('ProfileRoute', () => {
+  it('keeps animated placeholders visible until the profile data is ready', async () => {
+    const summaryRequest = createDeferred<Awaited<ReturnType<typeof fetchProfileSummary>>>()
+    const petsRequest = createDeferred<Awaited<ReturnType<typeof fetchPets>>>()
+    vi.mocked(fetchProfileSummary).mockReturnValueOnce(summaryRequest.promise)
+    vi.mocked(fetchPets).mockReturnValueOnce(petsRequest.promise)
+
+    render(<ProfileRoute />)
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '내정보와 반려동물 정보를 불러오는 중'
+    )
+    expect(screen.getByRole('region', { name: '내정보 콘텐츠' })).toHaveAttribute(
+      'aria-busy',
+      'true'
+    )
+    expect(screen.queryByText('이메일 정보 없음')).not.toBeInTheDocument()
+    expect(screen.queryByText('등록된 반려견이 없습니다.')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /반려동물 관리.*반려동물 정보를 불러오는 중/ })
+    ).toBeDisabled()
+    expect(screen.getByRole('button', { name: '관리' })).toBeDisabled()
+
+    await act(async () => {
+      summaryRequest.resolve({ ...mockProfileSummary, petCount: 1 })
+      await Promise.resolve()
+    })
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '내정보와 반려동물 정보를 불러오는 중'
+    )
+    expect(screen.queryByRole('heading', { name: '초코맘' })).not.toBeInTheDocument()
+
+    await act(async () => {
+      petsRequest.resolve([pet])
+      await Promise.resolve()
+    })
+
+    expect(await screen.findByRole('heading', { name: '초코맘' })).toBeInTheDocument()
+    expect(screen.getByText('user@example.com')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('내정보 불러오기 완료')
+      expect(screen.getByRole('region', { name: '내정보 콘텐츠' })).toHaveAttribute(
+        'aria-busy',
+        'false'
+      )
+    })
+    expect(screen.getByRole('button', { name: '관리' })).toBeEnabled()
+  })
+
   it('loads the mypage summary and pets from the profile API', async () => {
     render(<ProfileRoute />)
 
@@ -321,16 +378,49 @@ describe('ProfileRoute', () => {
   })
 
   it('clears stale pet state when the initial profile request fails', async () => {
+    const user = userEvent.setup()
+    const retrySummaryRequest = createDeferred<Awaited<ReturnType<typeof fetchProfileSummary>>>()
+    const retryPetsRequest = createDeferred<Awaited<ReturnType<typeof fetchPets>>>()
     usePetStore.setState({ pets: [{ ...pet, id: 'stale-pet', petName: '이전사용자반려견' }] })
-    vi.mocked(fetchProfileSummary).mockRejectedValueOnce(new Error('failed'))
+    vi.mocked(fetchProfileSummary)
+      .mockRejectedValueOnce(new Error('failed'))
+      .mockReturnValueOnce(retrySummaryRequest.promise)
+    vi.mocked(fetchPets)
+      .mockResolvedValueOnce([pet])
+      .mockReturnValueOnce(retryPetsRequest.promise)
 
     render(<ProfileRoute />)
 
     expect(
       await screen.findByText('요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요.')
     ).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('내정보를 불러오지 못했습니다')
+    expect(screen.getByText('프로필 정보를 표시할 수 없어요')).toBeInTheDocument()
+    expect(screen.getByText('반려동물 정보를 표시할 수 없어요.')).toBeInTheDocument()
+    expect(screen.queryByText('이메일 정보 없음')).not.toBeInTheDocument()
+    expect(screen.queryByText('등록된 반려견이 없습니다.')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '관리' })).toBeDisabled()
     expect(screen.queryByText('이전사용자반려견')).not.toBeInTheDocument()
     expect(usePetStore.getState().pets).toEqual([])
+
+    await user.click(screen.getByRole('button', { name: '다시 불러오기' }))
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '내정보와 반려동물 정보를 불러오는 중'
+    )
+    expect(screen.getByRole('region', { name: '내정보 콘텐츠' })).toHaveAttribute(
+      'aria-busy',
+      'true'
+    )
+
+    await act(async () => {
+      retrySummaryRequest.resolve({ ...mockProfileSummary, petCount: 1 })
+      retryPetsRequest.resolve([pet])
+      await Promise.resolve()
+    })
+
+    expect(await screen.findByRole('heading', { name: '초코맘' })).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('내정보 불러오기 완료')
   })
 
   it('clears pet state when the user logs out', async () => {

@@ -63,6 +63,27 @@ const sizeLabel: Record<PetSize, string> = {
 
 const PROFILE_MOTION_EASE = [0.22, 1, 0.36, 1] as const
 
+function ProfileLoadingBar({
+  className,
+  prefersReducedMotion,
+}: {
+  className: string
+  prefersReducedMotion: boolean | null
+}) {
+  return (
+    <m.span
+      aria-hidden="true"
+      className={cn('block rounded-full bg-muted', className)}
+      animate={prefersReducedMotion ? { opacity: 0.7 } : { opacity: [0.45, 0.85, 0.45] }}
+      transition={
+        prefersReducedMotion
+          ? { duration: 0 }
+          : { duration: 1.35, ease: 'easeInOut', repeat: Infinity }
+      }
+    />
+  )
+}
+
 function ProfilePane({
   children,
   direction,
@@ -665,14 +686,14 @@ export default function ProfileScreen({
   const prefersReducedMotion = useReducedMotion()
   const firstPet = pets[0]
   const menuItems = useMemo(() => [
-    { icon: PawPrint, iconColor: 'text-sage-green', label: '반려동물 관리', sub: 'pets' as const, desc: firstPet ? `${firstPet.petName} · ${summary?.petCount ?? pets.length}마리` : '등록된 반려견 없음' },
+    { icon: PawPrint, iconColor: 'text-sage-green', label: '반려동물 관리', sub: 'pets' as const, desc: status === 'loading' ? '반려동물 정보를 불러오는 중' : status === 'error' ? '반려동물 정보를 불러오지 못함' : firstPet ? `${firstPet.petName} · ${summary?.petCount ?? pets.length}마리` : '등록된 반려견 없음' },
     { icon: Stamp, iconColor: 'text-soft-orange', label: '스탬프', sub: 'stamps' as const, desc: 'API 준비 중' },
     { icon: Heart, iconColor: 'text-danger', label: '추억 앨범', sub: 'memory-album' as const, desc: 'API 준비 중' },
     { icon: FileText, iconColor: 'text-warm-gray', label: '작성한 글', tab: 'posts' as const, desc: '내 작성글 보기' },
     { icon: Star, iconColor: 'text-soft-orange', label: '장소 위시리스트', tab: 'wishlist' as const, desc: '저장한 장소 보기' },
     { icon: Bookmark, iconColor: 'text-sky-blue', label: '북마크', tab: 'bookmarks' as const, desc: '저장한 게시글 보기' },
     { icon: MessageSquareText, iconColor: 'text-sage-green', label: '작성한 리뷰', tab: 'reviews' as const, desc: '내 리뷰 보기' },
-  ], [firstPet, pets.length, summary?.petCount])
+  ], [firstPet, pets.length, status, summary?.petCount])
 
   return (
     <div className="relative flex min-h-0 flex-1 overflow-hidden bg-warm-beige">
@@ -692,7 +713,19 @@ export default function ProfileScreen({
       ) : (
     <ProfilePane key="profile-main" direction="back">
       <TopBar title="내정보" rightAction={<span />} />
-      <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
+      <div
+        role="region"
+        aria-label="내정보 콘텐츠"
+        aria-busy={status === 'loading'}
+        className="flex-1 overflow-y-auto no-scrollbar pb-24"
+      >
+        <span className="sr-only" role="status">
+          {status === 'loading'
+            ? '내정보와 반려동물 정보를 불러오는 중'
+            : status === 'success'
+              ? '내정보 불러오기 완료'
+              : '내정보를 불러오지 못했습니다'}
+        </span>
         <AnimatePresence initial={false}>
           {status === 'error' && errorMessage && (
           <m.div
@@ -718,15 +751,61 @@ export default function ProfileScreen({
             <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-full border-2 border-sage-green/30">
               <Image src="/images/dog-hero.png" alt="프로필" fill className="object-cover" loading="eager" />
             </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <h2 className="text-[18px] font-bold text-deep-brown">{status === 'loading' ? '불러오는 중...' : summary?.nickname || '내정보'}</h2>
-                <IconButton aria-label="닉네임 수정" size="sm" disabled={!summary} onClick={() => onOpenSettings?.('nickname')}><Edit3 className="h-4 w-4 text-warm-gray" /></IconButton>
-              </div>
-              <p className="text-[12px] text-warm-gray">{summary?.email ?? '이메일 정보 없음'}</p>
-              <div className="mt-2 flex gap-4">
-                {[{ val: '—', label: '여행km' }, { val: '—', label: '방문지' }, { val: '—', label: '스탬프' }].map((item) => <div key={item.label} className="text-center"><p className="text-[15px] font-bold text-deep-brown">{item.val}</p><p className="text-[10px] text-warm-gray">{item.label}</p></div>)}
-              </div>
+            <div className="relative min-h-24 flex-1">
+              <AnimatePresence initial={false}>
+                {status === 'loading' ? (
+                  <m.div
+                    key="profile-summary-loading"
+                    aria-hidden="true"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: prefersReducedMotion ? 0 : 0.18 }}
+                    className="absolute inset-0 flex flex-col justify-center"
+                  >
+                    <ProfileLoadingBar className="h-5 w-28" prefersReducedMotion={prefersReducedMotion} />
+                    <ProfileLoadingBar className="mt-2 h-3 w-40" prefersReducedMotion={prefersReducedMotion} />
+                    <div className="mt-3 flex gap-4">
+                      {[0, 1, 2].map((item) => (
+                        <div key={item} className="space-y-1.5">
+                          <ProfileLoadingBar className="h-3 w-7" prefersReducedMotion={prefersReducedMotion} />
+                          <ProfileLoadingBar className="h-2 w-9" prefersReducedMotion={prefersReducedMotion} />
+                        </div>
+                      ))}
+                    </div>
+                  </m.div>
+                ) : status === 'success' ? (
+                  <m.div
+                    key="profile-summary-ready"
+                    initial={prefersReducedMotion ? false : { opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: PROFILE_MOTION_EASE }}
+                    className="relative"
+                  >
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-[18px] font-bold text-deep-brown">{summary?.nickname || '내정보'}</h2>
+                      <IconButton aria-label="닉네임 수정" size="sm" disabled={!summary} onClick={() => onOpenSettings?.('nickname')}><Edit3 className="h-4 w-4 text-warm-gray" /></IconButton>
+                    </div>
+                    <p className="text-[12px] text-warm-gray">{summary?.email ?? '이메일 정보 없음'}</p>
+                    <div className="mt-2 flex gap-4">
+                      {[{ val: '—', label: '여행km' }, { val: '—', label: '방문지' }, { val: '—', label: '스탬프' }].map((item) => <div key={item.label} className="text-center"><p className="text-[15px] font-bold text-deep-brown">{item.val}</p><p className="text-[10px] text-warm-gray">{item.label}</p></div>)}
+                    </div>
+                  </m.div>
+                ) : (
+                  <m.div
+                    key="profile-summary-error"
+                    initial={prefersReducedMotion ? false : { opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
+                    className="relative flex min-h-24 flex-col justify-center"
+                  >
+                    <p className="text-[14px] font-semibold text-deep-brown">프로필 정보를 표시할 수 없어요</p>
+                    <p className="mt-1 text-[12px] text-warm-gray">위의 다시 불러오기를 눌러주세요.</p>
+                  </m.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </m.div>
@@ -737,8 +816,34 @@ export default function ProfileScreen({
           transition={{ duration: prefersReducedMotion ? 0 : 0.3, delay: prefersReducedMotion ? 0 : 0.08, ease: PROFILE_MOTION_EASE }}
           className="mx-4 mt-4 rounded-card border border-border bg-card-surface p-4 shadow-sm"
         >
-          <div className="mb-3 flex items-center justify-between"><p className="text-[14px] font-semibold text-deep-brown">나의 반려동물</p><Button onClick={() => setSubScreen('pets')} variant="link" size="sm" className="h-auto p-0 text-[12px] no-underline">관리</Button></div>
-          {firstPet ? <div className="flex items-center gap-3"><div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-full border border-border"><Image src="/images/dog-hero.png" alt={firstPet.petName} fill className="object-cover" /></div><div><p className="text-[14px] font-semibold text-deep-brown">{firstPet.petName}</p><p className="text-[12px] text-warm-gray">{firstPet.breedName} · {sizeLabel[firstPet.size]} · {firstPet.age}살</p></div></div> : <p className="text-[12px] text-warm-gray">등록된 반려견이 없습니다.</p>}
+          <div className="mb-3 flex items-center justify-between"><p className="text-[14px] font-semibold text-deep-brown">나의 반려동물</p><Button onClick={() => setSubScreen('pets')} variant="link" size="sm" disabled={status !== 'success'} className="h-auto p-0 text-[12px] no-underline">관리</Button></div>
+          <div className="relative min-h-10">
+            <AnimatePresence initial={false}>
+              {status === 'loading' ? (
+                <m.div
+                  key="pet-summary-loading"
+                  aria-hidden="true"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: prefersReducedMotion ? 0 : 0.18 }}
+                  className="absolute inset-0 flex items-center gap-3"
+                >
+                  <ProfileLoadingBar className="h-10 w-10 flex-shrink-0" prefersReducedMotion={prefersReducedMotion} />
+                  <div className="flex-1 space-y-2">
+                    <ProfileLoadingBar className="h-3.5 w-20" prefersReducedMotion={prefersReducedMotion} />
+                    <ProfileLoadingBar className="h-3 w-36" prefersReducedMotion={prefersReducedMotion} />
+                  </div>
+                </m.div>
+              ) : status === 'success' && firstPet ? (
+                <m.div key="pet-summary-ready" initial={prefersReducedMotion ? false : { opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: prefersReducedMotion ? 0 : 0.22, ease: PROFILE_MOTION_EASE }} className="relative flex items-center gap-3"><div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-full border border-border"><Image src="/images/dog-hero.png" alt={firstPet.petName} fill className="object-cover" loading="eager" /></div><div><p className="text-[14px] font-semibold text-deep-brown">{firstPet.petName}</p><p className="text-[12px] text-warm-gray">{firstPet.breedName} · {sizeLabel[firstPet.size]} · {firstPet.age}살</p></div></m.div>
+              ) : status === 'success' ? (
+                <m.p key="pet-summary-empty" initial={prefersReducedMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} className="relative text-[12px] text-warm-gray">등록된 반려견이 없습니다.</m.p>
+              ) : (
+                <m.p key="pet-summary-error" initial={prefersReducedMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} className="relative text-[12px] text-warm-gray">반려동물 정보를 표시할 수 없어요.</m.p>
+              )}
+            </AnimatePresence>
+          </div>
         </m.div>
 
         <m.div
@@ -747,11 +852,14 @@ export default function ProfileScreen({
           transition={{ duration: prefersReducedMotion ? 0 : 0.3, delay: prefersReducedMotion ? 0 : 0.13, ease: PROFILE_MOTION_EASE }}
           className="mx-4 mt-4 overflow-hidden rounded-card border border-border bg-card-surface shadow-sm"
         >
-          {menuItems.map((item) => (
-            <m.div key={item.label} whileTap={prefersReducedMotion ? undefined : { scale: 0.985 }}>
-              <MenuRow label={item.label} description={item.desc} icon={<item.icon className={cn('h-5 w-5', item.iconColor)} />} onClick={() => item.sub ? setSubScreen(item.sub) : item.tab ? onOpenSettings?.(item.tab) : undefined} />
-            </m.div>
-          ))}
+          {menuItems.map((item) => {
+            const isPetMenuDisabled = status !== 'success' && item.sub === 'pets'
+            return (
+              <m.div key={item.label} whileTap={prefersReducedMotion || isPetMenuDisabled ? undefined : { scale: 0.985 }}>
+                <MenuRow disabled={isPetMenuDisabled} label={item.label} description={item.desc} icon={<item.icon className={cn('h-5 w-5', item.iconColor)} />} onClick={() => item.sub ? setSubScreen(item.sub) : item.tab ? onOpenSettings?.(item.tab) : undefined} />
+              </m.div>
+            )
+          })}
         </m.div>
 
         <m.div
