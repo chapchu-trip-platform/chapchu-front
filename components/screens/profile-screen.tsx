@@ -27,6 +27,7 @@ import { MenuRow } from '@/components/ui/menu-row'
 import { ModalActions } from '@/components/ui/modal-actions'
 import { cn } from '@/lib/utils'
 import { getProfileErrorMessage } from '@/features/profile/api/profile-api'
+import { mockProfileMemoryAlbums, mockProfileStamps } from '@/data/mock/profile'
 import type {
   PetMutationInput,
   PetOptions,
@@ -53,26 +54,6 @@ interface ProfileScreenProps {
 }
 
 type SubScreen = null | 'pets' | 'stamps' | 'memory-album'
-
-const stamps = [
-  { region: '서울', acquired: true, date: '2024.07.04', count: 8, color: '#6FAF8E', mascot: '해치' },
-  { region: '제주', acquired: true, date: '2024.06.15', count: 3, color: '#F4A261', mascot: '돌하르방' },
-  { region: '강원', acquired: true, date: '2024.05.20', count: 2, color: '#8ECAE6', mascot: '반달곰' },
-  { region: '경기', acquired: false, date: null, count: 0, color: '#DDD4C0', mascot: '?' },
-  { region: '부산', acquired: false, date: null, count: 0, color: '#DDD4C0', mascot: '?' },
-  { region: '제주', acquired: false, date: null, count: 0, color: '#DDD4C0', mascot: '?' },
-]
-
-const memoryAlbums = [
-  {
-    petName: '하루',
-    breed: '포메라니안',
-    period: '2019.03 ~ 2023.11',
-    coverImage: '/images/album-cover.png',
-    albumCount: 12,
-    note: '영원히 기억할게, 하루야',
-  },
-]
 
 const sizeLabel: Record<PetSize, string> = {
   SMALL: '소형',
@@ -623,8 +604,8 @@ function StampsSubScreen({ onBack }: { onBack: () => void }) {
         <p className="mb-1 text-[13px] text-warm-gray">방문한 지역의 스탬프를 모아보세요!</p>
         <p className="mb-4 text-[11px] text-warm-gray">스탬프 API 연결 전 예시 데이터입니다.</p>
         <div className="grid grid-cols-3 gap-3">
-          {stamps.map((stamp, index) => (
-            <div key={`${stamp.region}-${index}`} className={cn('flex flex-col items-center rounded-card border p-3 shadow-sm', stamp.acquired ? 'border-border bg-card-surface' : 'border-border bg-muted opacity-50')}>
+          {mockProfileStamps.map((stamp) => (
+            <div key={stamp.id} className={cn('flex flex-col items-center rounded-card border p-3 shadow-sm', stamp.acquired ? 'border-border bg-card-surface' : 'border-border bg-muted opacity-50')}>
               <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-full border-4 border-white shadow-sm" style={{ backgroundColor: stamp.acquired ? stamp.color : '#DDD4C0' }}>
                 <span className="text-[20px] font-black text-white">{stamp.acquired ? stamp.mascot[0] : '?'}</span>
               </div>
@@ -645,8 +626,8 @@ function MemoryAlbumSubScreen({ onBack }: { onBack: () => void }) {
       <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-24 pt-4">
         <p className="mb-1 text-[13px] leading-relaxed text-warm-gray">무지개 다리를 건넌 소중한 반려동물과의 추억이 여기 보관되어 있어요.</p>
         <p className="mb-5 text-[11px] text-warm-gray">추억 보관 API 연결 전 예시 데이터입니다.</p>
-        {memoryAlbums.map((album) => (
-          <div key={album.petName} className="mb-4 overflow-hidden rounded-card border border-border bg-card-surface shadow-sm">
+        {mockProfileMemoryAlbums.map((album) => (
+          <div key={album.id} className="mb-4 overflow-hidden rounded-card border border-border bg-card-surface shadow-sm">
             <div className="relative h-44">
               <Image src={album.coverImage} alt={album.petName} fill className="object-cover opacity-85" />
               <div className="absolute inset-0 bg-gradient-to-t from-deep-brown/70 to-transparent" />

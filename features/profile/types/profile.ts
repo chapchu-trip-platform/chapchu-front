@@ -63,3 +63,26 @@ export interface ProfileReview {
   createdAt: string | null
   coursePlaceId: string | null
 }
+
+interface ProfileStampBase {
+  id: string
+  region: string
+  color: string
+  mascot: string
+}
+
+export type ProfileStamp = ProfileStampBase &
+  (
+    | { acquired: true; date: string; count: number }
+    | { acquired: false; date: null; count: 0 }
+  )
+
+export interface ProfileMemoryAlbum {
+  id: string
+  petName: string
+  breed: string
+  period: string
+  coverImage: string
+  albumCount: number
+  note: string
+}

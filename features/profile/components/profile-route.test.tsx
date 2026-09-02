@@ -23,6 +23,17 @@ import {
 import { useAuthStore } from '@/features/auth/stores/auth-store'
 import { usePetStore } from '@/features/profile/stores/pet-store'
 import { mockRouter, resetNextNavigationMocks } from '@/test/mocks/next-navigation'
+import {
+  mockProfileBookmarks,
+  mockProfileMemoryAlbums,
+  mockProfilePetOptions,
+  mockProfilePets,
+  mockProfilePosts,
+  mockProfileReviews,
+  mockProfileStamps,
+  mockProfileSummary,
+  mockProfileWishlist,
+} from '@/data/mock/profile'
 
 vi.mock('@/features/auth/api/auth-api', () => ({
   logout: vi.fn(),
@@ -46,40 +57,13 @@ vi.mock('@/features/profile/api/profile-api', () => ({
   withdrawAccount: vi.fn(),
 }))
 
-const pet = {
-  id: 'pet-id',
-  petName: '초코',
-  breedId: 7,
-  breedName: '골든리트리버',
-  size: 'MEDIUM' as const,
-  age: 3,
-  activities: [{ id: 'activity-id', name: '산책' }],
-}
+const pet = mockProfilePets[0]
 
 beforeEach(() => {
-  vi.mocked(fetchProfileSummary).mockResolvedValue({
-    nickname: '초코맘',
-    email: 'user@example.com',
-    petCount: 1,
-  })
+  vi.mocked(fetchProfileSummary).mockResolvedValue({ ...mockProfileSummary, petCount: 1 })
   vi.mocked(fetchPets).mockResolvedValue([pet])
-  vi.mocked(fetchPetOptions).mockResolvedValue({
-    breeds: [{ id: 7, name: '골든리트리버' }],
-    activities: [{ id: 'activity-id', name: '산책' }],
-  })
-  vi.mocked(fetchMyPosts).mockResolvedValue([
-    {
-      id: 'post-id',
-      title: '초코와 여행 기록',
-      content: '즐거운 여행이었어요.',
-      viewCount: 10,
-      recommendationCount: 3,
-      commentCount: 2,
-      nickname: '초코맘',
-      photoUrl: null,
-      createdAt: null,
-    },
-  ])
+  vi.mocked(fetchPetOptions).mockResolvedValue(mockProfilePetOptions)
+  vi.mocked(fetchMyPosts).mockResolvedValue(mockProfilePosts)
   vi.mocked(fetchBookmarks).mockResolvedValue([])
   vi.mocked(fetchWishlist).mockResolvedValue([])
   vi.mocked(fetchMyReviews).mockResolvedValue([])
@@ -142,6 +126,137 @@ describe('ProfileRoute', () => {
     expect(fetchMyPosts).toHaveBeenCalledOnce()
   })
 
+  it('renders every pet in the pet management list', async () => {
+    const user = userEvent.setup()
+    expect(mockProfilePets.length).toBeGreaterThan(1)
+    vi.mocked(fetchProfileSummary).mockResolvedValue(mockProfileSummary)
+    vi.mocked(fetchPets).mockResolvedValue(mockProfilePets)
+    render(<ProfileRoute />)
+
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: /반려동물 관리.*초코 · 3마리/ }))
+    expect(await screen.findByRole('button', { name: '반려동물 추가하기' })).toBeInTheDocument()
+
+    for (const profilePet of mockProfilePets) {
+      expect(screen.getByRole('button', { name: `${profilePet.petName} 수정` })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: `${profilePet.petName} 삭제` })).toBeInTheDocument()
+      expect(
+        screen.getByText(`${profilePet.breedName} · ${profilePet.size === 'SMALL' ? '소형' : profilePet.size === 'MEDIUM' ? '중형' : '대형'} · ${profilePet.age}살`)
+      ).toBeInTheDocument()
+      for (const activity of profilePet.activities) {
+        expect(screen.getByText(activity.name)).toBeInTheDocument()
+      }
+    }
+  })
+
+  it('renders acquired and locked stamps from the profile mock list', async () => {
+    const user = userEvent.setup()
+    expect(mockProfileStamps.length).toBeGreaterThan(1)
+    render(<ProfileRoute />)
+
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: /스탬프.*API 준비 중/ }))
+    expect(await screen.findByText('방문한 지역의 스탬프를 모아보세요!')).toBeInTheDocument()
+
+    for (const stamp of mockProfileStamps) {
+      expect(screen.getByText(stamp.region)).toBeInTheDocument()
+      if (stamp.acquired) {
+        expect(screen.getByText(`${stamp.count}회 방문`)).toBeInTheDocument()
+        expect(screen.getByText(stamp.date)).toBeInTheDocument()
+      }
+    }
+    expect(screen.getAllByText('미획득')).toHaveLength(
+      mockProfileStamps.filter((stamp) => !stamp.acquired).length
+    )
+  })
+
+  it('renders every memory album from the profile mock list', async () => {
+    const user = userEvent.setup()
+    expect(mockProfileMemoryAlbums.length).toBeGreaterThan(1)
+    render(<ProfileRoute />)
+
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: /추억 앨범.*API 준비 중/ }))
+    expect(await screen.findByText(/무지개 다리를 건넌/)).toBeInTheDocument()
+
+    for (const album of mockProfileMemoryAlbums) {
+      expect(screen.getByText(album.petName)).toBeInTheDocument()
+      expect(screen.getByText(album.breed)).toBeInTheDocument()
+      expect(screen.getByText(album.period)).toBeInTheDocument()
+      expect(screen.getByText(album.note, { exact: false })).toBeInTheDocument()
+      expect(screen.getByText(`${album.albumCount}개의 여행 앨범`)).toBeInTheDocument()
+    }
+  })
+
+  it('renders every written post with list metrics', async () => {
+    const user = userEvent.setup()
+    expect(mockProfilePosts.length).toBeGreaterThan(1)
+    vi.mocked(fetchMyPosts).mockResolvedValue(mockProfilePosts)
+    render(<ProfileRoute />)
+
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: /작성한 글.*내 작성글 보기/ }))
+    await screen.findByText(mockProfilePosts[0].title)
+
+    for (const post of mockProfilePosts) {
+      expect(screen.getByText(post.title)).toBeInTheDocument()
+      expect(screen.getByText(`조회 ${post.viewCount}`)).toBeInTheDocument()
+      expect(screen.getByText(`추천 ${post.recommendationCount}`)).toBeInTheDocument()
+      expect(screen.getByText(`댓글 ${post.commentCount}`)).toBeInTheDocument()
+    }
+  })
+
+  it('renders every wishlist place with its removal action', async () => {
+    const user = userEvent.setup()
+    expect(mockProfileWishlist.length).toBeGreaterThan(1)
+    vi.mocked(fetchWishlist).mockResolvedValue(mockProfileWishlist)
+    render(<ProfileRoute />)
+
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: /장소 위시리스트.*저장한 장소 보기/ }))
+    await screen.findByText(mockProfileWishlist[0].placeName)
+
+    for (const place of mockProfileWishlist) {
+      expect(screen.getByText(place.placeName)).toBeInTheDocument()
+      expect(screen.getByText(place.address)).toBeInTheDocument()
+      expect(screen.getByText(`리뷰 ${place.reviewCount}`)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: `${place.placeName} 위시리스트에서 제거` })).toBeInTheDocument()
+    }
+  })
+
+  it('renders every bookmarked post with its removal action', async () => {
+    const user = userEvent.setup()
+    expect(mockProfileBookmarks.length).toBeGreaterThan(1)
+    vi.mocked(fetchBookmarks).mockResolvedValue(mockProfileBookmarks)
+    render(<ProfileRoute />)
+
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: /북마크.*저장한 게시글 보기/ }))
+    await screen.findByText(mockProfileBookmarks[0].title)
+
+    for (const bookmark of mockProfileBookmarks) {
+      expect(screen.getByText(bookmark.title)).toBeInTheDocument()
+      expect(screen.getByText(bookmark.nickname)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: `${bookmark.title} 북마크 해제` })).toBeInTheDocument()
+    }
+  })
+
+  it('renders every review with rating and contents', async () => {
+    const user = userEvent.setup()
+    expect(mockProfileReviews.length).toBeGreaterThan(1)
+    vi.mocked(fetchMyReviews).mockResolvedValue(mockProfileReviews)
+    render(<ProfileRoute />)
+
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: /작성한 리뷰.*내 리뷰 보기/ }))
+    await screen.findByText(mockProfileReviews[0].contents)
+
+    for (const review of mockProfileReviews) {
+      expect(screen.getByText(review.contents)).toBeInTheDocument()
+      expect(screen.getByLabelText(`별점 ${review.rating}점`)).toBeInTheDocument()
+    }
+  })
+
   it('registers a pet with options loaded from the public APIs', async () => {
     const user = userEvent.setup()
     render(<ProfileRoute />)
@@ -161,7 +276,7 @@ describe('ProfileRoute', () => {
         breedId: 7,
         size: 'SMALL',
         age: 2,
-        activityIds: ['activity-id'],
+        activityIds: ['activity-walk'],
       })
     )
     expect(await screen.findByText('보리')).toBeInTheDocument()
