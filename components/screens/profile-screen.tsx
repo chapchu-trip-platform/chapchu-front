@@ -684,16 +684,19 @@ export default function ProfileScreen({
   const [subScreen, setSubScreen] = useState<SubScreen>(null)
   const [showWithdraw, setShowWithdraw] = useState(false)
   const prefersReducedMotion = useReducedMotion()
-  const firstPet = pets[0]
+  const visiblePets = pets.slice(0, 3)
+  const totalPetCount = pets.length
+  const remainingPetCount = Math.max(totalPetCount - visiblePets.length, 0)
+  const visiblePetNames = visiblePets.map((pet) => pet.petName).join(' · ')
   const menuItems = useMemo(() => [
-    { icon: PawPrint, iconColor: 'text-sage-green', label: '반려동물 관리', sub: 'pets' as const, desc: status === 'loading' ? '반려동물 정보를 불러오는 중' : status === 'error' ? '반려동물 정보를 불러오지 못함' : firstPet ? `${firstPet.petName} · ${summary?.petCount ?? pets.length}마리` : '등록된 반려견 없음' },
+    { icon: PawPrint, iconColor: 'text-sage-green', label: '반려동물 관리', sub: 'pets' as const, desc: status === 'loading' ? '반려동물 정보를 불러오는 중' : status === 'error' ? '반려동물 정보를 불러오지 못함' : '추가 · 수정 · 삭제' },
     { icon: Stamp, iconColor: 'text-soft-orange', label: '스탬프', sub: 'stamps' as const, desc: 'API 준비 중' },
     { icon: Heart, iconColor: 'text-danger', label: '추억 앨범', sub: 'memory-album' as const, desc: 'API 준비 중' },
     { icon: FileText, iconColor: 'text-warm-gray', label: '작성한 글', tab: 'posts' as const, desc: '내 작성글 보기' },
     { icon: Star, iconColor: 'text-soft-orange', label: '장소 위시리스트', tab: 'wishlist' as const, desc: '저장한 장소 보기' },
     { icon: Bookmark, iconColor: 'text-sky-blue', label: '북마크', tab: 'bookmarks' as const, desc: '저장한 게시글 보기' },
     { icon: MessageSquareText, iconColor: 'text-sage-green', label: '작성한 리뷰', tab: 'reviews' as const, desc: '내 리뷰 보기' },
-  ], [firstPet, pets.length, status, summary?.petCount])
+  ], [status])
 
   return (
     <div className="relative flex min-h-0 flex-1 overflow-hidden bg-warm-beige">
@@ -810,14 +813,22 @@ export default function ProfileScreen({
           </div>
         </m.div>
 
-        <m.div
+        <m.section
+          aria-labelledby="my-pets-summary-title"
           initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: prefersReducedMotion ? 0 : 0.3, delay: prefersReducedMotion ? 0 : 0.08, ease: PROFILE_MOTION_EASE }}
           className="mx-4 mt-4 rounded-card border border-border bg-card-surface p-4 shadow-sm"
         >
-          <div className="mb-3 flex items-center justify-between"><p className="text-[14px] font-semibold text-deep-brown">나의 반려동물</p><Button onClick={() => setSubScreen('pets')} variant="link" size="sm" disabled={status !== 'success'} className="h-auto p-0 text-[12px] no-underline">관리</Button></div>
-          <div className="relative min-h-10">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 id="my-pets-summary-title" className="text-[14px] font-semibold text-deep-brown">나의 반려동물</h3>
+            {status === 'success' && (
+              <span className="rounded-full bg-sage-green/10 px-2 py-1 text-[11px] font-semibold text-sage-green">
+                총 {totalPetCount}마리
+              </span>
+            )}
+          </div>
+          <div className="relative min-h-28">
             <AnimatePresence initial={false}>
               {status === 'loading' ? (
                 <m.div
@@ -827,24 +838,50 @@ export default function ProfileScreen({
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: prefersReducedMotion ? 0 : 0.18 }}
-                  className="absolute inset-0 flex items-center gap-3"
+                  className="absolute inset-0 grid grid-cols-3 gap-2"
                 >
-                  <ProfileLoadingBar className="h-10 w-10 flex-shrink-0" prefersReducedMotion={prefersReducedMotion} />
-                  <div className="flex-1 space-y-2">
-                    <ProfileLoadingBar className="h-3.5 w-20" prefersReducedMotion={prefersReducedMotion} />
-                    <ProfileLoadingBar className="h-3 w-36" prefersReducedMotion={prefersReducedMotion} />
-                  </div>
+                  {[0, 1, 2].map((item) => (
+                    <div key={item} className="flex flex-col items-center justify-center rounded-card bg-muted/40 px-2 py-2">
+                      <ProfileLoadingBar className="h-10 w-10 flex-shrink-0 rounded-full" prefersReducedMotion={prefersReducedMotion} />
+                      <ProfileLoadingBar className="mt-2 h-3 w-12" prefersReducedMotion={prefersReducedMotion} />
+                    </div>
+                  ))}
                 </m.div>
-              ) : status === 'success' && firstPet ? (
-                <m.div key="pet-summary-ready" initial={prefersReducedMotion ? false : { opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: prefersReducedMotion ? 0 : 0.22, ease: PROFILE_MOTION_EASE }} className="relative flex items-center gap-3"><div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-full border border-border"><Image src="/images/dog-hero.png" alt={firstPet.petName} fill className="object-cover" loading="eager" /></div><div><p className="text-[14px] font-semibold text-deep-brown">{firstPet.petName}</p><p className="text-[12px] text-warm-gray">{firstPet.breedName} · {sizeLabel[firstPet.size]} · {firstPet.age}살</p></div></m.div>
+              ) : status === 'success' && visiblePets.length > 0 ? (
+                <m.div
+                  key="pet-summary-ready"
+                  initial={prefersReducedMotion ? false : { opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: prefersReducedMotion ? 0 : 0.22, ease: PROFILE_MOTION_EASE }}
+                  className="relative"
+                >
+                  <div className="grid grid-cols-3 gap-2">
+                    {visiblePets.map((pet) => (
+                      <div key={pet.id} className="flex min-w-0 flex-col items-center rounded-card bg-muted/40 px-2 py-2 text-center">
+                        <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-full border border-border">
+                          <Image src="/images/dog-hero.png" alt="" fill className="object-cover" loading="eager" />
+                        </div>
+                        <p className="mt-1.5 max-w-full truncate text-[12px] font-semibold text-deep-brown">{pet.petName}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {remainingPetCount > 0 && (
+                    <p className="mt-2 flex min-w-0 items-center justify-center gap-1 text-center text-[11px] text-warm-gray">
+                      <span className="sr-only">{visiblePetNames} 외 {remainingPetCount}마리</span>
+                      <span aria-hidden="true" className="min-w-0 truncate">{visiblePetNames}</span>
+                      <span aria-hidden="true" className="shrink-0">외 {remainingPetCount}마리</span>
+                    </p>
+                  )}
+                </m.div>
               ) : status === 'success' ? (
-                <m.p key="pet-summary-empty" initial={prefersReducedMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} className="relative text-[12px] text-warm-gray">등록된 반려견이 없습니다.</m.p>
+                <m.p key="pet-summary-empty" initial={prefersReducedMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} className="relative flex min-h-28 items-center justify-center text-[12px] text-warm-gray">등록된 반려견이 없습니다.</m.p>
               ) : (
-                <m.p key="pet-summary-error" initial={prefersReducedMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} className="relative text-[12px] text-warm-gray">반려동물 정보를 표시할 수 없어요.</m.p>
+                <m.p key="pet-summary-error" initial={prefersReducedMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} className="relative flex min-h-28 items-center justify-center text-[12px] text-warm-gray">반려동물 정보를 표시할 수 없어요.</m.p>
               )}
             </AnimatePresence>
           </div>
-        </m.div>
+        </m.section>
 
         <m.div
           initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}

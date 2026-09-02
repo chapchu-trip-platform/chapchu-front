@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ProfileRoute from '@/features/profile/components/profile-route'
@@ -128,7 +128,6 @@ describe('ProfileRoute', () => {
     expect(
       screen.getByRole('button', { name: /반려동물 관리.*반려동물 정보를 불러오는 중/ })
     ).toBeDisabled()
-    expect(screen.getByRole('button', { name: '관리' })).toBeDisabled()
 
     await act(async () => {
       summaryRequest.resolve({ ...mockProfileSummary, petCount: 1 })
@@ -154,7 +153,6 @@ describe('ProfileRoute', () => {
         'false'
       )
     })
-    expect(screen.getByRole('button', { name: '관리' })).toBeEnabled()
   })
 
   it('loads the mypage summary and pets from the profile API', async () => {
@@ -165,6 +163,46 @@ describe('ProfileRoute', () => {
     expect(screen.getAllByText('초코').length).toBeGreaterThan(0)
     expect(fetchProfileSummary).toHaveBeenCalledOnce()
     expect(fetchPets).toHaveBeenCalledOnce()
+  })
+
+  it('shows three pets in the summary and combines the remaining count', async () => {
+    vi.mocked(fetchProfileSummary).mockResolvedValue(mockProfileSummary)
+    vi.mocked(fetchPets).mockResolvedValue(mockProfilePets)
+
+    render(<ProfileRoute />)
+
+    const petSummary = await screen.findByRole('region', { name: '나의 반려동물' })
+    const summary = within(petSummary)
+    const visiblePets = mockProfilePets.slice(0, 3)
+
+    expect(summary.getByText(`총 ${mockProfilePets.length}마리`)).toBeInTheDocument()
+    for (const profilePet of visiblePets) {
+      expect(summary.getByText(profilePet.petName)).toBeInTheDocument()
+    }
+    expect(summary.queryByText(mockProfilePets[3].petName)).not.toBeInTheDocument()
+    expect(
+      summary.getByText(
+        `${visiblePets.map((profilePet) => profilePet.petName).join(' · ')} 외 ${mockProfilePets.length - visiblePets.length}마리`
+      )
+    ).toBeInTheDocument()
+    expect(summary.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('does not show a remaining count when exactly three pets are loaded', async () => {
+    const threePets = mockProfilePets.slice(0, 3)
+    vi.mocked(fetchProfileSummary).mockResolvedValue({
+      ...mockProfileSummary,
+      petCount: threePets.length,
+    })
+    vi.mocked(fetchPets).mockResolvedValue(threePets)
+
+    render(<ProfileRoute />)
+
+    const petSummary = await screen.findByRole('region', { name: '나의 반려동물' })
+    const summary = within(petSummary)
+
+    expect(summary.getByText('총 3마리')).toBeInTheDocument()
+    expect(summary.queryByText(/외 \d+마리/)).not.toBeInTheDocument()
   })
 
   it('opens nickname settings and updates the visible nickname', async () => {
@@ -205,7 +243,7 @@ describe('ProfileRoute', () => {
     await screen.findByRole('heading', { name: '초코맘' })
     await user.click(
       screen.getByRole('button', {
-        name: new RegExp(`반려동물 관리.*초코 · ${mockProfilePets.length}마리`),
+        name: /반려동물 관리.*추가 · 수정 · 삭제/,
       })
     )
     expect(await screen.findByRole('button', { name: '반려동물 추가하기' })).toBeInTheDocument()
@@ -341,7 +379,7 @@ describe('ProfileRoute', () => {
     render(<ProfileRoute />)
 
     await screen.findByRole('heading', { name: '초코맘' })
-    await user.click(screen.getByRole('button', { name: /반려동물 관리.*초코 · 1마리/ }))
+    await user.click(screen.getByRole('button', { name: /반려동물 관리.*추가 · 수정 · 삭제/ }))
     await user.click(await screen.findByRole('button', { name: '반려동물 추가하기' }))
     await user.type(await screen.findByPlaceholderText('반려견 이름'), '보리')
     await user.selectOptions(screen.getByLabelText('견종'), '7')
@@ -400,7 +438,6 @@ describe('ProfileRoute', () => {
     expect(screen.getByText('반려동물 정보를 표시할 수 없어요.')).toBeInTheDocument()
     expect(screen.queryByText('이메일 정보 없음')).not.toBeInTheDocument()
     expect(screen.queryByText('등록된 반려견이 없습니다.')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '관리' })).toBeDisabled()
     expect(screen.queryByText('이전사용자반려견')).not.toBeInTheDocument()
     expect(usePetStore.getState().pets).toEqual([])
 
@@ -441,7 +478,7 @@ describe('ProfileRoute', () => {
     render(<ProfileRoute />)
 
     await screen.findByRole('heading', { name: '초코맘' })
-    await user.click(screen.getByRole('button', { name: /반려동물 관리.*초코 · 1마리/ }))
+    await user.click(screen.getByRole('button', { name: /반려동물 관리.*추가 · 수정 · 삭제/ }))
     await user.click(await screen.findByRole('button', { name: '반려동물 추가하기' }))
     await screen.findByRole('alert')
     await user.click(screen.getByRole('button', { name: '다시 시도' }))
@@ -459,7 +496,7 @@ describe('ProfileRoute', () => {
     render(<ProfileRoute />)
 
     await screen.findByRole('heading', { name: '초코맘' })
-    await user.click(screen.getByRole('button', { name: /반려동물 관리.*초코 · 1마리/ }))
+    await user.click(screen.getByRole('button', { name: /반려동물 관리.*추가 · 수정 · 삭제/ }))
     await user.click(await screen.findByRole('button', { name: '초코 삭제' }))
     const deleteButton = screen.getByRole('button', { name: /완전히 삭제하기/ })
     await user.click(deleteButton)
@@ -476,7 +513,7 @@ describe('ProfileRoute', () => {
     render(<ProfileRoute />)
 
     await screen.findByRole('heading', { name: '초코맘' })
-    await user.click(screen.getByRole('button', { name: /반려동물 관리.*초코 · 1마리/ }))
+    await user.click(screen.getByRole('button', { name: /반려동물 관리.*추가 · 수정 · 삭제/ }))
     await user.click(await screen.findByRole('button', { name: '반려동물 추가하기' }))
     await user.type(await screen.findByPlaceholderText('반려견 이름'), '보리')
 
