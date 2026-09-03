@@ -324,14 +324,14 @@ export async function withdrawAccount() {
 }
 
 export async function fetchMyPosts(signal?: AbortSignal) {
-  const { data }: { data: unknown } = await apiClient.get(API_ENDPOINTS.community.myPosts, {
+  const { data }: { data: unknown } = await apiClient.get(API_ENDPOINTS.users.posts, {
     signal,
   })
   return parseCollection(data, 'Profile posts').map(parsePost)
 }
 
 export async function fetchBookmarks(signal?: AbortSignal) {
-  const { data }: { data: unknown } = await apiClient.get(API_ENDPOINTS.community.myBookmarks, {
+  const { data }: { data: unknown } = await apiClient.get(API_ENDPOINTS.users.bookmarks, {
     signal,
   })
   return parseCollection(data, 'Bookmarks').map(parsePost)
@@ -339,7 +339,7 @@ export async function fetchBookmarks(signal?: AbortSignal) {
 
 export async function removeBookmark(postId: string) {
   await apiClient.delete(
-    API_ENDPOINTS.community.bookmarks(requireIdentifier(postId, 'Post ID'))
+    API_ENDPOINTS.community.bookmark(requireIdentifier(postId, 'Post ID'))
   )
 }
 
@@ -403,7 +403,7 @@ export async function removeWishlistPlace(placeId: string) {
 }
 
 export async function fetchMyReviews(signal?: AbortSignal) {
-  const { data }: { data: unknown } = await apiClient.get(API_ENDPOINTS.reviews.mine, {
+  const { data }: { data: unknown } = await apiClient.get(API_ENDPOINTS.users.reviews, {
     signal,
   })
   return parseCollection(data, 'Profile reviews').map(parseReview)

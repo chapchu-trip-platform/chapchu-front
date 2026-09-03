@@ -286,40 +286,75 @@ My Page uses authenticated API calls for the summary, pets, written posts, bookm
 wishlist, reviews, nickname changes, and account withdrawal. Breed, activity, and nickname
 availability lookups remain public according to the published onboarding contract.
 
-The profile adapter validates response shapes. Summary and pets load in parallel;
-collections load on demand. Wishlist place IDs remain authoritative for removal, while
-place details are fetched with bounded concurrency. Current limitations: collections over
-200 entries are rejected, and any failed wishlist detail request fails that list load.
-Pagination/aggregated place responses and partial-detail failures need follow-up work.
-
-The documented nickname PATCH response may contain `nickname: null`. In that case, the
-client reads the summary and confirms the requested nickname before reporting success.
-A failed or mismatched confirmation is an error; the successful PATCH is not replayed.
+The profile API adapter validates response shapes before updating UI state. My Page summary
+and pets load in parallel, while collection sub-screens load on demand. Wishlist entries are
+returned as place IDs, so the frontend preserves those authoritative IDs for removal and
+hydrates display fields through place-detail requests with bounded concurrency. This fan-out
+should still be replaced by an aggregated or embedded-place backend response if wishlist
+size grows or pagination is introduced.
 
 The current contracts do not provide travel-distance, visited-place, stamp, memorial-album,
-profile-photo, or pet-photo data suitable for the existing design. The UI keeps unavailable
-statistics and placeholder photos without inventing API values. Stamp and memorial-album
-screens retain their menus, back navigation, and unavailable-feature notices. Their former
-demo collections stay removed. `data/mock/profile.ts` is imported only by tests.
+profile-photo, or pet-photo data suitable for the existing design. The UI keeps those visual
+positions without presenting fabricated API values. The trip-photo API is not reused because
+it requires a course-place association.
+
+Stamp and memorial-album sub-screens retain their menu entries, back navigation, and
+unavailable-feature notices until their contracts are available. The former sample stamp
+and memorial-album collections and their unused model types have been removed. Remaining
+`data/mock/profile.ts` fixtures are test-only: they preserve multi-item and pet-overflow
+regression coverage without being imported by runtime screens or API modules.
 
 Account withdrawal sends the documented `accountStatus: WITHDRAWN` update. The UI does not
-claim hard deletion of all related data. After success it calls logout and clears in-memory
-session and pet state. Backend coordination must confirm session-wide revocation and recent
-reauthentication requirements, plus deletion, retention, and restoration semantics.
+claim that this hard-deletes all related data because deletion, retention, and restoration
+semantics are not defined in the published contract. After a successful withdrawal update,
+the frontend also calls the cookie-session logout route and clears all in-memory auth and pet
+state before returning to login. Backend coordination must confirm that withdrawal atomically
+revokes every refresh session, not only the current browser cookie, and should define a recent
+reauthentication requirement for this sensitive action.
 
-Protected mutations are not automatically replayed after session refresh. Live verification
-is read-only; mutation tests use local test doubles without changing shared user data.
+Protected mutation requests are not automatically replayed after a token refresh because
+replaying a POST, PATCH, or DELETE can duplicate a non-idempotent operation. If a token expires
+during a My Page mutation, the UI reports the failure and requires an explicit user retry.
+The backend should make DELETE operations idempotent and provide idempotency support for any
+future non-idempotent mutation that needs transparent retry.
 
-Async profile results are scoped to the mounted screen and originating session. Nickname
-follow-up requests and queued wishlist details stop when that session changes. Pending
-removals are serialized; dialogs isolate background navigation through their exit animation,
-and opening deletion cancels a pending editor/options load to prevent overlapping dialogs.
+### My Page reliability follow-up
 
-Reintegration validation (2026-09-03): `npm run lint`, `npm run typecheck`, `npm run test`
-(40 files / 306 tests), and `npm run build` passed. Authenticated browser checks confirmed
-summary, pet list and public editor options; posts, wishlist, bookmarks, and reviews showed
-the live account's empty states. Editor cancellation restored navigation, and switching to
-the community screen and back preserved both features. No live mutations were performed.
-API/security, UI, and test reviewers completed read-only reviews; required findings were
-resolved. Additional follow-ups include pet-edit success/failure UI coverage, sublist retry
-coverage, and shared contract fixtures with community adapters.
+The nickname update response can contain a null nickname. The client confirms the saved
+value with a summary read and reports an error if it cannot confirm it, without replaying
+the update. Late profile results cannot update pet state after the screen unmounts or the
+session changes; nickname follow-ups and queued wishlist reads stop when no longer current.
+
+Pending list removals are serialized. Profile dialogs isolate background navigation until
+their exit completes, and opening deletion cancels a pending editor/options load to avoid
+overlapping dialogs. Regression tests cover nullable responses, delayed operations, dialog
+isolation, and list-removal success/failure. These changes are maintained on the My Page
+feature branch using its existing endpoint constants, independently of community changes.
+
+Collection limits remain a follow-up: responses over 200 entries are rejected, and a failed
+wishlist detail request fails the list load. Pagination and partial-detail support require
+further coordination. Live checks remain read-only; mutations use local test doubles.
+
+My Page branch validation (2026-09-03): lint, typecheck, all 260 tests across 37 files, and
+the production build passed. The authenticated profile screen loaded successfully after
+the branch transfer. API/security, UI, and test reviews found no remaining blocking issues.
+
+### Community integration with latest dev (2026-09-04)
+
+Pulled `dev` with fast-forward only to `e4c2e67` and integrated it into
+`feature/community-api`. The profile adapter follows the current dev implementation;
+community and profile reuse the same user collection and bookmark endpoint constants.
+Written-post and bookmark titles in My Page now open their community detail with an
+encoded post ID. The settings keyboard loop includes these links.
+
+The published community/review documentation loaded successfully and retained its
+2026-08-30 update timestamp. Existing contract limitations listed above remain in place.
+The local server, default-region weather/UV route, and TMAP SDK route responded
+successfully; Home map tiles rendered. An unauthenticated backend request returned 401,
+confirming reachability only. The existing authenticated browser session loaded a Home
+HOT post's matching detail and My Page successfully. Live checks were read-only.
+
+Validation: lint, typecheck, all 309 tests across 40 files, and production build passed.
+Regression coverage includes failed post edits and reports with explicit retry, profile
+detail links, encoded IDs, keyboard navigation, and asynchronous dialog cleanup.
+Canonical API/security, Next.js/UI, and test reviews completed with no remaining blockers.

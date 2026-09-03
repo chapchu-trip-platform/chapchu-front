@@ -228,6 +228,9 @@ describe('ProfileRoute', () => {
 
     expect(await screen.findByText('초코와 여행 기록')).toBeInTheDocument()
     expect(fetchMyPosts).toHaveBeenCalledOnce()
+    expect(screen.getByRole('link', { name: mockProfilePosts[0].title })).toHaveAttribute(
+      'href', `/community?post=${encodeURIComponent(mockProfilePosts[0].id)}`
+    )
   })
 
   it('renders every pet in the pet management list', async () => {
@@ -342,6 +345,9 @@ describe('ProfileRoute', () => {
 
     for (const bookmark of mockProfileBookmarks) {
       expect(screen.getByText(bookmark.title)).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: bookmark.title })).toHaveAttribute(
+        'href', `/community?post=${encodeURIComponent(bookmark.id)}`
+      )
       expect(screen.getAllByText(bookmark.nickname).length).toBeGreaterThan(0)
       expect(screen.getByRole('button', { name: `${bookmark.title} 북마크 해제` })).toBeInTheDocument()
     }
@@ -557,10 +563,12 @@ describe('ProfileRoute', () => {
       expect(nav).toHaveAttribute('aria-hidden', 'true')
       expect(trigger.closest('[inert]')).not.toBeNull()
       await user.keyboard('{Escape}')
-      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-      expect(nav).not.toHaveAttribute('inert')
-      expect(nav).not.toHaveAttribute('aria-hidden')
-      expect(trigger).toHaveFocus()
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        expect(nav).not.toHaveAttribute('inert')
+        expect(nav).not.toHaveAttribute('aria-hidden')
+        expect(trigger).toHaveFocus()
+      })
     }
   )
 
@@ -685,5 +693,32 @@ describe('ProfileRoute', () => {
     await user.click(screen.getByRole('button', { name: '뒤로 가기' }))
     await waitFor(() => expect(screen.queryByRole('dialog', { name: '내정보 설정' })).not.toBeInTheDocument())
     expect(settingsTrigger).toHaveFocus()
+  })
+  it('includes post links in the settings keyboard loop and encodes the post ID', async () => {
+    const posts = [
+      { ...mockProfilePosts[0], id: 'post/with?query&value', title: '첫 번째 글' },
+      { ...mockProfilePosts[0], id: 'second-post', title: '두 번째 글' },
+    ]
+    vi.mocked(fetchMyPosts).mockResolvedValue(posts)
+    const user = userEvent.setup()
+    render(<ProfileRoute />)
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: /작성한 글.*내 작성글 보기/ }))
+    const firstLink = await screen.findByRole('link', { name: posts[0].title })
+    const lastLink = screen.getByRole('link', { name: posts[1].title })
+    const back = screen.getByRole('button', { name: '뒤로 가기' })
+    expect(firstLink).toHaveAttribute('href', '/community?post=post%2Fwith%3Fquery%26value')
+    expect(back).toHaveFocus()
+    await user.tab()
+    expect(within(screen.getByRole('dialog', { name: '내정보 설정' }))
+      .getByRole('button', { name: /알림/ })).toHaveFocus()
+    await user.tab()
+    expect(firstLink).toHaveFocus()
+    await user.tab()
+    expect(lastLink).toHaveFocus()
+    await user.tab()
+    expect(back).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(lastLink).toHaveFocus()
   })
 })

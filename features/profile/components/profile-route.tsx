@@ -120,7 +120,7 @@ export default function ProfileRoute() {
     if (!panel) return
 
     const focusableSelector =
-      'button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      'a[href]:not([tabindex="-1"]), button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
     const focusableElements = () =>
       Array.from(panel.querySelectorAll<HTMLElement>(focusableSelector))
     focusableElements()[0]?.focus()

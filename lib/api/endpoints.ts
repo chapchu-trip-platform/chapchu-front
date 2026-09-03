@@ -26,8 +26,12 @@ export const API_ENDPOINTS = {
   users: {
     me: '/users/me',
     mypage: '/users/me/mypage',
+    preferences: '/users/me/preferences',
+    posts: '/users/me/posts',
+    bookmarks: '/users/me/bookmarks',
     wishlist: '/users/me/wishlist',
     wishlistPlace: (placeId: string) => `/users/me/wishlist/${pathId(placeId)}`,
+    reviews: '/users/me/reviews',
     nicknameAvailability: '/users/nickname/availability',
   },
   pets: {
@@ -46,17 +50,14 @@ export const API_ENDPOINTS = {
   community: {
     posts: '/posts',
     post: (postId: string) => `/posts/${pathId(postId)}`,
-    myPosts: '/users/me/posts',
-    myBookmarks: '/users/me/bookmarks',
     recommendations: (postId: string) => `/posts/${pathId(postId)}/recommendations`,
-    bookmarks: (postId: string) => `/posts/${pathId(postId)}/bookmarks`,
+    bookmark: (postId: string) => `/posts/${pathId(postId)}/bookmarks`,
     reports: (postId: string) => `/posts/${pathId(postId)}/reports`,
     comments: (postId: string) => `/posts/${pathId(postId)}/comments`,
     comment: (commentId: string) => `/comments/${pathId(commentId)}`,
   },
   reviews: {
     list: '/reviews',
-    mine: '/users/me/reviews',
     byPlace: (placeId: string) => `/places/${pathId(placeId)}/reviews`,
     detail: (reviewId: string) => `/reviews/${pathId(reviewId)}`,
     recommendations: (reviewId: string) => `/reviews/${pathId(reviewId)}/recommendations`,

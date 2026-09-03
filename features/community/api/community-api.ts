@@ -18,12 +18,12 @@ export async function fetchPost(postId: string, signal?: AbortSignal) {
 }
 
 export async function fetchMyPosts(signal?: AbortSignal) {
-  const { data } = await apiClient.get<unknown>(endpoints.myPosts, { signal })
+  const { data } = await apiClient.get<unknown>(API_ENDPOINTS.users.posts, { signal })
   return parsePosts(data)
 }
 
 export async function fetchMyBookmarks(signal?: AbortSignal) {
-  const { data } = await apiClient.get<unknown>(endpoints.myBookmarks, { signal })
+  const { data } = await apiClient.get<unknown>(API_ENDPOINTS.users.bookmarks, { signal })
   return parsePosts(data)
 }
 
@@ -48,7 +48,7 @@ export async function setPostRecommendation(postId: string, recommended: boolean
 }
 
 export async function setPostBookmark(postId: string, bookmarked: boolean) {
-  const path = endpoints.bookmarks(postId)
+  const path = endpoints.bookmark(postId)
   if (bookmarked) await apiClient.post(path)
   else await apiClient.delete(path)
 }
@@ -70,7 +70,7 @@ export async function deleteComment(commentId: string) {
 }
 
 export async function fetchMyReviews(signal?: AbortSignal) {
-  const { data } = await apiClient.get<unknown>(API_ENDPOINTS.reviews.mine, { signal })
+  const { data } = await apiClient.get<unknown>(API_ENDPOINTS.users.reviews, { signal })
   return parseReviews(data)
 }
 
