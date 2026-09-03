@@ -200,3 +200,62 @@ If the current `GET /places/nearby` contract is used temporarily, it must only r
 explicit service consent and device permission, and the request coordinates must be reduced
 to the minimum precision needed for Home. The client diagnostics redact location fields and
 coordinate query parameters before any future integration.
+
+## My Page API Status
+
+My Page uses authenticated API calls for the summary, pets, written posts, bookmarks,
+wishlist, reviews, nickname changes, and account withdrawal. Breed, activity, and nickname
+availability lookups remain public according to the published onboarding contract.
+
+The profile API adapter validates response shapes before updating UI state. My Page summary
+and pets load in parallel, while collection sub-screens load on demand. Wishlist entries are
+returned as place IDs, so the frontend preserves those authoritative IDs for removal and
+hydrates display fields through place-detail requests with bounded concurrency. This fan-out
+should still be replaced by an aggregated or embedded-place backend response if wishlist
+size grows or pagination is introduced.
+
+The current contracts do not provide travel-distance, visited-place, stamp, memorial-album,
+profile-photo, or pet-photo data suitable for the existing design. The UI keeps those visual
+positions without presenting fabricated API values. The trip-photo API is not reused because
+it requires a course-place association.
+
+Stamp and memorial-album sub-screens retain their menu entries, back navigation, and
+unavailable-feature notices until their contracts are available. The former sample stamp
+and memorial-album collections and their unused model types have been removed. Remaining
+`data/mock/profile.ts` fixtures are test-only: they preserve multi-item and pet-overflow
+regression coverage without being imported by runtime screens or API modules.
+
+Account withdrawal sends the documented `accountStatus: WITHDRAWN` update. The UI does not
+claim that this hard-deletes all related data because deletion, retention, and restoration
+semantics are not defined in the published contract. After a successful withdrawal update,
+the frontend also calls the cookie-session logout route and clears all in-memory auth and pet
+state before returning to login. Backend coordination must confirm that withdrawal atomically
+revokes every refresh session, not only the current browser cookie, and should define a recent
+reauthentication requirement for this sensitive action.
+
+Protected mutation requests are not automatically replayed after a token refresh because
+replaying a POST, PATCH, or DELETE can duplicate a non-idempotent operation. If a token expires
+during a My Page mutation, the UI reports the failure and requires an explicit user retry.
+The backend should make DELETE operations idempotent and provide idempotency support for any
+future non-idempotent mutation that needs transparent retry.
+
+### My Page reliability follow-up
+
+The nickname update response can contain a null nickname. The client confirms the saved
+value with a summary read and reports an error if it cannot confirm it, without replaying
+the update. Late profile results cannot update pet state after the screen unmounts or the
+session changes; nickname follow-ups and queued wishlist reads stop when no longer current.
+
+Pending list removals are serialized. Profile dialogs isolate background navigation until
+their exit completes, and opening deletion cancels a pending editor/options load to avoid
+overlapping dialogs. Regression tests cover nullable responses, delayed operations, dialog
+isolation, and list-removal success/failure. These changes are maintained on the My Page
+feature branch using its existing endpoint constants, independently of community changes.
+
+Collection limits remain a follow-up: responses over 200 entries are rejected, and a failed
+wishlist detail request fails the list load. Pagination and partial-detail support require
+further coordination. Live checks remain read-only; mutations use local test doubles.
+
+My Page branch validation (2026-09-03): lint, typecheck, all 260 tests across 37 files, and
+the production build passed. The authenticated profile screen loaded successfully after
+the branch transfer. API/security, UI, and test reviews found no remaining blocking issues.
