@@ -238,3 +238,24 @@ replaying a POST, PATCH, or DELETE can duplicate a non-idempotent operation. If 
 during a My Page mutation, the UI reports the failure and requires an explicit user retry.
 The backend should make DELETE operations idempotent and provide idempotency support for any
 future non-idempotent mutation that needs transparent retry.
+
+### My Page reliability follow-up
+
+The nickname update response can contain a null nickname. The client confirms the saved
+value with a summary read and reports an error if it cannot confirm it, without replaying
+the update. Late profile results cannot update pet state after the screen unmounts or the
+session changes; nickname follow-ups and queued wishlist reads stop when no longer current.
+
+Pending list removals are serialized. Profile dialogs isolate background navigation until
+their exit completes, and opening deletion cancels a pending editor/options load to avoid
+overlapping dialogs. Regression tests cover nullable responses, delayed operations, dialog
+isolation, and list-removal success/failure. These changes are maintained on the My Page
+feature branch using its existing endpoint constants, independently of community changes.
+
+Collection limits remain a follow-up: responses over 200 entries are rejected, and a failed
+wishlist detail request fails the list load. Pagination and partial-detail support require
+further coordination. Live checks remain read-only; mutations use local test doubles.
+
+My Page branch validation (2026-09-03): lint, typecheck, all 260 tests across 37 files, and
+the production build passed. The authenticated profile screen loaded successfully after
+the branch transfer. API/security, UI, and test reviews found no remaining blocking issues.

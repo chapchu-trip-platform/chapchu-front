@@ -100,7 +100,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   usePetStore.setState({ pets: [], selectedPetId: null })
-  useAuthStore.setState({ status: 'authenticated', accessToken: 'test-token' })
+  useAuthStore.setState({ status: 'authenticated', accessToken: 'test-token', sessionEpoch: 0 })
   resetNextNavigationMocks()
   vi.clearAllMocks()
 })
@@ -491,11 +491,38 @@ describe('ProfileRoute', () => {
     const deleteButton = screen.getByRole('button', { name: /완전히 삭제하기/ })
     await user.click(deleteButton)
     expect(deleteButton).toBeDisabled()
+    const memoryButton = screen.getByRole('button', { name: /추억으로 보관하기/ })
+    expect(memoryButton).toBeDisabled()
+    await user.click(memoryButton)
+    expect(screen.getByRole('dialog', { name: '초코 삭제' })).toBeInTheDocument()
     await user.click(deleteButton)
     expect(deletePet).toHaveBeenCalledOnce()
 
     resolveDelete?.()
     await waitFor(() => expect(screen.queryByRole('dialog', { name: '초코 삭제' })).not.toBeInTheDocument())
+  })
+
+  it('cancels a pending editor when deletion opens and never stacks both modals', async () => {
+    const user = userEvent.setup()
+    const options = createDeferred<typeof mockProfilePetOptions>()
+    vi.mocked(fetchPetOptions).mockReturnValueOnce(options.promise)
+    render(<><ProfileRoute /><nav data-bottom-nav aria-label="하단 메뉴"><button>다른 화면</button></nav></>)
+    const nav = screen.getByRole('navigation')
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: /반려동물 관리.*추가 · 수정 · 삭제/ }))
+    await user.click(await screen.findByRole('button', { name: '초코 수정' }))
+    await screen.findByText('견종과 활동 정보를 불러오는 중...')
+    await user.click(screen.getByRole('button', { name: '초코 삭제' }))
+    expect(vi.mocked(fetchPetOptions).mock.calls[0][0]?.aborted).toBe(true)
+    await act(async () => options.resolve(mockProfilePetOptions))
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(screen.getByRole('dialog', { name: '초코 삭제' })).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('반려견 이름')).not.toBeInTheDocument()
+    expect(nav).toHaveAttribute('inert')
+    await user.click(screen.getByRole('button', { name: '취소' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(nav).not.toHaveAttribute('inert')
+    expect(nav).not.toHaveAttribute('aria-hidden')
   })
 
   it('requires explicit breed and age values before pet registration', async () => {
@@ -510,6 +537,137 @@ describe('ProfileRoute', () => {
     expect(screen.getByRole('button', { name: '저장하기' })).toBeDisabled()
     expect(screen.getByLabelText('견종')).toHaveValue('')
   })
+
+  it.each(['create', 'update', 'delete', 'withdraw'] as const)(
+    'isolates navigation and background during the %s dialog and restores them on exit',
+    async (operation) => {
+      const user = userEvent.setup()
+      render(<><ProfileRoute /><nav data-bottom-nav aria-label="하단 메뉴"><button>다른 화면</button></nav></>)
+      const nav = screen.getByRole('navigation')
+      await screen.findByRole('heading', { name: '초코맘' })
+      if (operation !== 'withdraw') {
+        await user.click(screen.getByRole('button', { name: /반려동물 관리.*추가 · 수정 · 삭제/ }))
+      }
+      const trigger = await screen.findByRole('button', {
+        name: operation === 'create' ? '반려동물 추가하기' : operation === 'update' ? '초코 수정' : operation === 'delete' ? '초코 삭제' : '회원 탈퇴',
+      })
+      await user.click(trigger)
+      await screen.findByRole('dialog')
+      expect(nav).toHaveAttribute('inert')
+      expect(nav).toHaveAttribute('aria-hidden', 'true')
+      expect(trigger.closest('[inert]')).not.toBeNull()
+      await user.keyboard('{Escape}')
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(nav).not.toHaveAttribute('inert')
+      expect(nav).not.toHaveAttribute('aria-hidden')
+      expect(trigger).toHaveFocus()
+    }
+  )
+
+  it.each([
+    ['create', 'unmount'], ['create', 'session'],
+    ['update', 'unmount'], ['update', 'session'],
+    ['delete', 'unmount'], ['delete', 'session'],
+  ] as const)('ignores a late pet %s result after %s', async (operation, change) => {
+    const user = userEvent.setup()
+    const request = createDeferred<typeof pet>()
+    const deletion = createDeferred<void>()
+    if (operation === 'create') vi.mocked(createPet).mockReturnValueOnce(request.promise)
+    if (operation === 'update') vi.mocked(updatePet).mockReturnValueOnce(request.promise)
+    if (operation === 'delete') vi.mocked(deletePet).mockReturnValueOnce(deletion.promise)
+    const { unmount } = render(<ProfileRoute />)
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: /반려동물 관리.*추가 · 수정 · 삭제/ }))
+    await user.click(await screen.findByRole('button', {
+      name: operation === 'create' ? '반려동물 추가하기' : operation === 'update' ? '초코 수정' : '초코 삭제',
+    }))
+    if (operation === 'create') {
+      await user.type(await screen.findByPlaceholderText('반려견 이름'), '보리')
+      await user.selectOptions(screen.getByLabelText('견종'), '7')
+      await user.type(screen.getByPlaceholderText('3'), '2')
+    }
+    await user.click(await screen.findByRole('button', {
+      name: operation === 'delete' ? /완전히 삭제하기/ : '저장하기',
+    }))
+    expect(operation === 'create' ? createPet : operation === 'update' ? updatePet : deletePet).toHaveBeenCalledOnce()
+    const newSessionPets = [{ ...pet, petName: '새 세션 반려견' }]
+    await act(async () => {
+      if (change === 'unmount') unmount()
+      else useAuthStore.setState({ sessionEpoch: useAuthStore.getState().sessionEpoch + 1 })
+      usePetStore.setState({ pets: newSessionPets })
+      request.resolve({ ...pet, petName: '이전 요청 결과' })
+      deletion.resolve()
+      await Promise.resolve()
+    })
+    expect(usePetStore.getState().pets).toEqual(newSessionPets)
+  })
+
+  it('does not log out a new session when an earlier withdrawal finishes', async () => {
+    const user = userEvent.setup()
+    const request = createDeferred<void>()
+    vi.mocked(withdrawAccount).mockReturnValueOnce(request.promise)
+    render(<ProfileRoute />)
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: '회원 탈퇴' }))
+    await user.click(screen.getByRole('button', { name: '위 내용을 확인했습니다' }))
+    await user.click(screen.getByRole('button', { name: '탈퇴하기' }))
+    await act(async () => {
+      useAuthStore.setState({ sessionEpoch: useAuthStore.getState().sessionEpoch + 1 })
+      request.resolve()
+    })
+    expect(logout).not.toHaveBeenCalled()
+    expect(mockRouter.replace).not.toHaveBeenCalled()
+  })
+
+  it('does not redirect or clear pets from a new session after a delayed logout', async () => {
+    const user = userEvent.setup()
+    const request = createDeferred<void>()
+    vi.mocked(logout).mockReturnValueOnce(request.promise)
+    render(<ProfileRoute />)
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: '로그아웃' }))
+    const newSessionPets = [{ ...pet, petName: '새 세션 반려견' }]
+    await act(async () => {
+      useAuthStore.setState({ sessionEpoch: useAuthStore.getState().sessionEpoch + 1 })
+      usePetStore.setState({ pets: newSessionPets })
+      request.resolve()
+    })
+    expect(mockRouter.replace).not.toHaveBeenCalled()
+    expect(usePetStore.getState().pets).toEqual(newSessionPets)
+  })
+
+  it.each(['wishlist', 'bookmarks'] as const)(
+    'serializes %s removal, retains failed rows and removes only confirmed rows',
+    async (tab) => {
+      const user = userEvent.setup()
+      const request = createDeferred<void>()
+      vi.mocked(fetchWishlist).mockResolvedValue(mockProfileWishlist.slice(0, 2))
+      vi.mocked(fetchBookmarks).mockResolvedValue(mockProfileBookmarks.slice(0, 2))
+      const remove = tab === 'wishlist' ? vi.mocked(removeWishlistPlace) : vi.mocked(removeBookmark)
+      remove.mockRejectedValueOnce(new Error('failed')).mockReturnValueOnce(request.promise)
+      render(<ProfileRoute />)
+      await screen.findByRole('heading', { name: '초코맘' })
+      await user.click(screen.getByRole('button', {
+        name: tab === 'wishlist' ? /장소 위시리스트.*저장한 장소 보기/ : /북마크.*저장한 게시글 보기/,
+      }))
+      const label = (index: number) => tab === 'wishlist'
+        ? `${mockProfileWishlist[index].placeName} 위시리스트에서 제거`
+        : `${mockProfileBookmarks[index].title} 북마크 해제`
+      const first = await screen.findByRole('button', { name: label(0) })
+      const second = screen.getByRole('button', { name: label(1) })
+      await user.click(first)
+      expect(await screen.findByRole('alert')).toBeInTheDocument()
+      expect(first).toBeEnabled()
+      await user.click(first)
+      expect(first).toBeDisabled()
+      expect(second).toBeDisabled()
+      await user.click(second)
+      expect(remove).toHaveBeenCalledTimes(2)
+      await act(async () => request.resolve())
+      await waitFor(() => expect(screen.queryByRole('button', { name: label(0) })).not.toBeInTheDocument())
+      expect(second).toBeEnabled()
+    }
+  )
 
   it('traps focus in settings and restores it after the exit transition', async () => {
     const user = userEvent.setup()

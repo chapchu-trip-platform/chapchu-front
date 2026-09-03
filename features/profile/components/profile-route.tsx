@@ -34,6 +34,7 @@ export default function ProfileRoute() {
   const [status, setStatus] = useState<ProfileLoadStatus>('loading')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const loadControllerRef = useRef<AbortController | null>(null)
+  const mountedRef = useRef(false)
   const settingsPanelRef = useRef<HTMLDivElement | null>(null)
   const settingsTriggerRef = useRef<HTMLElement | null>(null)
   const pets = usePetStore((state) => state.pets)
@@ -42,6 +43,9 @@ export default function ProfileRoute() {
   const removePet = usePetStore((state) => state.removePet)
 
   const requestProfile = useCallback((controller: AbortController) => {
+    const sessionEpoch = useAuthStore.getState().sessionEpoch
+    const isCurrent = () => !controller.signal.aborted &&
+      mountedRef.current && useAuthStore.getState().sessionEpoch === sessionEpoch
     loadControllerRef.current?.abort()
     loadControllerRef.current = controller
     setPets([])
@@ -51,13 +55,13 @@ export default function ProfileRoute() {
       fetchPets(controller.signal),
     ])
       .then(([nextSummary, nextPets]) => {
-        if (controller.signal.aborted) return
+        if (!isCurrent()) return
         setSummary(nextSummary)
         setPets(nextPets)
         setStatus('success')
       })
       .catch((error: unknown) => {
-        if (controller.signal.aborted) return
+        if (!isCurrent()) return
         setPets([])
         setErrorMessage(getProfileErrorMessage(error))
         setStatus('error')
@@ -65,11 +69,16 @@ export default function ProfileRoute() {
   }, [setPets])
 
   useEffect(() => {
+    mountedRef.current = true
+    const sessionEpoch = useAuthStore.getState().sessionEpoch
     const controller = new AbortController()
     requestProfile(controller)
     return () => {
+      mountedRef.current = false
       loadControllerRef.current?.abort()
-      usePetStore.getState().setPets([])
+      if (useAuthStore.getState().sessionEpoch === sessionEpoch) {
+        usePetStore.getState().setPets([])
+      }
     }
   }, [requestProfile])
 
@@ -147,20 +156,34 @@ export default function ProfileRoute() {
     requestProfile(new AbortController())
   }, [requestProfile])
 
+  const assertActiveSession = (sessionEpoch: number) => {
+    if (!mountedRef.current || useAuthStore.getState().sessionEpoch !== sessionEpoch) {
+      throw new DOMException('Profile session changed.', 'AbortError')
+    }
+  }
+
   const handleLogout = async () => {
+    // logout revokes the local session synchronously before its remote request.
+    const request = logout()
+    const logoutEpoch = useAuthStore.getState().sessionEpoch
+    usePetStore.getState().setPets([])
     try {
-      await logout()
+      await request
     } catch {
       // Local auth state is cleared by logout even when the BFF is unavailable.
     } finally {
-      usePetStore.getState().setPets([])
-      router.replace('/login')
+      if (mountedRef.current && useAuthStore.getState().sessionEpoch === logoutEpoch) {
+        usePetStore.getState().setPets([])
+        router.replace('/login')
+      }
     }
   }
 
   const handleSaveNickname = async (nickname: string) => {
+    const sessionEpoch = useAuthStore.getState().sessionEpoch
     const currentNickname = summary?.nickname ?? ''
     const savedNickname = await updateNickname(currentNickname, nickname)
+    assertActiveSession(sessionEpoch)
     setSummary((current) =>
       current ? { ...current, nickname: savedNickname } : current
     )
@@ -168,7 +191,9 @@ export default function ProfileRoute() {
   }
 
   const handleCreatePet = async (input: PetMutationInput) => {
+    const sessionEpoch = useAuthStore.getState().sessionEpoch
     const pet = await createPet(input)
+    assertActiveSession(sessionEpoch)
     upsertPet(pet)
     setSummary((current) =>
       current ? { ...current, petCount: current.petCount + 1 } : current
@@ -177,13 +202,17 @@ export default function ProfileRoute() {
   }
 
   const handleUpdatePet = async (petId: string, input: PetMutationInput) => {
+    const sessionEpoch = useAuthStore.getState().sessionEpoch
     const pet = await updatePet(petId, input)
+    assertActiveSession(sessionEpoch)
     upsertPet(pet)
     return pet
   }
 
   const handleDeletePet = async (petId: string) => {
+    const sessionEpoch = useAuthStore.getState().sessionEpoch
     await deletePet(petId)
+    assertActiveSession(sessionEpoch)
     removePet(petId)
     setSummary((current) =>
       current ? { ...current, petCount: Math.max(0, current.petCount - 1) } : current
@@ -191,16 +220,10 @@ export default function ProfileRoute() {
   }
 
   const handleWithdraw = async () => {
+    const sessionEpoch = useAuthStore.getState().sessionEpoch
     await withdrawAccount()
-    try {
-      await logout()
-    } catch {
-      // The local session remains revoked even if the cookie logout request fails.
-      useAuthStore.getState().clearSession()
-    } finally {
-      usePetStore.getState().setPets([])
-      router.replace('/login')
-    }
+    assertActiveSession(sessionEpoch)
+    await handleLogout()
   }
 
   return (

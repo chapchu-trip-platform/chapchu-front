@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { Bookmark, Heart, Star } from 'lucide-react'
 import { AnimatePresence, m, useReducedMotion } from 'motion/react'
@@ -83,6 +83,7 @@ export default function ProfileSettings({
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
+  const removalLockedRef = useRef(false)
   const [posts, setPosts] = useState<ProfilePost[]>([])
   const [bookmarks, setBookmarks] = useState<ProfilePost[]>([])
   const [wishlist, setWishlist] = useState<WishlistPlace[]>([])
@@ -138,6 +139,8 @@ export default function ProfileSettings({
   }
 
   const handleRemoveWishlist = async (placeId: string) => {
+    if (removalLockedRef.current) return
+    removalLockedRef.current = true
     setRemovingId(placeId)
     setErrorMessage(null)
     try {
@@ -146,11 +149,14 @@ export default function ProfileSettings({
     } catch (error) {
       setErrorMessage(getProfileErrorMessage(error))
     } finally {
+      removalLockedRef.current = false
       setRemovingId(null)
     }
   }
 
   const handleRemoveBookmark = async (postId: string) => {
+    if (removalLockedRef.current) return
+    removalLockedRef.current = true
     setRemovingId(postId)
     setErrorMessage(null)
     try {
@@ -159,6 +165,7 @@ export default function ProfileSettings({
     } catch (error) {
       setErrorMessage(getProfileErrorMessage(error))
     } finally {
+      removalLockedRef.current = false
       setRemovingId(null)
     }
   }
@@ -264,7 +271,7 @@ export default function ProfileSettings({
                     </div>
                     <IconButton
                       aria-label={`${place.placeName} 위시리스트에서 제거`}
-                      disabled={removingId === place.placeId}
+                      disabled={removingId !== null}
                       onClick={() => handleRemoveWishlist(place.placeId)}
                     >
                       <Heart className="h-5 w-5 fill-soft-orange text-soft-orange" />
@@ -295,7 +302,7 @@ export default function ProfileSettings({
                     </div>
                     <IconButton
                       aria-label={`${bookmark.title} 북마크 해제`}
-                      disabled={removingId === bookmark.id}
+                      disabled={removingId !== null}
                       onClick={() => handleRemoveBookmark(bookmark.id)}
                     >
                       <Bookmark className="h-5 w-5 fill-soft-orange text-soft-orange" />

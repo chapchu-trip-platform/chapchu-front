@@ -2,6 +2,7 @@
 
 import { apiClient, publicApiClient } from '@/lib/api/client'
 import { API_ENDPOINTS } from '@/lib/api/endpoints'
+import { useAuthStore } from '@/features/auth/stores/auth-store'
 import type { BreedOption, NamedOption } from '@/features/auth/types/signup'
 import type {
   PetMutationInput,
@@ -18,6 +19,12 @@ const REVIEW_WEATHER = new Set(['SUNNY', 'CLOUDY', 'RAINY', 'SNOWY'])
 const MAX_PROFILE_COLLECTION_ITEMS = 200
 const MAX_PET_ACTIVITIES = 50
 const WISHLIST_DETAIL_CONCURRENCY = 6
+
+function assertCurrentSession(sessionEpoch: number, signal?: AbortSignal) {
+  if (signal?.aborted || useAuthStore.getState().sessionEpoch !== sessionEpoch) {
+    throw new DOMException('Profile request is no longer current.', 'AbortError')
+  }
+}
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object'
@@ -271,6 +278,7 @@ export async function deletePet(petId: string) {
 }
 
 export async function updateNickname(currentNickname: string, nextNickname: string) {
+  const sessionEpoch = useAuthStore.getState().sessionEpoch
   const nickname = nextNickname.trim()
   if (!nickname) throw new Error('Nickname is required.')
 
@@ -287,10 +295,25 @@ export async function updateNickname(currentNickname: string, nextNickname: stri
     }
   }
 
+  assertCurrentSession(sessionEpoch)
   const { data }: { data: unknown } = await apiClient.patch(API_ENDPOINTS.users.me, {
     nickname,
   })
-  if (!isObject(data) || !isString(data.nickname, 100)) {
+  assertCurrentSession(sessionEpoch)
+  if (!isObject(data)) {
+    throw new Error('Profile update response was invalid.')
+  }
+  // The documented update response can omit the saved nickname with a null value.
+  // Confirm it through a read; never replay the successful mutation.
+  if (data.nickname === null) {
+    const savedSummary = await fetchProfileSummary()
+    assertCurrentSession(sessionEpoch)
+    if (savedSummary.nickname !== nickname) {
+      throw new Error('Nickname update could not be confirmed.')
+    }
+    return savedSummary.nickname
+  }
+  if (!isString(data.nickname, 100) || !data.nickname.trim()) {
     throw new Error('Profile update response was invalid.')
   }
   return data.nickname.trim()
@@ -343,18 +366,22 @@ async function mapWithConcurrency<T, R>(
 }
 
 export async function fetchWishlist(signal?: AbortSignal): Promise<WishlistPlace[]> {
+  const sessionEpoch = useAuthStore.getState().sessionEpoch
   const { data }: { data: unknown } = await apiClient.get(API_ENDPOINTS.users.wishlist, {
     signal,
   })
+  assertCurrentSession(sessionEpoch, signal)
   const items = parseCollection(data, 'Wishlist').map(parseWishlistItem)
   const places = await mapWithConcurrency(
     items,
     WISHLIST_DETAIL_CONCURRENCY,
     async (item) => {
+      assertCurrentSession(sessionEpoch, signal)
       const { data: placeData }: { data: unknown } = await apiClient.get(
         API_ENDPOINTS.places.detail(item.placeId),
         { signal }
       )
+      assertCurrentSession(sessionEpoch, signal)
       const place = parsePlace(placeData)
       return {
         placeId: item.placeId,

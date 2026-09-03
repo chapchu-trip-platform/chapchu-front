@@ -18,9 +18,17 @@ import {
   withdrawAccount,
 } from '@/features/profile/api/profile-api'
 import { apiClient, publicApiClient } from '@/lib/api/client'
+import { useAuthStore } from '@/features/auth/stores/auth-store'
 
 const originalApiAdapter = apiClient.defaults.adapter
 const originalPublicAdapter = publicApiClient.defaults.adapter
+const originalSessionEpoch = useAuthStore.getState().sessionEpoch
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((nextResolve) => { resolve = nextResolve })
+  return { promise, resolve }
+}
 
 function response(
   config: InternalAxiosRequestConfig,
@@ -66,9 +74,63 @@ const postResponse = {
 afterEach(() => {
   apiClient.defaults.adapter = originalApiAdapter
   publicApiClient.defaults.adapter = originalPublicAdapter
+  useAuthStore.setState({ sessionEpoch: originalSessionEpoch })
 })
 
 describe('Profile API', () => {
+  it('does not patch a nickname after the session changes during availability checking', async () => {
+    const request = createDeferred<void>()
+    const publicAdapter = vi.fn(async (config: InternalAxiosRequestConfig) => {
+      await request.promise
+      return response(config, { nickname: '새닉네임', available: true })
+    })
+    const protectedAdapter = vi.fn(async (config: InternalAxiosRequestConfig) => response(config, {}))
+    publicApiClient.defaults.adapter = publicAdapter
+    apiClient.defaults.adapter = protectedAdapter
+    const result = expect(updateNickname('현재닉네임', '새닉네임')).rejects.toThrow()
+    await vi.waitFor(() => expect(publicAdapter).toHaveBeenCalledOnce())
+    useAuthStore.setState({ sessionEpoch: originalSessionEpoch + 1 })
+    request.resolve()
+    await result
+    expect(protectedAdapter).not.toHaveBeenCalled()
+  })
+
+  it('does not confirm a nullable nickname update using a different session', async () => {
+    const request = createDeferred<void>()
+    const protectedAdapter = vi.fn(async (config: InternalAxiosRequestConfig) => {
+      await request.promise
+      return response(config, { nickname: null })
+    })
+    apiClient.defaults.adapter = protectedAdapter
+    const result = expect(updateNickname('현재닉네임', '현재닉네임')).rejects.toThrow()
+    await vi.waitFor(() => expect(protectedAdapter).toHaveBeenCalledOnce())
+    useAuthStore.setState({ sessionEpoch: originalSessionEpoch + 1 })
+    request.resolve()
+    await result
+    expect(protectedAdapter).toHaveBeenCalledOnce()
+  })
+
+  it.each(['session', 'abort'] as const)('stops queued wishlist detail reads after %s changes', async (change) => {
+    const controller = new AbortController()
+    const details = createDeferred<void>()
+    const detailCalls: string[] = []
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/users/me/wishlist') {
+        return response(config, Array.from({ length: 10 }, (_, index) => ({ placeId: `place-${index}`, createdAt: null })))
+      }
+      detailCalls.push(config.url ?? '')
+      await details.promise
+      return response(config, { externalPlaceId: 'place', placeName: '장소', address: '', rating: 0, reviewNum: 0 })
+    }
+    const result = expect(fetchWishlist(controller.signal)).rejects.toBeDefined()
+    await vi.waitFor(() => expect(detailCalls).toHaveLength(6))
+    if (change === 'session') useAuthStore.setState({ sessionEpoch: originalSessionEpoch + 1 })
+    else controller.abort()
+    details.resolve()
+    await result
+    expect(detailCalls).toHaveLength(6)
+  })
+
   it('loads and validates the mypage summary', async () => {
     let capturedConfig: InternalAxiosRequestConfig | undefined
     apiClient.defaults.adapter = async (config) => {
@@ -173,6 +235,42 @@ describe('Profile API', () => {
       nickname: '새닉네임',
     })
   })
+
+  it('confirms a nullable nickname update response through the summary without replaying the patch', async () => {
+    publicApiClient.defaults.adapter = async (config) =>
+      response(config, { nickname: '새닉네임', available: true })
+    const requests: Array<{ method?: string; url?: string }> = []
+    apiClient.defaults.adapter = async (config) => {
+      requests.push({ method: config.method, url: config.url })
+      return response(config, config.method === 'patch'
+        ? { nickname: null }
+        : { nickname: '새닉네임', email: 'user@example.com', petCount: 1 })
+    }
+
+    await expect(updateNickname('현재닉네임', '새닉네임')).resolves.toBe('새닉네임')
+    expect(requests).toEqual([
+      { method: 'patch', url: '/users/me' },
+      { method: 'get', url: '/users/me/mypage' },
+    ])
+  })
+
+  it.each(['mismatch', 'failed read'] as const)(
+    'does not claim nickname success or replay the patch when confirmation returns %s',
+    async (scenario) => {
+      publicApiClient.defaults.adapter = async (config) =>
+        response(config, { nickname: '새닉네임', available: true })
+      const requests: string[] = []
+      apiClient.defaults.adapter = async (config) => {
+        requests.push(config.method ?? '')
+        if (config.method === 'patch') return response(config, { nickname: null })
+        if (scenario === 'failed read') throw new Error('Summary unavailable')
+        return response(config, { nickname: '현재닉네임', email: 'user@example.com', petCount: 1 })
+      }
+
+      await expect(updateNickname('현재닉네임', '새닉네임')).rejects.toThrow()
+      expect(requests).toEqual(['patch', 'get'])
+    }
+  )
 
   it('blocks an unavailable nickname before sending the patch', async () => {
     publicApiClient.defaults.adapter = async (config) =>

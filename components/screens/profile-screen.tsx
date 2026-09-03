@@ -103,7 +103,7 @@ function ProfilePane({
       animate={{ opacity: 1, x: 0 }}
       exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: exitX }}
       transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: PROFILE_MOTION_EASE }}
-      className="absolute inset-0 flex min-h-0 flex-col overflow-hidden bg-warm-beige"
+      className="absolute inset-0 flex min-h-0 flex-col overflow-hidden bg-warm-beige has-[[aria-modal=true]]:z-[60]"
     >
       {children}
     </m.div>
@@ -131,6 +131,22 @@ function useModalFocus(onClose: () => void, isBlocked = false) {
       Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector))
 
     focusableElements()[0]?.focus()
+
+    // Isolate the overlay, not just the focusable dialog. The backdrop stays
+    // clickable while ancestor siblings (including navigation) become inert.
+    const isolated: Array<{ element: HTMLElement; inert: string | null; hidden: string | null }> = []
+    let overlay = dialog.parentElement
+    while (overlay && overlay !== document.body) {
+      const parent = overlay.parentElement
+      if (!parent) break
+      for (const sibling of parent.children) {
+        if (sibling === overlay || !(sibling instanceof HTMLElement)) continue
+        isolated.push({ element: sibling, inert: sibling.getAttribute('inert'), hidden: sibling.getAttribute('aria-hidden') })
+        sibling.setAttribute('inert', '')
+        sibling.setAttribute('aria-hidden', 'true')
+      }
+      overlay = parent
+    }
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !isBlockedRef.current) {
@@ -160,6 +176,12 @@ function useModalFocus(onClose: () => void, isBlocked = false) {
     document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
+      for (const { element, inert, hidden } of isolated) {
+        if (inert === null) element.removeAttribute('inert')
+        else element.setAttribute('inert', inert)
+        if (hidden === null) element.removeAttribute('aria-hidden')
+        else element.setAttribute('aria-hidden', hidden)
+      }
       previouslyFocused?.focus()
     }
   }, [])
@@ -219,7 +241,7 @@ function DeletePetModal({
         <h3 id="delete-pet-title" className="mb-2 text-[16px] font-bold text-deep-brown">{pet.petName} 삭제</h3>
         <p className="mb-5 text-[13px] leading-relaxed text-warm-gray">삭제 방법을 선택해주세요.</p>
         <div className="flex flex-col gap-2">
-          <InteractiveCard onClick={onMemory} className="border-sage-green bg-sage-green-light hover:bg-sage-green-light/75">
+          <InteractiveCard onClick={onMemory} disabled={isDeleting} className="border-sage-green bg-sage-green-light hover:bg-sage-green-light/75">
             <p className="flex items-center gap-2 text-[14px] font-semibold text-sage-green">
               <Archive className="h-4 w-4" />
               추억으로 보관하기
@@ -293,7 +315,7 @@ function WithdrawModal({ onClose, onConfirm }: { onClose: () => void; onConfirm:
           <br />
           <span className="font-semibold text-danger">탈퇴 후 복구 정책은 고객지원 확인이 필요합니다.</span>
         </p>
-        <button type="button" aria-pressed={agreed} onClick={() => setAgreed(!agreed)} className="mb-4 flex w-full items-center gap-2">
+        <button type="button" aria-pressed={agreed} disabled={isSubmitting} onClick={() => setAgreed(!agreed)} className="mb-4 flex w-full items-center gap-2">
           <div className={cn('flex h-5 w-5 items-center justify-center rounded border-2 transition-all', agreed ? 'border-danger bg-danger' : 'border-border')}>
             {agreed && <Check className="h-3 w-3 text-white" />}
           </div>
@@ -477,7 +499,9 @@ function PetsSubScreen({
     if (!showEditor || options) return
     const controller = new AbortController()
     void onLoadOptions(controller.signal)
-      .then(setOptions)
+      .then((nextOptions) => {
+        if (!controller.signal.aborted) setOptions(nextOptions)
+      })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) setOptionsError(getProfileErrorMessage(error))
       })
@@ -531,7 +555,11 @@ function PetsSubScreen({
                     <IconButton aria-label={`${pet.petName} 수정`} size="sm" onClick={() => openEditor(pet)}>
                       <Edit3 className="h-4 w-4 text-warm-gray" />
                     </IconButton>
-                    <IconButton aria-label={`${pet.petName} 삭제`} size="sm" variant="danger" onClick={() => setDeleteTarget(pet)}>
+                    <IconButton aria-label={`${pet.petName} 삭제`} size="sm" variant="danger" onClick={() => {
+                      setShowEditor(false)
+                      setOptionsError(null)
+                      setDeleteTarget(pet)
+                    }}>
                       <Trash2 className="h-4 w-4 text-danger" />
                     </IconButton>
                   </div>
@@ -873,7 +901,7 @@ export default function ProfileScreen({
           {menuItems.map((item) => {
             const isPetMenuDisabled = status !== 'success' && item.sub === 'pets'
             return (
-              <m.div key={item.label} whileTap={prefersReducedMotion || isPetMenuDisabled ? undefined : { scale: 0.985 }}>
+              <m.div key={item.label} className="border-b border-border last:border-0" whileTap={prefersReducedMotion || isPetMenuDisabled ? undefined : { scale: 0.985 }}>
                 <MenuRow disabled={isPetMenuDisabled} label={item.label} description={item.desc} icon={<item.icon className={cn('h-5 w-5', item.iconColor)} />} onClick={() => item.sub ? setSubScreen(item.sub) : item.tab ? onOpenSettings?.(item.tab) : undefined} />
               </m.div>
             )
