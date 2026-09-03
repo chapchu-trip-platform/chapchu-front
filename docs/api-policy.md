@@ -275,3 +275,51 @@ Validation on 2026-09-03:
   and post-logout follow-up requests were fixed and covered by regression tests.
 - Live checks were read-only. Mutation success/failure, duplicate submission prevention,
   draft retention and deletion confirmation were exercised against local test doubles.
+
+## My Page API Status
+
+The previously completed My Page integration is restored alongside the community work.
+Shared post, bookmark, and review endpoint constants are reused; the existing community
+features and authentication client are preserved.
+
+My Page uses authenticated API calls for the summary, pets, written posts, bookmarks,
+wishlist, reviews, nickname changes, and account withdrawal. Breed, activity, and nickname
+availability lookups remain public according to the published onboarding contract.
+
+The profile adapter validates response shapes. Summary and pets load in parallel;
+collections load on demand. Wishlist place IDs remain authoritative for removal, while
+place details are fetched with bounded concurrency. Current limitations: collections over
+200 entries are rejected, and any failed wishlist detail request fails that list load.
+Pagination/aggregated place responses and partial-detail failures need follow-up work.
+
+The documented nickname PATCH response may contain `nickname: null`. In that case, the
+client reads the summary and confirms the requested nickname before reporting success.
+A failed or mismatched confirmation is an error; the successful PATCH is not replayed.
+
+The current contracts do not provide travel-distance, visited-place, stamp, memorial-album,
+profile-photo, or pet-photo data suitable for the existing design. The UI keeps unavailable
+statistics and placeholder photos without inventing API values. Stamp and memorial-album
+screens retain their menus, back navigation, and unavailable-feature notices. Their former
+demo collections stay removed. `data/mock/profile.ts` is imported only by tests.
+
+Account withdrawal sends the documented `accountStatus: WITHDRAWN` update. The UI does not
+claim hard deletion of all related data. After success it calls logout and clears in-memory
+session and pet state. Backend coordination must confirm session-wide revocation and recent
+reauthentication requirements, plus deletion, retention, and restoration semantics.
+
+Protected mutations are not automatically replayed after session refresh. Live verification
+is read-only; mutation tests use local test doubles without changing shared user data.
+
+Async profile results are scoped to the mounted screen and originating session. Nickname
+follow-up requests and queued wishlist details stop when that session changes. Pending
+removals are serialized; dialogs isolate background navigation through their exit animation,
+and opening deletion cancels a pending editor/options load to prevent overlapping dialogs.
+
+Reintegration validation (2026-09-03): `npm run lint`, `npm run typecheck`, `npm run test`
+(40 files / 306 tests), and `npm run build` passed. Authenticated browser checks confirmed
+summary, pet list and public editor options; posts, wishlist, bookmarks, and reviews showed
+the live account's empty states. Editor cancellation restored navigation, and switching to
+the community screen and back preserved both features. No live mutations were performed.
+API/security, UI, and test reviewers completed read-only reviews; required findings were
+resolved. Additional follow-ups include pet-edit success/failure UI coverage, sublist retry
+coverage, and shared contract fixtures with community adapters.

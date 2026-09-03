@@ -20,7 +20,7 @@ const tabs: { id: NavTab; icon: React.ElementType; label: string }[] = [
 
 export default function BottomNav({ active, onChange }: BottomNavProps) {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 flex justify-center">
+    <nav data-bottom-nav className="fixed bottom-0 left-0 right-0 z-50 flex justify-center">
       <div className="w-full max-w-[430px] border-t border-border bg-card-surface">
         <div className="safe-bottom-nav flex items-end justify-around px-2 pt-2">
           {tabs.map((tab) => {

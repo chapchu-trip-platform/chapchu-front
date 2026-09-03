@@ -21,9 +21,13 @@ export const API_ENDPOINTS = {
   },
   places: {
     nearby: '/places/nearby',
+    detail: (placeId: string) => `/places/${pathId(placeId)}`,
   },
   users: {
     me: '/users/me',
+    mypage: '/users/me/mypage',
+    wishlist: '/users/me/wishlist',
+    wishlistPlace: (placeId: string) => `/users/me/wishlist/${pathId(placeId)}`,
     nicknameAvailability: '/users/nickname/availability',
   },
   pets: {

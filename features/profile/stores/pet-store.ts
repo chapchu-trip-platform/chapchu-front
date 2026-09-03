@@ -1,12 +1,12 @@
 import { create } from 'zustand'
-import type { Pet } from '@/types'
+import type { ProfilePet } from '@/features/profile/types/profile'
 
 interface PetState {
-  pets: Pet[]
+  pets: ProfilePet[]
   selectedPetId: string | null
-  setPets: (pets: Pet[]) => void
+  setPets: (pets: ProfilePet[]) => void
   selectPet: (petId: string | null) => void
-  upsertPet: (pet: Pet) => void
+  upsertPet: (pet: ProfilePet) => void
   removePet: (petId: string) => void
 }
 
