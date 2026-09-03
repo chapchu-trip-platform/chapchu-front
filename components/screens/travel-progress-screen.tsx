@@ -3,6 +3,12 @@
 import Image from 'next/image'
 import { useState } from 'react'
 import { MapPin, X, Camera, Star, BookOpen, AlertTriangle } from 'lucide-react'
+import {
+  BottomSheetBackdrop,
+  BottomSheetHandle,
+  BottomSheetRoot,
+  BottomSheetSurface,
+} from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Textarea } from '@/components/ui/input'
@@ -33,12 +39,10 @@ function TravelNoteSheet({ placeName, onClose, onSave }: TravelNoteSheetProps) {
   }
 
   return (
-    <div className="absolute inset-0 z-50 flex flex-col justify-end">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-card-surface rounded-t-[24px] slide-up overflow-hidden">
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full bg-border" />
-        </div>
+    <BottomSheetRoot>
+      <BottomSheetBackdrop onClick={onClose} />
+      <BottomSheetSurface className="slide-up">
+        <BottomSheetHandle />
         <IconButton onClick={onClose} className="absolute top-3 right-4" variant="muted" size="sm" aria-label="닫기">
           <X className="w-4 h-4 text-warm-gray" />
         </IconButton>
@@ -109,8 +113,8 @@ function TravelNoteSheet({ placeName, onClose, onSave }: TravelNoteSheetProps) {
             </ModalActions>
           )}
         </div>
-      </div>
-    </div>
+      </BottomSheetSurface>
+    </BottomSheetRoot>
   )
 }
 

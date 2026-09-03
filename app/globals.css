@@ -199,6 +199,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .slide-up,
   .onboarding-slide-in-right,
   .onboarding-slide-out-left,
   .onboarding-slide-in-left,

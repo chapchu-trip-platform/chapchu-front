@@ -14,6 +14,15 @@ const SEOUL_CITY_HALL = {
 type TmapLoadStatus = 'loading' | 'ready' | 'error'
 type TmapMarkerVariant = 'default' | 'profile'
 
+export interface TmapMapMarker {
+  id: string
+  position: {
+    lat: number
+    lng: number
+  }
+  title: string
+}
+
 interface TmapMapProps {
   center?: {
     lat: number
@@ -26,6 +35,7 @@ interface TmapMapProps {
   showZoomControl?: boolean
   interactive?: boolean
   markerVariant?: TmapMarkerVariant
+  markers?: TmapMapMarker[]
   profileImageSrc?: string
 }
 
@@ -38,12 +48,16 @@ export default function TmapMap({
   showZoomControl = true,
   interactive = true,
   markerVariant = 'default',
+  markers = [],
   profileImageSrc = '/images/dog-hero.png',
 }: TmapMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const centerRef = useRef(center)
   const mapInstanceRef = useRef<TmapMapInstance | null>(null)
   const markerInstanceRef = useRef<TmapMarkerInstance | null>(null)
+  const markerInstancesRef = useRef(
+    new Map<string, { instance: TmapMarkerInstance; title: string }>()
+  )
   const tmapNamespaceRef = useRef<Tmapv2Namespace | null>(null)
   const [status, setStatus] = useState<TmapLoadStatus>('loading')
 
@@ -54,6 +68,7 @@ export default function TmapMap({
   useEffect(() => {
     let isMounted = true
     const mapRoot = containerRef.current
+    const markerInstances = markerInstancesRef.current
 
     loadTmapSdk()
       .then((Tmapv2) => {
@@ -83,6 +98,8 @@ export default function TmapMap({
       isMounted = false
       markerInstanceRef.current?.setMap?.(null)
       markerInstanceRef.current = null
+      markerInstances.forEach(({ instance }) => instance.setMap?.(null))
+      markerInstances.clear()
       mapInstanceRef.current?.destroy?.()
       mapInstanceRef.current?.remove?.()
       mapInstanceRef.current = null
@@ -118,10 +135,45 @@ export default function TmapMap({
     })
   }, [center.lat, center.lng, locationLabel, markerVariant, showMarker, status])
 
+  useEffect(() => {
+    if (status !== 'ready') return
+    const Tmapv2 = tmapNamespaceRef.current
+    const mapInstance = mapInstanceRef.current
+    if (!Tmapv2 || !mapInstance) return
+
+    const nextMarkerIds = new Set(markers.map((marker) => marker.id))
+
+    markerInstancesRef.current.forEach(({ instance }, markerId) => {
+      if (nextMarkerIds.has(markerId)) return
+      instance.setMap?.(null)
+      markerInstancesRef.current.delete(markerId)
+    })
+
+    markers.forEach((marker) => {
+      const position = new Tmapv2.LatLng(marker.position.lat, marker.position.lng)
+      const existingMarker = markerInstancesRef.current.get(marker.id)
+
+      if (existingMarker?.title === marker.title) {
+        existingMarker.instance.setPosition?.(position)
+        return
+      }
+
+      existingMarker?.instance.setMap?.(null)
+      markerInstancesRef.current.set(marker.id, {
+        instance: new Tmapv2.Marker({
+          position,
+          map: mapInstance,
+          title: marker.title,
+        }),
+        title: marker.title,
+      })
+    })
+  }, [markers, status])
+
   return (
     <div
       className={cn(
-        'relative h-full min-h-52 w-full overflow-hidden bg-sky-blue/20',
+        'relative isolate h-full min-h-52 w-full overflow-hidden bg-sky-blue/20',
         className
       )}
     >

@@ -96,7 +96,15 @@ export interface CourseDetail {
 }
 
 export type AppScreen = 'splash' | 'onboarding' | 'login' | 'signup' | 'main'
-export type MapFlow = null | 'setup' | 'route' | 'progress' | 'end' | 'error' | 'sharing'
+export type MapFlow =
+  | null
+  | 'setup'
+  | 'options'
+  | 'route'
+  | 'progress'
+  | 'end'
+  | 'error'
+  | 'sharing'
 export type NavTab = 'home' | 'map' | 'board' | 'album' | 'profile'
 export type ErrorType =
   | 'location-denied'

@@ -22,6 +22,10 @@ export const API_ENDPOINTS = {
   places: {
     nearby: '/places/nearby',
   },
+  courses: {
+    create: '/courses',
+    detail: (courseId: string) => `/courses/${pathId(courseId)}`,
+  },
   users: {
     me: '/users/me',
     nicknameAvailability: '/users/nickname/availability',
@@ -29,10 +33,6 @@ export const API_ENDPOINTS = {
   pets: {
     list: '/pets',
     detail: (petId: string) => `/pets/${pathId(petId)}`,
-  },
-  routes: {
-    recommend: '/routes/recommendations',
-    detail: (routeId: string) => `/routes/${pathId(routeId)}`,
   },
   trips: {
     list: '/trips',

@@ -11,7 +11,7 @@ import { ModalActions } from '@/components/ui/modal-actions'
 
 interface TripEndScreenProps {
   onSave: () => void
-  onShare?: () => void
+  onShare?: (review: string) => void
 }
 
 const waypoints = [
@@ -159,7 +159,8 @@ export default function TripEndScreen({ onSave, onShare }: TripEndScreenProps) {
           </Button>
           <ModalActions>
             <Button
-              onClick={onShare}
+              onClick={() => onShare?.(review)}
+              disabled={!review.trim()}
               variant="outline"
             >
               <Share2 className="w-4 h-4 text-sage-green" />

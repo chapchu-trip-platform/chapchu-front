@@ -1,4 +1,6 @@
 import { create } from 'zustand'
+import type { SearchableLocation } from '@/features/location/types/location'
+import type { RecommendedCourse } from '@/features/map/types/course'
 import type { Place, Waypoint } from '@/types'
 
 export type TravelStage = 'idle' | 'planning' | 'in-progress' | 'completed'
@@ -13,6 +15,12 @@ interface TravelState {
   selectedPetId: string | null
   selectedPetName: string
   travelStage: TravelStage
+  routeOrigin: SearchableLocation | null
+  routeDestination: SearchableLocation | null
+  minimumWalkingTimeHours: number | null
+  waypointCount: number | null
+  travelTimeHours: number | null
+  recommendedCourse: RecommendedCourse | null
   selectedWaypoints: Waypoint[]
   candidatePlaces: Place[]
   noteDrafts: TravelNoteDraft[]
@@ -20,6 +28,16 @@ interface TravelState {
   draftTripImage: string
   setSelectedPet: (pet: { id: string; name: string } | null) => void
   setTravelStage: (stage: TravelStage) => void
+  setRouteEndpoints: (
+    origin: SearchableLocation,
+    destination: SearchableLocation
+  ) => void
+  setRouteOptions: (options: {
+    minimumWalkingTimeHours: number
+    waypointCount: number
+    travelTimeHours: number
+  }) => void
+  setRecommendedCourse: (course: RecommendedCourse | null) => void
   setSelectedWaypoints: (waypoints: Waypoint[]) => void
   setCandidatePlaces: (places: Place[]) => void
   upsertNoteDraft: (draft: TravelNoteDraft) => void
@@ -30,6 +48,12 @@ const initialTravelState = {
   selectedPetId: null,
   selectedPetName: '골든이',
   travelStage: 'idle' as TravelStage,
+  routeOrigin: null,
+  routeDestination: null,
+  minimumWalkingTimeHours: null,
+  waypointCount: null,
+  travelTimeHours: null,
+  recommendedCourse: null,
   selectedWaypoints: [],
   candidatePlaces: [],
   noteDrafts: [],
@@ -45,6 +69,17 @@ export const useTravelStore = create<TravelState>((set) => ({
       selectedPetName: pet?.name ?? initialTravelState.selectedPetName,
     }),
   setTravelStage: (travelStage) => set({ travelStage }),
+  setRouteEndpoints: (routeOrigin, routeDestination) =>
+    set({
+      routeOrigin,
+      routeDestination,
+      minimumWalkingTimeHours: null,
+      waypointCount: null,
+      travelTimeHours: null,
+      recommendedCourse: null,
+    }),
+  setRouteOptions: (options) => set({ ...options, recommendedCourse: null }),
+  setRecommendedCourse: (recommendedCourse) => set({ recommendedCourse }),
   setSelectedWaypoints: (selectedWaypoints) => set({ selectedWaypoints }),
   setCandidatePlaces: (candidatePlaces) => set({ candidatePlaces }),
   upsertNoteDraft: (draft) =>

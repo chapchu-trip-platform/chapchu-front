@@ -66,6 +66,11 @@ protected API calls as `Authorization: Bearer {access_token}`.
 stores the refresh token in an HttpOnly cookie. General protected API calls use
 the Bearer access token and do not enable credentialed cookies.
 
+Protected `GET`/`HEAD`/`OPTIONS` calls are replayed once after a successful access-token
+refresh. Mutation requests are not replayed by default. A feature may explicitly opt in only
+when a `401 Unauthorized` guarantees that the mutation was not applied; `POST /courses` uses
+this opt-in so a restored session can complete the original recommendation request.
+
 ## Error Normalization
 
 API errors are normalized into these types:
@@ -116,10 +121,33 @@ Backend coordination still needs to confirm:
 - registration token expiry and one-time-use behavior
 - production log redaction for the token-bearing `/auth/callback?registration_token=...` request;
   client-side URL cleanup cannot remove it from upstream access logs
-- route recommendation request/response shape
+- whether `POST /courses` will add destination, waypoint-count, and travel-duration inputs
+- route geometry/polyline, total-distance, and estimated-time response fields
 - travel note draft save API
 - album save API
 - community post/comment API
+- whether a future Chapchu backend location-search API should replace the current server-side TMAP
+  POI adapter
+
+Map endpoint integration follows the verified contract and blocker matrix in
+[`docs/map-api-contract.md`](./map-api-contract.md). Per the 2026-09-01 user confirmation,
+authenticated `POST /courses` is the current course-recommendation API. The frontend sends only its
+published `lat`, `lng`, `radiusMeters`, `travelDate`, and `startLocation` fields, validates the
+response, and displays its ordered places. This AI-backed request uses a feature-specific 60-second
+timeout instead of the shared 10-second default. Destination/waypoint/duration recommendation inputs
+and route geometry are still not part of the published contract. Keyword location search uses the
+same-origin server adapter at `POST /api/tmap/pois`; it is not a Chapchu backend endpoint.
+
+The minimum walking time uses the server-only TMAP pedestrian route adapter at
+`POST /api/tmap/routes/pedestrian`. The adapter sends WGS84 endpoint coordinates to TMAP with
+`T_MAP_APIKEY`, returns only `totalTimeSeconds`, and never exposes the key. The map options UI rounds
+the result up to H units, allows one to four intermediate waypoints, and limits travel duration to
+the rounded minimum through three additional hours.
+
+Keyword location search uses the server-only TMAP POI adapter at `POST /api/tmap/pois`. The browser
+sends a two-to-100-character query and a result limit in a POST body. The adapter performs nationwide
+accuracy-ranked TMAP search, maps only ID, name, address, and WGS84 coordinates, and never exposes
+`T_MAP_APIKEY` or TMAP error payloads. A TMAP `204` is returned to the UI as an empty item list.
 
 ## Home And Location API Status
 
@@ -129,7 +157,7 @@ The Chapchu API documentation updated on 2026-08-25 publishes:
   `user.locationConsent` as a boolean
 - authenticated `GET /home`, returning `nickname` and `petNames`
 - authenticated `GET /posts?sort=popular`, returning recommendation-sorted post summaries
-- authenticated `GET /places/nearby`, accepting `lat`, `lng`, and optional
+- `GET /places/nearby`, accepting `lat`, `lng`, and optional
   `radiusMeters` query parameters
 
 The signup UI presents location collection/use and third-party provision as separate,

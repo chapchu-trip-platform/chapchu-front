@@ -135,6 +135,32 @@ describe('authenticated API client', () => {
     expect(redirectToLogin).not.toHaveBeenCalled()
   })
 
+  it('replays an explicitly opted-in POST once after refreshing authentication', async () => {
+    let protectedCalls = 0
+    let retriedAuthorization: string | undefined
+    sessionApiClient.defaults.adapter = async (config) =>
+      okResponse(config, { access_token: 'refreshed-token' })
+    apiClient.defaults.adapter = async (config) => {
+      protectedCalls += 1
+      if (protectedCalls === 1) {
+        const response = { ...okResponse(config), status: 401, statusText: 'Unauthorized' }
+        throw new AxiosError('Unauthorized', undefined, config, undefined, response)
+      }
+
+      retriedAuthorization = AxiosHeaders.from(config.headers).get('Authorization') as string
+      return okResponse(config)
+    }
+
+    await apiClient.post(
+      '/courses',
+      { lat: 37.5, lng: 127 },
+      { replayAfterAuthRefresh: true }
+    )
+
+    expect(protectedCalls).toBe(2)
+    expect(retriedAuthorization).toBe('Bearer refreshed-token')
+  })
+
   it('clears auth when a replayed request is still unauthorized', async () => {
     let protectedCalls = 0
     let refreshCalls = 0

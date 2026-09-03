@@ -27,4 +27,24 @@ describe('TripEndScreen waypoint notes', () => {
       '넓은 잔디밭에서 맘껏 뛰어놀았어요.'
     )
   })
+
+  it('passes the overall review to the board share flow', async () => {
+    const user = userEvent.setup()
+    const onShare = vi.fn()
+
+    render(<TripEndScreen onSave={vi.fn()} onShare={onShare} />)
+
+    const shareButton = screen.getByRole('button', { name: '게시판 공유' })
+    expect(shareButton).toBeDisabled()
+
+    await user.type(
+      screen.getByPlaceholderText('오늘 여행을 어떠셨나요? 소중한 기억을 기록해보세요...'),
+      '골든이와 함께해서 즐거운 여행이었어요.'
+    )
+
+    expect(shareButton).toBeEnabled()
+    await user.click(shareButton)
+
+    expect(onShare).toHaveBeenCalledWith('골든이와 함께해서 즐거운 여행이었어요.')
+  })
 })

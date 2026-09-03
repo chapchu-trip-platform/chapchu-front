@@ -1,5 +1,11 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
+import {
+  BottomSheetBackdrop,
+  BottomSheetHandle,
+  BottomSheetRoot,
+  BottomSheetSurface,
+} from '@/components/ui/bottom-sheet'
 import { ChoiceChip } from '@/components/ui/choice-chip'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
@@ -11,6 +17,33 @@ import { ModalActions } from '@/components/ui/modal-actions'
 afterEach(cleanup)
 
 describe('shared UI primitives', () => {
+  it('provides a reusable bottom sheet shell', () => {
+    render(
+      <BottomSheetRoot data-testid="sheet-root">
+        <BottomSheetBackdrop data-testid="sheet-backdrop" />
+        <BottomSheetSurface data-testid="sheet-surface">
+          <BottomSheetHandle data-testid="sheet-handle" />
+        </BottomSheetSurface>
+      </BottomSheetRoot>
+    )
+
+    expect(screen.getByTestId('sheet-root')).toHaveClass(
+      'absolute',
+      'inset-0',
+      'justify-end'
+    )
+    expect(screen.getByTestId('sheet-backdrop')).toHaveClass('absolute', 'bg-black/40')
+    expect(screen.getByTestId('sheet-surface')).toHaveClass(
+      'rounded-t-[24px]',
+      'bg-card-surface'
+    )
+    expect(screen.getByTestId('sheet-handle').firstElementChild).toHaveClass(
+      'h-1',
+      'w-10',
+      'bg-border'
+    )
+  })
+
   it('keeps icon-only actions accessible and non-submitting by default', () => {
     render(<IconButton aria-label="닫기">×</IconButton>)
 

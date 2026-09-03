@@ -22,6 +22,7 @@ describe('TmapMap', () => {
 
     expect(screen.getByText('지도를 불러오는 중입니다')).toBeInTheDocument()
     expect(screen.getByTestId('tmap-container')).toBeInTheDocument()
+    expect(screen.getByTestId('tmap-container').parentElement).toHaveClass('isolate')
   })
 
   it('creates a centered marker and removes map resources on unmount', async () => {
@@ -125,6 +126,56 @@ describe('TmapMap', () => {
     await waitFor(() => expect(markerInstance.setPosition).toHaveBeenCalled())
     expect(Map).toHaveBeenCalledOnce()
     expect(mapInstance.setCenter).toHaveBeenCalledTimes(2)
+  })
+
+  it('renders route markers and cleans them up on unmount', async () => {
+    const mapInstance = { destroy: vi.fn(), remove: vi.fn(), setCenter: vi.fn() }
+    const originMarker = { setMap: vi.fn(), setPosition: vi.fn() }
+    const destinationMarker = { setMap: vi.fn(), setPosition: vi.fn() }
+    let markerCount = 0
+    const Marker = vi.fn(function MarkerConstructor() {
+      markerCount += 1
+      return markerCount === 1 ? originMarker : destinationMarker
+    })
+    vi.mocked(loadTmapSdk).mockResolvedValue({
+      LatLng: vi.fn(function LatLng() {}),
+      Map: vi.fn(function MapConstructor() {
+        return mapInstance
+      }),
+      Marker,
+    } as unknown as Tmapv2Namespace)
+
+    const { unmount } = render(
+      <TmapMap
+        center={{ lat: 37.55, lng: 127 }}
+        markers={[
+          {
+            id: 'origin',
+            position: { lat: 37.5547, lng: 126.9706 },
+            title: '출발지: 서울역',
+          },
+          {
+            id: 'destination',
+            position: { lat: 37.5444, lng: 127.0374 },
+            title: '도착지: 서울숲',
+          },
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(Marker).toHaveBeenCalledTimes(2))
+    expect(Marker).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ map: mapInstance, title: '출발지: 서울역' })
+    )
+    expect(Marker).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ map: mapInstance, title: '도착지: 서울숲' })
+    )
+
+    unmount()
+    expect(originMarker.setMap).toHaveBeenCalledWith(null)
+    expect(destinationMarker.setMap).toHaveBeenCalledWith(null)
   })
 
   it('renders a profile pin and blocks direct interaction for the Home tracking map', async () => {
