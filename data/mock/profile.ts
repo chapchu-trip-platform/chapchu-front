@@ -1,18 +1,15 @@
+// Test fixtures only. Do not import into runtime screens or API code.
 import type {
   PetOptions,
-  ProfileMemoryAlbum,
   ProfilePet,
   ProfilePost,
   ProfileReview,
-  ProfileStamp,
   ProfileSummary,
   WishlistPlace,
 } from '@/features/profile/types/profile'
 
 export const PROFILE_MOCK_COUNTS = {
   pets: 12,
-  stamps: 30,
-  memoryAlbums: 12,
   posts: 24,
   wishlist: 24,
   bookmarks: 24,
@@ -80,97 +77,6 @@ export const mockProfileSummary = {
   email: 'user@example.com',
   petCount: mockProfilePets.length,
 } satisfies ProfileSummary
-
-const stampRegions = [
-  '서울',
-  '제주',
-  '강원',
-  '경기',
-  '부산',
-  '전남',
-  '인천',
-  '대구',
-  '대전',
-  '광주',
-  '울산',
-  '세종',
-  '충북',
-  '충남',
-  '전북',
-  '경북',
-  '경남',
-  '수원',
-  '춘천',
-  '강릉',
-  '속초',
-  '여수',
-  '순천',
-  '목포',
-  '포항',
-  '경주',
-  '통영',
-  '거제',
-  '공주',
-  '안동',
-] as const
-
-const stampColors = ['#6FAF8E', '#F4A261', '#8ECAE6', '#E9C46A', '#B8A1D9'] as const
-const stampMascots = ['해치', '돌하르방', '반달곰', '수달', '갈매기'] as const
-
-export const mockProfileStamps: ProfileStamp[] = stampRegions.map(
-  (region, index): ProfileStamp => {
-    const common = {
-      id: `stamp-${String(index + 1).padStart(2, '0')}`,
-      region,
-      color: stampColors[index % stampColors.length],
-      mascot: stampMascots[index % stampMascots.length],
-    }
-
-    return index < 18
-      ? {
-          ...common,
-          acquired: true,
-          date: `2026.${String(8 - (index % 6)).padStart(2, '0')}.${String((index % 27) + 1).padStart(2, '0')}`,
-          count: (index % 9) + 1,
-        }
-      : { ...common, acquired: false, date: null, count: 0 }
-  }
-)
-
-const memoryPetNames = [
-  '하루',
-  '별이',
-  '사랑이',
-  '해피',
-  '뭉치',
-  '복실이',
-  '나나',
-  '꼬미',
-  '루루',
-  '미소',
-  '단추',
-  '토리',
-] as const
-
-const memoryNotes = [
-  '영원히 기억할게',
-  '함께한 모든 길이 행복했어',
-  '우리의 여행은 언제나 반짝여',
-  '매일 웃게 해줘서 고마워',
-] as const
-
-export const mockProfileMemoryAlbums: ProfileMemoryAlbum[] = Array.from(
-  { length: PROFILE_MOCK_COUNTS.memoryAlbums },
-  (_, index) => ({
-    id: `memory-${String(index + 1).padStart(2, '0')}`,
-    petName: memoryPetNames[index % memoryPetNames.length],
-    breed: mockProfilePetOptions.breeds[index % mockProfilePetOptions.breeds.length].name,
-    period: `${2010 + index}.03 ~ ${2021 + (index % 5)}.11`,
-    coverImage: index % 2 === 0 ? '/images/album-cover.png' : '/images/dog-hero.png',
-    albumCount: 6 + index * 2,
-    note: `${memoryNotes[index % memoryNotes.length]}, ${memoryPetNames[index % memoryPetNames.length]}야`,
-  })
-)
 
 const postSubjects = ['바닷길 여행', '숲길 산책', '펫 카페 방문', '캠핑 기록'] as const
 

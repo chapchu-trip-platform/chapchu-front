@@ -27,7 +27,6 @@ import { MenuRow } from '@/components/ui/menu-row'
 import { ModalActions } from '@/components/ui/modal-actions'
 import { cn } from '@/lib/utils'
 import { getProfileErrorMessage } from '@/features/profile/api/profile-api'
-import { mockProfileMemoryAlbums, mockProfileStamps } from '@/data/mock/profile'
 import type {
   PetMutationInput,
   PetOptions,
@@ -623,18 +622,11 @@ function StampsSubScreen({ onBack }: { onBack: () => void }) {
       <TopBar title="여행 스탬프" showBack onBack={onBack} />
       <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-24 pt-4">
         <p className="mb-1 text-[13px] text-warm-gray">방문한 지역의 스탬프를 모아보세요!</p>
-        <p className="mb-4 text-[11px] text-warm-gray">스탬프 API 연결 전 예시 데이터입니다.</p>
-        <div className="grid grid-cols-3 gap-3">
-          {mockProfileStamps.map((stamp) => (
-            <div key={stamp.id} className={cn('flex flex-col items-center rounded-card border p-3 shadow-sm', stamp.acquired ? 'border-border bg-card-surface' : 'border-border bg-muted opacity-50')}>
-              <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-full border-4 border-white shadow-sm" style={{ backgroundColor: stamp.acquired ? stamp.color : '#DDD4C0' }}>
-                <span className="text-[20px] font-black text-white">{stamp.acquired ? stamp.mascot[0] : '?'}</span>
-              </div>
-              <p className="text-[13px] font-bold text-deep-brown">{stamp.region}</p>
-              {stamp.acquired ? <><p className="mt-0.5 text-[10px] text-warm-gray">{stamp.count}회 방문</p><p className="text-[9px] text-warm-gray">{stamp.date}</p></> : <p className="mt-0.5 text-[10px] text-warm-gray">미획득</p>}
-            </div>
-          ))}
-        </div>
+        <section aria-labelledby="stamps-unavailable-title" className="mt-4 rounded-card border border-border bg-card-surface px-4 py-8 text-center shadow-sm">
+          <Stamp aria-hidden="true" className="mx-auto mb-3 h-8 w-8 text-soft-orange" />
+          <h2 id="stamps-unavailable-title" className="text-[14px] font-semibold text-deep-brown">스탬프 기능을 준비하고 있어요</h2>
+          <p className="mt-2 text-[12px] leading-relaxed text-warm-gray">아직 스탬프 정보를 불러올 수 없어요. 기능이 연결되면 이곳에서 확인할 수 있어요.</p>
+        </section>
       </div>
     </div>
   )
@@ -645,23 +637,12 @@ function MemoryAlbumSubScreen({ onBack }: { onBack: () => void }) {
     <div className="flex flex-1 flex-col overflow-hidden bg-warm-beige">
       <TopBar title="추억 앨범" showBack onBack={onBack} />
       <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-24 pt-4">
-        <p className="mb-1 text-[13px] leading-relaxed text-warm-gray">무지개 다리를 건넌 소중한 반려동물과의 추억이 여기 보관되어 있어요.</p>
-        <p className="mb-5 text-[11px] text-warm-gray">추억 보관 API 연결 전 예시 데이터입니다.</p>
-        {mockProfileMemoryAlbums.map((album) => (
-          <div key={album.id} className="mb-4 overflow-hidden rounded-card border border-border bg-card-surface shadow-sm">
-            <div className="relative h-44">
-              <Image src={album.coverImage} alt={album.petName} fill className="object-cover opacity-85" />
-              <div className="absolute inset-0 bg-gradient-to-t from-deep-brown/70 to-transparent" />
-              <div className="absolute bottom-4 left-4"><p className="text-[20px] font-bold text-white">{album.petName}</p><p className="text-[12px] text-white/80">{album.breed}</p></div>
-            </div>
-            <div className="p-4">
-              <p className="mb-1 text-[13px] text-warm-gray">{album.period}</p>
-              <p className="text-[15px] font-semibold italic text-deep-brown">&ldquo;{album.note}&rdquo;</p>
-              <p className="mt-3 text-[12px] text-warm-gray">{album.albumCount}개의 여행 앨범</p>
-              <Button className="mt-3" variant="soft" fullWidth disabled><Heart className="h-4 w-4" />API 준비 중</Button>
-            </div>
-          </div>
-        ))}
+        <p className="mb-1 text-[13px] leading-relaxed text-warm-gray">소중한 반려동물과의 추억을 간직할 공간이에요.</p>
+        <section aria-labelledby="memory-albums-unavailable-title" className="mt-4 rounded-card border border-border bg-card-surface px-4 py-8 text-center shadow-sm">
+          <Heart aria-hidden="true" className="mx-auto mb-3 h-8 w-8 text-danger" />
+          <h2 id="memory-albums-unavailable-title" className="text-[14px] font-semibold text-deep-brown">추억 앨범 기능을 준비하고 있어요</h2>
+          <p className="mt-2 text-[12px] leading-relaxed text-warm-gray">아직 추억 앨범 정보를 불러올 수 없어요. 기능이 연결되면 이곳에서 확인할 수 있어요.</p>
+        </section>
       </div>
     </div>
   )

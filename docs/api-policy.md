@@ -219,6 +219,12 @@ profile-photo, or pet-photo data suitable for the existing design. The UI keeps 
 positions without presenting fabricated API values. The trip-photo API is not reused because
 it requires a course-place association.
 
+Stamp and memorial-album sub-screens retain their menu entries, back navigation, and
+unavailable-feature notices until their contracts are available. The former sample stamp
+and memorial-album collections and their unused model types have been removed. Remaining
+`data/mock/profile.ts` fixtures are test-only: they preserve multi-item and pet-overflow
+regression coverage without being imported by runtime screens or API modules.
+
 Account withdrawal sends the documented `accountStatus: WITHDRAWN` update. The UI does not
 claim that this hard-deletes all related data because deletion, retention, and restoration
 semantics are not defined in the published contract. After a successful withdrawal update,

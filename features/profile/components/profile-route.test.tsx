@@ -26,12 +26,10 @@ import { mockRouter, resetNextNavigationMocks } from '@/test/mocks/next-navigati
 import {
   PROFILE_MOCK_COUNTS,
   mockProfileBookmarks,
-  mockProfileMemoryAlbums,
   mockProfilePetOptions,
   mockProfilePets,
   mockProfilePosts,
   mockProfileReviews,
-  mockProfileStamps,
   mockProfileSummary,
   mockProfileWishlist,
 } from '@/data/mock/profile'
@@ -260,45 +258,37 @@ describe('ProfileRoute', () => {
     }
   })
 
-  it('renders acquired and locked stamps from the profile mock list', async () => {
+  it('shows an unavailable notice instead of fabricated stamps and returns to mypage', async () => {
     const user = userEvent.setup()
-    expectScrollSizedMock(mockProfileStamps, PROFILE_MOCK_COUNTS.stamps)
-    expectUnique(mockProfileStamps.map((item) => item.id))
     render(<ProfileRoute />)
 
     await screen.findByRole('heading', { name: '초코맘' })
     await user.click(screen.getByRole('button', { name: /스탬프.*API 준비 중/ }))
-    expect(await screen.findByText('방문한 지역의 스탬프를 모아보세요!')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '스탬프 기능을 준비하고 있어요' })).toBeInTheDocument()
+    expect(screen.getByText(/아직 스탬프 정보를 불러올 수 없어요/)).toBeInTheDocument()
+    expect(screen.queryByText('서울')).not.toBeInTheDocument()
+    expect(screen.queryByText('미획득')).not.toBeInTheDocument()
+    expect(screen.queryByText(/\d+회 방문/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/예시 데이터/)).not.toBeInTheDocument()
 
-    for (const stamp of mockProfileStamps) {
-      expect(screen.getByText(stamp.region)).toBeInTheDocument()
-      if (stamp.acquired) {
-        expect(screen.getAllByText(`${stamp.count}회 방문`).length).toBeGreaterThan(0)
-        expect(screen.getByText(stamp.date)).toBeInTheDocument()
-      }
-    }
-    expect(screen.getAllByText('미획득')).toHaveLength(
-      mockProfileStamps.filter((stamp) => !stamp.acquired).length
-    )
+    await user.click(screen.getByRole('button', { name: '뒤로 가기' }))
+    expect(await screen.findByRole('heading', { name: '초코맘' })).toBeInTheDocument()
   })
 
-  it('renders every memory album from the profile mock list', async () => {
+  it('shows an unavailable notice instead of fabricated memory albums and returns to mypage', async () => {
     const user = userEvent.setup()
-    expectScrollSizedMock(mockProfileMemoryAlbums, PROFILE_MOCK_COUNTS.memoryAlbums)
-    expectUnique(mockProfileMemoryAlbums.map((item) => item.id))
     render(<ProfileRoute />)
 
     await screen.findByRole('heading', { name: '초코맘' })
     await user.click(screen.getByRole('button', { name: /추억 앨범.*API 준비 중/ }))
-    expect(await screen.findByText(/무지개 다리를 건넌/)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '추억 앨범 기능을 준비하고 있어요' })).toBeInTheDocument()
+    expect(screen.getByText(/아직 추억 앨범 정보를 불러올 수 없어요/)).toBeInTheDocument()
+    expect(screen.queryByText('하루')).not.toBeInTheDocument()
+    expect(screen.queryByText(/\d+개의 여행 앨범/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/예시 데이터/)).not.toBeInTheDocument()
 
-    for (const album of mockProfileMemoryAlbums) {
-      expect(screen.getByText(album.petName)).toBeInTheDocument()
-      expect(screen.getAllByText(album.breed).length).toBeGreaterThan(0)
-      expect(screen.getByText(album.period)).toBeInTheDocument()
-      expect(screen.getByText(album.note, { exact: false })).toBeInTheDocument()
-      expect(screen.getByText(`${album.albumCount}개의 여행 앨범`)).toBeInTheDocument()
-    }
+    await user.click(screen.getByRole('button', { name: '뒤로 가기' }))
+    expect(await screen.findByRole('heading', { name: '초코맘' })).toBeInTheDocument()
   })
 
   it('renders every written post with list metrics', async () => {
