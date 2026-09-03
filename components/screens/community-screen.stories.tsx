@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
 import MobileShell from '@/components/layout/mobile-shell'
-import CommunityScreen from '@/components/screens/community-screen'
+import CommunityScreen from '@/features/community/components/community-demo-screen'
 
 const meta = {
   title: 'Screens/Main/Community',

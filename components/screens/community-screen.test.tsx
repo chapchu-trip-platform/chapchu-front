@@ -1,6 +1,6 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import CommunityScreen from '@/components/screens/community-screen'
+import CommunityScreen from '@/features/community/components/community-demo-screen'
 
 afterEach(cleanup)
 

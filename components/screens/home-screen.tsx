@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import Link from 'next/link'
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react'
 import { Eye, MessageCircle, Star, ThumbsUp } from 'lucide-react'
 import { LazyMotion, animate, domAnimation, m, useReducedMotion } from 'motion/react'
@@ -402,7 +403,7 @@ export default function HomeScreen({
                 duration: prefersReducedMotion ? 0 : 0.34,
                 ease: HOME_MOTION_EASE,
               }}
-              className="flex gap-3 rounded-card border border-border bg-card-surface p-3 shadow-sm"
+              className="relative flex gap-3 rounded-card border border-border bg-card-surface p-3 shadow-sm"
             >
               <div className="relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0">
                 <Image
@@ -419,7 +420,7 @@ export default function HomeScreen({
               </div>
               <div className="flex flex-col gap-1 flex-1 min-w-0">
                 <h4 className="text-[13px] font-semibold text-deep-brown leading-snug line-clamp-2 text-balance">
-                  {post.title}
+                  <Link href={`/community?post=${encodeURIComponent(post.id)}`} className="after:absolute after:inset-0 after:rounded-card focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-sage-green">{post.title}</Link>
                 </h4>
                 <p className="line-clamp-1 text-[11px] text-warm-gray">
                   {post.content || '게시글 내용이 없어요.'}

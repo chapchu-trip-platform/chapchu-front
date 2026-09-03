@@ -119,7 +119,7 @@ Backend coordination still needs to confirm:
 - route recommendation request/response shape
 - travel note draft save API
 - album save API
-- community post/comment API
+- community comment-list/read-state/public companion-detail contracts (see below)
 
 ## Home And Location API Status
 
@@ -200,3 +200,78 @@ If the current `GET /places/nearby` contract is used temporarily, it must only r
 explicit service consent and device permission, and the request coordinates must be reduced
 to the minimum precision needed for Home. The client diagnostics redact location fields and
 coordinate query parameters before any future integration.
+
+## Community And Reviews (2026-09-03)
+
+Source: https://api.chapchu.site/docs/index.html, published 2026-08-30.
+
+Implementation plan: replace the board's runtime mock feed with typed authenticated
+requests, connect documented detail actions, expose documented review collections,
+then validate requests, stale-response handling, error recovery and mobile layout.
+The original prototype remains available only in development demo mode and Storybook;
+its fixture data lives under `data/mock/community.ts`.
+
+- HOT uses `GET /posts?sort=popular&size=20`; 자유게시판 uses `sort=latest`.
+  The API has no category field/filter: these are two orderings of the same feed.
+  Return shape is `{ posts, nextCursor }`. Forward the cursor unchanged and stop at null.
+  Details use `GET /posts/{postId}` independently of the loaded list or Home card IDs.
+- Current bookmark state comes from `GET /users/me/bookmarks`; editable/deletable
+  post IDs come from `GET /users/me/posts`. The backend still enforces ownership.
+  Failed ownership/bookmark reads never imply permission or a negative bookmark state.
+- Post recommendation and bookmark mutations use POST/DELETE subresources. The API
+  has no recommended-by-me flag, so initial recommendation state is unknown. Both
+  explicit recommendation and cancellation are available. Counts are refreshed from
+  the server after successful recommendation changes; no guessed increment is applied.
+- Report UI supports only the documented `SPAM` example with optional detail. Other
+  reason values require a published enum. Success appears only after the server response.
+- Comments use POST with `{ parentCommentId, content }` and DELETE by comment ID.
+  The docs expose neither a comment collection GET nor comments in post details.
+  Therefore the UI labels its limitation and displays only comments successfully created
+  during the current detail view. Replies use IDs from successful creation responses.
+  Delete locally visible replies before their parent; backend subtree deletion semantics
+  remain unspecified. Comments do not survive closing/reloading the detail view in the UI.
+- 여행 리뷰 explicitly displays 내가 작성한 여행 리뷰 from `GET /users/me/reviews`.
+  Selecting one opens public `GET /places/{placeId}/reviews` via `publicApiClient`.
+  All mutations and own collections use `apiClient`. Review text is `contents`, not
+  post/comment `content`; rating is 1–5 and weather is nullable SUNNY/CLOUDY/RAINY/SNOWY.
+  Delete controls are shown only for IDs returned by the authenticated own collection.
+- Errors preserve input drafts; pending mutations cannot be double-submitted. The
+  existing client intentionally does not replay writes after a 401 refresh. Users must
+  explicitly retry. Read requests are cancelled on view changes and state is discarded
+  on session-epoch changes. No access token or community response is persisted.
+- Remote photos accept credential-free HTTPS URLs, render directly in the browser
+  without a referrer or server-side fetch, and fall back to a neutral pet illustration
+  on absence/failure. They are not replaced with unrelated travel photographs.
+
+Remaining integration boundaries:
+
+- No global review feed, comment list, comment recommendation, bookmark count,
+  recommended-by-me flag or author user ID is documented.
+- Post DTOs expose only pet/course IDs. Public pet details are not documented and
+  course detail is owner-only; keep the existing companion/course card positions with
+  honest unavailable states instead of fetching another user's private resources.
+- Typed post/review create adapters are ready, but board creation UI is deferred until
+  real pet/photo/course/place selection is wired from the travel and album flows.
+  Do not submit prototype IDs. Review update is not documented.
+- Production write verification needs a designated test account/data set. Automated
+  tests exercise mutation requests and responses locally without publishing content,
+  recommendations, reports, or deletions to the shared live service.
+
+Validation on 2026-09-03:
+
+- Updated from clean, current `dev` and created `feature/community-api`.
+- Existing local dev server responded successfully. Published API docs loaded.
+  Unauthenticated post request returned the expected 401; the browser's existing
+  authenticated session successfully loaded Home and live popular/latest post lists,
+  a real post detail, bookmark state and ownership-based action visibility. Home HOT
+  links opened the matching detail. My reviews returned an empty collection and showed
+  the corresponding empty state; place-review rendering was covered by local tests.
+- Home TMAP tiles rendered. Weather and SDK server routes returned 200. Default-region
+  UV was available; dynamic-grid UV remains intentionally unavailable as documented above.
+- `npm run lint`, `npm run typecheck`, `npm run test` (38 files / 250 tests), and
+  `npm run build` passed. The community-specific run contains 47 passing tests.
+- Canonical API/security, Next.js/design and test reviewers completed read-only reviews.
+  Findings about reply hierarchy, fixed composer placement, offscreen action panels
+  and post-logout follow-up requests were fixed and covered by regression tests.
+- Live checks were read-only. Mutation success/failure, duplicate submission prevention,
+  draft retention and deletion confirmation were exercised against local test doubles.
