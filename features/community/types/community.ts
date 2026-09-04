@@ -33,6 +33,7 @@ export interface Comment {
   depth: number
   commentOrder: number
   content: string
+  nickname: string
   createdAt: string | null
 }
 

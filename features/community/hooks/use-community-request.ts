@@ -63,5 +63,6 @@ export function useCommunityAction() {
       if (current()) setBusy(false)
     }
   }
-  return { busy, error, notice, run }
+  const clearFeedback = () => { setError(null); setNotice(null) }
+  return { busy, error, notice, run, clearFeedback }
 }

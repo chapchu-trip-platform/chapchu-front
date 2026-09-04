@@ -119,7 +119,7 @@ Backend coordination still needs to confirm:
 - route recommendation request/response shape
 - travel note draft save API
 - album save API
-- community comment-list/read-state/public companion-detail contracts (see below)
+- community read-state/public companion-detail contracts (see below)
 
 ## Home And Location API Status
 
@@ -226,12 +226,14 @@ its fixture data lives under `data/mock/community.ts`.
   recommendation changes; no guessed increment is applied.
 - Report UI supports only the documented `SPAM` example with optional detail. Other
   reason values require a published enum. Success appears only after the server response.
-- Comments use POST with `{ parentCommentId, content }` and DELETE by comment ID.
-  The docs expose neither a comment collection GET nor comments in post details.
-  Therefore the UI labels its limitation and displays only comments successfully created
-  during the current detail view. Replies use IDs from successful creation responses.
-  Delete locally visible replies before their parent; backend subtree deletion semantics
-  remain unspecified. Comments do not survive closing/reloading the detail view in the UI.
+- Comments use GET/POST at the post's comment collection, PATCH with `{ content }`
+  and DELETE by comment ID. The September 4 contract adds collection reads and edits.
+  The array includes nickname and commentOrder, but no author ID or ownership flag.
+  The UI displays server authors and the reply tree, reloads on re-entry, and synchronizes
+  counts from the complete collection. It never infers ownership from nicknames.
+  Edit/delete controls explain that only the author's own comments can be changed;
+  the server enforces this, and a 404 can mean either a missing comment or no permission.
+  Successful deletion reloads the server tree without guessing descendant semantics.
 - 여행 리뷰 explicitly displays 내가 작성한 여행 리뷰 from `GET /users/me/reviews`.
   Selecting one opens public `GET /places/{placeId}/reviews` via `publicApiClient`.
   All mutations and own collections use `apiClient`. Review text is `contents`, not
@@ -249,7 +251,7 @@ its fixture data lives under `data/mock/community.ts`.
 
 Remaining integration boundaries:
 
-- No global review feed, comment list, comment recommendation, bookmark count,
+- No global review feed, comment recommendation, bookmark count,
   recommended-by-me flag or author user ID is documented.
 - Companion/course sections have been removed from the free board and its details.
   Only reviews carry these sections. Public pet details are not documented and course
@@ -440,3 +442,48 @@ remaining must-fix frontend issues. An existing profile focus-restoration test n
 waits for the asynchronous restoration as well as dialog removal. The browser also
 confirmed that a failed live bookmark cancellation preserves the active bookmark,
 shows the contextual server-error message, and re-enables an explicit retry.
+
+### Comment reads/edits and bookmark error diagnostics (2026-09-04)
+
+Source: https://api.chapchu.site/docs/index.html, checked again after the comment API
+documentation update. GET `/posts/{postId}/comments` returns a 200 array ordered by
+commentOrder; PATCH `/comments/{commentId}` accepts required content and returns a
+200 comment object. The docs explicitly return 404 for edits to another user's comment.
+List, create and update responses now validate nickname, and collection/update adapters
+validate the requested resource IDs. Duplicate collection IDs are rejected.
+
+Read loading/errors, retry, empty lists, persisted replies and inline edits are connected.
+List loading/failure blocks mutations so a late initial read cannot overwrite a write.
+Failed edits preserve both the displayed original and editor draft; writes are never
+automatically replayed. A new edit clears the previous operation's feedback.
+An author ID or isMine flag is still needed to hide edit/delete controls authoritatively.
+
+Authenticated browser verification loaded eight existing comments and nested replies on
+sample post ending 711, and an empty array on sample post ending 703. The editor opened
+with the saved content and focused input. No live comment was created, edited or deleted;
+successful/failed mutations are verified with controlled test responses.
+
+The bookmark cancellation on sample post ending 703 was reproduced again. Response body:
+status 500, error `Internal Server Error`, timestamp `2026-09-04T09:11:07.453+00:00`.
+The request used the documented DELETE method and path. No detailed exception, code or
+stack was returned; frontend evidence cannot identify a database or transaction cause.
+Backend owners should correlate this server timestamp and request path with exception
+logs, then verify deletion and subsequent absence from the user's bookmark collection.
+
+The UI now includes HTTP status in reaction server-error messages. In development,
+bookmark cancellation errors also produce `[community] Bookmark cancellation failed`
+in the browser console, with fixed method/path template, validated status, observedAt,
+and a fixed known message. Arbitrary messages, IDs, headers, bodies and original errors
+are never passed to this log; it is disabled in production. The existing development
+diagnostics page remains available for sanitized network response inspection.
+
+Post publication remains disabled because the current create documentation still lists
+petId/photoId/courseId without saying omission or null is accepted. This is an unresolved
+contract boundary, not a confirmed rejection of text-only requests. No fabricated IDs
+or prototype photo reference are sent to bypass it.
+
+Validation: `npm run lint`, `npm run typecheck`, `npm run test` (43 files / 341 tests)
+and `npm run build` passed. Canonical API/security, Next.js/UI and test reviews completed
+without outstanding must-fix findings. Added coverage includes real-list count updates,
+re-entry, reply trees, failed reads, 404 edit/delete failures, edit draft preservation,
+duplicate submissions, stale reads, server-tree reloads and development-only safe logging.

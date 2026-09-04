@@ -2,7 +2,7 @@
 
 import { apiClient, publicApiClient } from '@/lib/api/client'
 import { API_ENDPOINTS } from '@/lib/api/endpoints'
-import { parseComment, parsePost, parsePostPage, parsePosts, parseReview, parseReviews } from '@/features/community/lib/community-model'
+import { parseComment, parseComments, parsePost, parsePostPage, parsePosts, parseReview, parseReviews } from '@/features/community/lib/community-model'
 import type { PostInput, ReviewInput } from '@/features/community/types/community'
 
 const endpoints = API_ENDPOINTS.community
@@ -50,7 +50,20 @@ export async function setPostRecommendation(postId: string, recommended: boolean
 export async function setPostBookmark(postId: string, bookmarked: boolean) {
   const path = endpoints.bookmark(postId)
   if (bookmarked) await apiClient.post(path)
-  else await apiClient.delete(path)
+  else {
+    try { await apiClient.delete(path) } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        const failure = error && typeof error === 'object' ? error as Record<string, unknown> : {}
+        // Deliberately exclude raw errors, request IDs, headers, bodies and arbitrary server messages.
+        console.error('[community] Bookmark cancellation failed', {
+          method: 'DELETE', route: '/posts/:postId/bookmarks', observedAt: new Date().toISOString(),
+          status: Number.isInteger(failure.status) && Number(failure.status) >= 100 && Number(failure.status) <= 599 ? failure.status : undefined,
+          message: failure.message === 'Internal Server Error' ? 'Internal Server Error' : 'See the HTTP status and development diagnostics.',
+        })
+      }
+      throw error
+    }
+  }
 }
 
 // SPAM is the only reason value demonstrated by the published contract.
@@ -62,6 +75,21 @@ export async function createComment(postId: string, content: string, parentComme
   const { data } = await apiClient.post<unknown>(endpoints.comments(postId), { parentCommentId, content })
   const comment = parseComment(data)
   if (comment.postId !== postId || comment.parentCommentId !== parentCommentId) throw new Error('Comment response did not match the request.')
+  return comment
+}
+
+export async function fetchComments(postId: string, signal?: AbortSignal) {
+  const { data } = await apiClient.get<unknown>(endpoints.comments(postId), { signal })
+  const comments = parseComments(data)
+  if (comments.some(comment => comment.postId !== postId)) throw new Error('Comments did not match the requested post.')
+  return comments
+}
+
+export async function updateComment(postId: string, commentId: string, content: string) {
+  if (!content.trim() || content.length > 20_000) throw new Error('Invalid comment content.')
+  const { data } = await apiClient.patch<unknown>(endpoints.comment(commentId), { content: content.trim() })
+  const comment = parseComment(data)
+  if (comment.id !== commentId || comment.postId !== postId) throw new Error('Comment response did not match the request.')
   return comment
 }
 

@@ -31,6 +31,7 @@ beforeEach(() => {
   vi.mocked(api.fetchMyReviews).mockResolvedValue([reviewFixture])
   vi.mocked(api.fetchPlaceReviews).mockResolvedValue([reviewFixture])
   vi.mocked(api.createComment).mockResolvedValue(commentFixture)
+  vi.mocked(api.fetchComments).mockResolvedValue([])
 })
 afterEach(cleanup)
 
@@ -276,11 +277,11 @@ describe('live community board', () => {
     await act(async () => pending.resolve(commentFixture))
     expect(await screen.findByText(commentFixture.content)).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: '댓글 내용' })).toHaveValue('')
-    expect(screen.getByRole('heading', { name: '댓글 3' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '댓글 1' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '댓글 삭제' }))
     await user.click(screen.getByRole('button', { name: '삭제 확인' }))
     await waitFor(() => expect(screen.queryByText(commentFixture.content)).not.toBeInTheDocument())
-    expect(screen.getByRole('heading', { name: '댓글 2' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '댓글 0' })).toBeInTheDocument()
   })
   it('does not retain private detail or drafts when the session changes', async () => {
     const user = userEvent.setup()
@@ -308,6 +309,7 @@ describe('live community board', () => {
     const user = userEvent.setup()
     render(<CommunityBoard initialPostId="post-1" />)
     const input = await screen.findByRole('textbox', { name: '댓글 내용' })
+    await waitFor(() => expect(input).toBeEnabled())
     for (const text of ['첫 댓글', '둘째 댓글']) {
       await user.type(input, text)
       await user.click(screen.getByRole('button', { name: '댓글 전송' }))

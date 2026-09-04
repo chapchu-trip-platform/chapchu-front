@@ -41,10 +41,22 @@ export function parsePostPage(value: unknown): PostPage {
 
 export function parseComment(value: unknown): Comment {
   if (!record(value) || !id(value.id) || !id(value.postId) || !nullableId(value.parentCommentId) ||
-      !count(value.depth) || !count(value.commentOrder) || !text(value.content) || !date(value.createdAt)) {
+      !count(value.depth) || !count(value.commentOrder) || !text(value.content) || !text(value.nickname, 100) || !date(value.createdAt)) {
     throw new Error('Invalid comment response.')
   }
   return value as unknown as Comment
+}
+
+export function parseComments(value: unknown): Comment[] {
+  if (!Array.isArray(value)) throw new Error('Invalid comment list response.')
+  const comments = value.map(parseComment)
+  if (new Set(comments.map(comment => comment.id)).size !== comments.length) throw new Error('Duplicate comment IDs.')
+  return comments.sort((a, b) => a.commentOrder - b.commentOrder)
+}
+
+export function commentMutationErrorMessage(error: unknown) {
+  if (record(error) && error.status === 404) return '댓글을 찾을 수 없거나 수정·삭제할 권한이 없어요. 본인이 작성한 댓글인지 확인해 주세요.'
+  return communityErrorMessage(error)
 }
 
 export function parseReview(value: unknown): Review {
@@ -107,7 +119,7 @@ export function communityErrorMessage(error: unknown) {
 
 export function postReactionErrorMessage(error: unknown, action: '추천' | '추천 취소' | '북마크 등록' | '북마크 취소') {
   const detail = record(error) && (error.type === 'server' || (typeof error.status === 'number' && error.status >= 500))
-    ? '서버 오류가 발생했어요. 잠시 후 다시 시도해 주세요.'
+    ? `서버 오류${record(error) && typeof error.status === 'number' ? ` (HTTP ${error.status})` : ''}가 발생했어요. 잠시 후 다시 시도해 주세요.`
     : record(error) && error.status === 404
       ? '해당 내역을 찾지 못했어요. 이미 취소되었거나 게시글이 없을 수 있어요.'
       : communityErrorMessage(error)

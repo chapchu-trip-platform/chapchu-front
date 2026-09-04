@@ -8,7 +8,7 @@ export const postFixture: Post = {
 
 export const commentFixture: Comment = {
   id: 'comment-1', postId: 'post-1', parentCommentId: null, depth: 0, commentOrder: 1,
-  content: '즐거운 여행이네요', createdAt: null,
+  content: '즐거운 여행이네요', nickname: '댓글 작성자', createdAt: null,
 }
 
 export const reviewFixture: Review = {

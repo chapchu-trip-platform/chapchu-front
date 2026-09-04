@@ -69,6 +69,49 @@ describe('community API requests', () => {
     vi.mocked(apiClient.post).mockResolvedValue({ data: { ...commentFixture, postId: 'other' } })
     await expect(api.createComment('post-1', '댓글')).rejects.toThrow()
   })
+  it('loads sorted comments with a signal and rejects duplicate IDs, missing authors and cross-post data', async () => {
+    const signal = new AbortController().signal
+    const later = { ...commentFixture, id: 'comment-2', commentOrder: 2 }
+    vi.mocked(apiClient.get).mockResolvedValue({ data: [later, commentFixture] })
+    expect(await api.fetchComments('post-1', signal)).toEqual([commentFixture, later])
+    expect(apiClient.get).toHaveBeenCalledWith('/posts/post-1/comments', { signal })
+    for (const data of [[commentFixture, commentFixture], [{ ...commentFixture, nickname: undefined }], [{ ...commentFixture, postId: 'other' }], {}]) {
+      vi.mocked(apiClient.get).mockResolvedValue({ data })
+      await expect(api.fetchComments('post-1')).rejects.toThrow()
+    }
+  })
+  it('patches only comment content and validates the returned resource', async () => {
+    vi.mocked(apiClient.patch).mockResolvedValue({ data: { ...commentFixture, content: '수정' } })
+    expect((await api.updateComment('post-1', 'comment-1', ' 수정 ')).content).toBe('수정')
+    expect(apiClient.patch).toHaveBeenCalledWith('/comments/comment-1', { content: '수정' })
+    for (const data of [{ ...commentFixture, id: 'other' }, { ...commentFixture, postId: 'other' }]) {
+      vi.mocked(apiClient.patch).mockResolvedValue({ data })
+      await expect(api.updateComment('post-1', 'comment-1', '수정')).rejects.toThrow()
+    }
+    vi.mocked(apiClient.patch).mockClear()
+    await expect(api.updateComment('post-1', 'comment-1', ' ')).rejects.toThrow()
+    expect(apiClient.patch).not.toHaveBeenCalled()
+  })
+  it('logs only safe bookmark failure metadata in development and never logs in production', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const failure = { status: 500, message: 'Internal Server Error', details: { token: 'secret', email: 'private' } }
+    vi.mocked(apiClient.delete).mockRejectedValue(failure)
+    try {
+      vi.stubEnv('NODE_ENV', 'development')
+      await expect(api.setPostBookmark('private-post-id', false)).rejects.toEqual(failure)
+      expect(log).toHaveBeenCalledExactlyOnceWith('[community] Bookmark cancellation failed', {
+        method: 'DELETE', route: '/posts/:postId/bookmarks', observedAt: expect.any(String), status: 500, message: 'Internal Server Error',
+      })
+      log.mockClear()
+      vi.mocked(apiClient.delete).mockRejectedValue({ status: 500, message: 'secret personal data' })
+      await expect(api.setPostBookmark('private-post-id', false)).rejects.toBeDefined()
+      expect(JSON.stringify(log.mock.calls)).not.toContain('secret')
+      log.mockClear()
+      vi.stubEnv('NODE_ENV', 'production')
+      await expect(api.setPostBookmark('private-post-id', false)).rejects.toBeDefined()
+      expect(log).not.toHaveBeenCalled()
+    } finally { vi.unstubAllEnvs(); log.mockRestore() }
+  })
   it('propagates failed writes without replay', async () => {
     const failure = { type: 'unauthorized', status: 401 }
     vi.mocked(apiClient.post).mockRejectedValue(failure)
