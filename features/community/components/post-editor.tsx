@@ -23,7 +23,7 @@ function Editor() {
   const previewRef = useRef<HTMLDivElement>(null)
   const titleRef = useRef<HTMLInputElement>(null)
   const hasDraft = Boolean(title || content)
-  const valid = Boolean(title.trim() && content.trim())
+  const valid = Boolean(title.trim() && title.length <= POST_TITLE_LIMIT && content.trim())
 
   useEffect(() => {
     if (!hasDraft) return
@@ -59,6 +59,7 @@ function Editor() {
           <label htmlFor="post-title" className="text-[13px] font-semibold text-deep-brown">제목</label>
           <Input ref={titleRef} id="post-title" value={title} maxLength={POST_TITLE_LIMIT} placeholder="어떤 이야기를 나누고 싶으세요?" onChange={event => { update({ title: event.target.value }); setNotice(null) }} aria-describedby="post-title-count" />
           <p id="post-title-count" className="text-right text-[11px] text-warm-gray">{title.length} / {POST_TITLE_LIMIT}</p>
+          {title.length > POST_TITLE_LIMIT && <p role="alert">기존 제목을 {POST_TITLE_LIMIT}자 이내로 줄여 주세요. 작성 내용은 유지돼요.</p>}
         </div>
         <div className="space-y-2">
           <label htmlFor="post-content" className="text-[13px] font-semibold text-deep-brown">내용</label>

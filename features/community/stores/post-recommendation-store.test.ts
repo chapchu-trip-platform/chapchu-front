@@ -18,6 +18,17 @@ beforeEach(() => {
 })
 
 describe('session recommendation confirmations', () => {
+  it('hydrates fresh server state but rejects reads started before a mutation', async () => {
+    const store = usePostRecommendationStore.getState()
+    store.applyRead('post-1', true, undefined)
+    const beforeWrite = usePostRecommendationStore.getState().byPost['post-1']
+    await store.change('post-1', false)
+    store.applyRead('post-1', true, beforeWrite)
+    expect(usePostRecommendationStore.getState().byPost['post-1'].value).toBe(false)
+    const afterWrite = usePostRecommendationStore.getState().byPost['post-1']
+    store.applyRead('post-1', true, afterWrite)
+    expect(usePostRecommendationStore.getState().byPost['post-1'].value).toBe(true)
+  })
   it('records only successful writes per post and retains a confirmed recommendation on failed cancellation', async () => {
     const { change } = usePostRecommendationStore.getState()
     await change('post-1', true)

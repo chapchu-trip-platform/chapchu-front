@@ -17,6 +17,14 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('free-board post editor', () => {
+  it('keeps an older overlong draft but blocks preview until its title fits 100 characters', () => {
+    usePostDraftStore.getState().update({ title: '가'.repeat(101), content: '보존' })
+    render(<PostEditor />)
+    expect(screen.getByLabelText('제목')).toHaveValue('가'.repeat(101))
+    expect(screen.getByLabelText('제목')).toHaveAttribute('maxlength', '100')
+    expect(screen.getByRole('button', { name: '미리보기' })).toBeDisabled()
+    expect(screen.getByRole('alert')).toHaveTextContent('100자')
+  })
   it('requires nonempty title and content for preview and never submits an unconfirmed API contract', async () => {
     const user = userEvent.setup()
     render(<PostEditor />)

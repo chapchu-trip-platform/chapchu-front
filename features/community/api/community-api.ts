@@ -28,11 +28,13 @@ export async function fetchMyBookmarks(signal?: AbortSignal) {
 }
 
 export async function createPost(input: PostInput) {
+  if (input.title.length > 100) throw new Error('Post title exceeds 100 characters.')
   const { data } = await apiClient.post<unknown>(endpoints.posts, input)
   return parsePost(data)
 }
 
 export async function updatePost(postId: string, input: Pick<PostInput, 'title' | 'content'>) {
+  if (input.title.length > 100) throw new Error('Post title exceeds 100 characters.')
   const { data } = await apiClient.patch<unknown>(endpoints.post(postId), input)
   return parsePost(data)
 }

@@ -5,7 +5,9 @@ import { Bookmark, ChevronLeft, Flag, MessageCircle, MoreHorizontal, ThumbsUp } 
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
-import { deletePost, fetchMyBookmarks, fetchMyPosts, fetchPost, reportPost, setPostBookmark, updatePost } from '@/features/community/api/community-api'
+import { deletePost, fetchMyPosts, fetchPost, reportPost, setPostBookmark, updatePost } from '@/features/community/api/community-api'
+import { useAuthStore } from '@/features/auth/stores/auth-store'
+import { POST_TITLE_LIMIT } from '@/features/community/stores/post-draft-store'
 import { useCommunityAction, useCommunityQuery } from '@/features/community/hooks/use-community-request'
 import { formatCommunityDate, postReactionErrorMessage } from '@/features/community/lib/community-model'
 import { usePostRecommendationStore } from '@/features/community/stores/post-recommendation-store'
@@ -15,7 +17,15 @@ import { CommunityFeedback, CommunityPhoto, communityTextAreaClass, QueryFeedbac
 import { PostComments } from './post-comments'
 
 export function PostDetail({ postId, onBack }: { postId: string; onBack: () => void }) {
-  const request = useCallback((signal: AbortSignal) => fetchPost(postId, signal), [postId])
+  const request = useCallback(async (signal: AbortSignal) => {
+    const expected = usePostRecommendationStore.getState().byPost[postId]
+    const epoch = useAuthStore.getState().sessionEpoch
+    const result = await fetchPost(postId, signal)
+    if (!signal.aborted && epoch === useAuthStore.getState().sessionEpoch) {
+      usePostRecommendationStore.getState().applyRead(postId, result.recommended, expected)
+    }
+    return result
+  }, [postId])
   const query = useCommunityQuery(request)
   if (!query.data) return <div className="flex-1 overflow-y-auto bg-warm-beige p-4 pb-24">
     <IconButton onClick={onBack} aria-label="뒤로가기"><ChevronLeft /></IconButton>
@@ -26,7 +36,6 @@ export function PostDetail({ postId, onBack }: { postId: string; onBack: () => v
 
 function LoadedPost({ initialPost, onBack }: { initialPost: Post; onBack: () => void }) {
   const [post, setPost] = useState(initialPost)
-  const bookmarks = useCommunityQuery(fetchMyBookmarks)
   const myPosts = useCommunityQuery(fetchMyPosts)
   const recommendation = usePostRecommendationStore(state => state.byPost[initialPost.id]?.value)
   const recommendationPending = usePostRecommendationStore(state => state.byPost[initialPost.id]?.pending ?? false)
@@ -44,7 +53,7 @@ function LoadedPost({ initialPost, onBack }: { initialPost: Post; onBack: () => 
   const action = useCommunityAction()
   const reactionAction = useCommunityAction()
   const busy = action.busy || reactionAction.busy
-  const bookmarked = bookmarks.data?.some(item => item.id === post.id)
+  const bookmarked = post.bookmarked
   const owned = myPosts.data?.some(item => item.id === post.id) === true
 
   const recommend = (enabled: boolean) => void reactionAction.run(async ({ isCurrent, signal }) => {
@@ -57,7 +66,7 @@ function LoadedPost({ initialPost, onBack }: { initialPost: Post; onBack: () => 
   }, refreshed => (enabled ? '추천했어요.' : '추천을 취소했어요.') + (refreshed ? '' : ' 최신 추천 수는 다시 열어 확인해 주세요.'), error => postReactionErrorMessage(error, enabled ? '추천' : '추천 취소'))
 
   const toggleBookmark = () => void reactionAction.run(() => setPostBookmark(post.id, !bookmarked), () => {
-    bookmarks.setData(previous => bookmarked ? previous?.filter(item => item.id !== post.id) ?? null : [...(previous ?? []), post])
+    setPost(previous => ({ ...previous, bookmarked: !bookmarked }))
   }, bookmarked ? '북마크를 취소했어요.' : '북마크에 저장했어요.', error => postReactionErrorMessage(error, bookmarked ? '북마크 취소' : '북마크 등록'))
 
   return <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-warm-beige">
@@ -67,11 +76,10 @@ function LoadedPost({ initialPost, onBack }: { initialPost: Post; onBack: () => 
         <IconButton aria-label="더보기" aria-expanded={panel === 'menu'} onClick={() => setPanel(panel === 'menu' ? null : 'menu')} disabled={busy}><MoreHorizontal className="h-5 w-5" /></IconButton>
       </div>
     </div>
-    <PostComments postId={post.id} count={post.commentCount} onCountChange={delta => setPost(previous => ({ ...previous, commentCount: Math.max(0, previous.commentCount + delta) }))}>
+    <PostComments postId={post.id} count={post.commentCount} onCountChange={total => setPost(previous => ({ ...previous, commentCount: total }))}>
       <CommunityPhoto url={post.photoUrl} title={post.title} className="h-52" temporaryFallback />
       <div className="space-y-3 px-4 pt-4">
         <CommunityFeedback error={action.error} notice={action.notice} />
-        {bookmarks.error && <div><CommunityFeedback error="북마크 상태를 확인하지 못했어요." /><Button variant="ghost" size="sm" onClick={bookmarks.reload}>북마크 다시 확인</Button></div>}
         {panel && <div ref={panelRef} tabIndex={-1} aria-label="게시글 작업" className="outline-none" />}
         {panel === 'menu' && <div className="space-y-2 rounded-card border border-border bg-card-surface p-3">
           <Button variant="ghost" size="sm" onClick={() => setPanel('report')}>광고·스팸 신고</Button>
@@ -90,15 +98,16 @@ function LoadedPost({ initialPost, onBack }: { initialPost: Post; onBack: () => 
         </form>}
         {panel === 'edit' && owned && <form className="space-y-3 rounded-card border border-border bg-card-surface p-3" onSubmit={event => {
           event.preventDefault()
-          if (!title.trim() || !content.trim()) return
+          if (!title.trim() || title.length > POST_TITLE_LIMIT || !content.trim()) return
           void action.run(() => updatePost(post.id, { title: title.trim(), content: content.trim() }), updated => {
-            setPost(updated); setTitle(updated.title); setContent(updated.content); setPanel(null)
+            setPost(previous => ({ ...previous, title: updated.title, content: updated.content })); setTitle(updated.title); setContent(updated.content); setPanel(null)
           }, '게시글을 수정했어요.')
         }}>
           <h2 className="text-[14px] font-semibold">게시글 수정</h2>
-          <Input aria-label="게시글 제목" value={title} maxLength={500} disabled={busy} onChange={event => setTitle(event.target.value)} />
+          <Input aria-label="게시글 제목" value={title} maxLength={POST_TITLE_LIMIT} disabled={busy} onChange={event => setTitle(event.target.value)} />
+          {title.length > POST_TITLE_LIMIT && <p role="alert">제목을 {POST_TITLE_LIMIT}자 이내로 줄여 주세요.</p>}
           <textarea aria-label="게시글 내용" value={content} maxLength={20_000} disabled={busy} onChange={event => setContent(event.target.value)} className={communityTextAreaClass} />
-          <div className="flex gap-2"><Button type="submit" size="sm" disabled={busy || !title.trim() || !content.trim()}>수정 저장</Button><Button variant="ghost" size="sm" disabled={busy} onClick={() => setPanel(null)}>취소</Button></div>
+          <div className="flex gap-2"><Button type="submit" size="sm" disabled={busy || !title.trim() || title.length > POST_TITLE_LIMIT || !content.trim()}>수정 저장</Button><Button variant="ghost" size="sm" disabled={busy} onClick={() => setPanel(null)}>취소</Button></div>
         </form>}
         {panel === 'delete' && owned && <div className="space-y-3 rounded-card border border-border bg-card-surface p-3">
           <p className="text-[13px]">게시글을 삭제할까요? 삭제 후에는 되돌릴 수 없어요.</p>
@@ -115,10 +124,9 @@ function LoadedPost({ initialPost, onBack }: { initialPost: Post; onBack: () => 
         <div className="flex flex-wrap gap-3 py-3">
           <Button variant="ghost" size="sm" aria-label={recommendation ? '추천 취소' : '게시글 추천'} aria-pressed={recommendation} disabled={busy || recommendationPending} className={cn('px-0', recommendation ? 'text-sage-green' : 'text-warm-gray')} onClick={() => recommend(recommendation !== true)}><ThumbsUp className={recommendation ? 'fill-sage-green' : ''} />{post.recommendationCount}</Button>
           <Button variant="ghost" size="sm" aria-label="댓글로 이동" className="px-0" onClick={() => document.getElementById('community-comments')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}><MessageCircle />{post.commentCount}</Button>
-          <Button variant="ghost" size="sm" aria-label={bookmarked ? '북마크 취소' : '북마크'} aria-pressed={bookmarked ?? undefined} className={cn('px-0', bookmarked && 'text-soft-orange')} disabled={busy || !bookmarks.data} onClick={toggleBookmark}><Bookmark className={bookmarked ? 'fill-soft-orange' : ''} />{bookmarked ? '북마크 취소' : '북마크'}</Button>
+          <Button variant="ghost" size="sm" aria-label={bookmarked ? '북마크 취소' : '북마크'} aria-pressed={bookmarked} className={cn('px-0', bookmarked && 'text-soft-orange')} disabled={busy} onClick={toggleBookmark}><Bookmark className={bookmarked ? 'fill-soft-orange' : ''} />{bookmarked ? '북마크 취소' : '북마크'}</Button>
           <Button variant="ghost" size="sm" className="ml-auto px-0" disabled={busy} onClick={() => setPanel('report')}><Flag />신고</Button>
         </div>
-        {recommendation === undefined && <div className="flex flex-wrap items-center gap-2 text-[12px] text-warm-gray"><span>이전에 추천한 글이라면</span><Button variant="ghost" size="sm" disabled={busy || recommendationPending} onClick={() => recommend(false)}>추천 취소</Button></div>}
         <CommunityFeedback error={reactionAction.error} notice={reactionAction.notice} />
       </div>
     </PostComments>

@@ -4,14 +4,14 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as api from '@/features/community/api/community-api'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
-import { commentFixture } from '@/test/fixtures/community'
+import { commentFixture, postFixture } from '@/test/fixtures/community'
 import type { Comment } from '@/features/community/types/community'
 import { PostComments } from './post-comments'
 
 vi.mock('@/features/community/api/community-api')
 function Harness({ postId = 'post-1' }: { postId?: string }) {
   const [count, setCount] = useState(8)
-  return <PostComments key={postId} postId={postId} count={count} onCountChange={delta => setCount(value => value + delta)} />
+  return <PostComments key={postId} postId={postId} count={count} onCountChange={setCount} />
 }
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -26,7 +26,40 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('persisted post comments', () => {
-  it('loads author names, replies and the actual count again on re-entry', async () => {
+  it('preserves a successful comment when only its count refresh fails without replaying the write', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.fetchComments).mockResolvedValue([])
+    vi.mocked(api.createComment).mockResolvedValue(commentFixture)
+    vi.mocked(api.fetchPost).mockRejectedValue({ type: 'server' })
+    render(<Harness />)
+    await screen.findByText(/첫 댓글을 남겨/)
+    await user.type(screen.getByRole('textbox', { name: '댓글 내용' }), '댓글')
+    await user.click(screen.getByRole('button', { name: '댓글 전송' }))
+    expect(await screen.findByText(commentFixture.content)).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: '댓글 내용' })).toHaveValue('')
+    expect(screen.getByRole('heading', { name: '댓글 8' })).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('최신 댓글 수는 다시 열어')
+    expect(api.createComment).toHaveBeenCalledTimes(1)
+  })
+  it('keeps a deleted parent and its child after deletion, hides parent actions and reads the server count', async () => {
+    const user = userEvent.setup()
+    const child = { ...commentFixture, id: 'child', parentCommentId: commentFixture.id, content: '보존된 답글', depth: 1 }
+    const deleted = { ...commentFixture, deleted: true, nickname: null, content: '서버 원문이 와도 숨김' }
+    vi.mocked(api.fetchComments).mockResolvedValueOnce([commentFixture, child]).mockResolvedValueOnce([deleted, child])
+    vi.mocked(api.fetchPost).mockResolvedValue({ ...postFixture, commentCount: 1 })
+    render(<Harness />)
+    await user.click((await screen.findAllByRole('button', { name: '댓글 삭제' }))[0])
+    await user.click(screen.getByRole('button', { name: '삭제 확인' }))
+    const placeholder = await screen.findByText('삭제된 댓글입니다')
+    expect(screen.getByText(child.content)).toBeInTheDocument()
+    expect(placeholder.compareDocumentPosition(screen.getByText(child.content)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByText(deleted.content)).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: '댓글 수정' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: '댓글 삭제' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: '답글' })).toHaveLength(1)
+    expect(screen.getByRole('heading', { name: '댓글 1' })).toBeInTheDocument()
+  })
+  it('loads authors and replies on re-entry without overwriting the server post count', async () => {
     const reply = { ...commentFixture, id: 'reply', content: '답글 내용', parentCommentId: commentFixture.id, depth: 1, nickname: '(탈퇴한 사용자)' }
     vi.mocked(api.fetchComments).mockResolvedValue([commentFixture, reply])
     const first = render(<Harness />)
@@ -34,7 +67,7 @@ describe('persisted post comments', () => {
     expect(screen.getByText(/댓글 작성자/)).toBeInTheDocument()
     expect(screen.getByText(/탈퇴한 사용자/)).toBeInTheDocument()
     expect(screen.getByText(commentFixture.content).compareDocumentPosition(screen.getByText(reply.content)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(await screen.findByRole('heading', { name: '댓글 2' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '댓글 8' })).toBeInTheDocument()
     first.unmount()
     render(<Harness />)
     await screen.findByText(reply.content)
@@ -71,7 +104,7 @@ describe('persisted post comments', () => {
     await act(async () => save.resolve({ ...commentFixture, content: '수정한 댓글' }))
     expect(screen.queryByRole('textbox', { name: '수정할 댓글 내용' })).not.toBeInTheDocument()
     expect(screen.getByText('수정한 댓글')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '댓글 1' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '댓글 8' })).toBeInTheDocument()
   })
   it('cancels edits without writing and disables blank saves', async () => {
     const user = userEvent.setup()
@@ -107,7 +140,7 @@ describe('persisted post comments', () => {
     await user.click(screen.getByRole('button', { name: '다시 시도' }))
     await screen.findByText(reply.content)
     expect(screen.queryByText(commentFixture.content)).not.toBeInTheDocument()
-    await waitFor(() => expect(screen.getByRole('heading', { name: '댓글 1' })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('heading', { name: '댓글 8' })).toBeInTheDocument())
   })
   it('preserves comments and count on failed deletion without reloading or reporting success', async () => {
     const user = userEvent.setup()
@@ -117,7 +150,7 @@ describe('persisted post comments', () => {
     await user.click(screen.getByRole('button', { name: '삭제 확인' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('권한이 없어요')
     expect(screen.getByText(commentFixture.content)).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '댓글 1' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '댓글 8' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '삭제 확인' })).toBeEnabled()
     expect(api.fetchComments).toHaveBeenCalledTimes(1)
     expect(screen.queryByText('댓글을 삭제했어요.')).not.toBeInTheDocument()

@@ -215,22 +215,25 @@ its fixture data lives under `data/mock/community.ts`.
   The API has no category field/filter: these are two orderings of the same feed.
   Return shape is `{ posts, nextCursor }`. Forward the cursor unchanged and stop at null.
   Details use `GET /posts/{postId}` independently of the loaded list or Home card IDs.
-- Current bookmark state comes from `GET /users/me/bookmarks`; editable/deletable
-  post IDs come from `GET /users/me/posts`. The backend still enforces ownership.
-  Failed ownership/bookmark reads never imply permission or a negative bookmark state.
+- Detail recommendation/bookmark state comes from the server's `recommended` and
+  `bookmarked` booleans. Editable/deletable post IDs still come from `GET /users/me/posts`.
+  The backend enforces ownership; reaction flags do not imply ownership.
 - Post recommendation and bookmark mutations use POST/DELETE subresources. The API
-  has no recommended-by-me flag. Successful post recommendation writes are retained
-  per post in session memory, so returning from the list preserves the cancel action.
-  New sessions/reloads have unknown state and expose an explicit cancellation action
-  next to the reaction buttons. Counts are refreshed from the server after successful
-  recommendation changes; no guessed increment is applied.
+  now returns personal state on reads, including after reload or list navigation.
+  Recommendation memory retains in-flight locks and successful writes during navigation;
+  a read can replace it only if no write changed the captured state in the meantime.
+  The separate unknown-state cancellation button is removed. Recommendation counts
+  are refreshed from the server after successful changes; no guessed increment is applied.
 - Report UI supports only the documented `SPAM` example with optional detail. Other
   reason values require a published enum. Success appears only after the server response.
 - Comments use GET/POST at the post's comment collection, PATCH with `{ content }`
   and DELETE by comment ID. The September 4 contract adds collection reads and edits.
   The array includes nickname and commentOrder, but no author ID or ownership flag.
-  The UI displays server authors and the reply tree, reloads on re-entry, and synchronizes
-  counts from the complete collection. It never infers ownership from nicknames.
+  The UI displays server authors and the reply tree and reloads on re-entry. Deleted
+  parents remain with `deleted: true`, `nickname: null` and a fixed deleted-message label;
+  their action buttons are hidden and children retain parent IDs/ordering. Counts come
+  from Post.commentCount after writes, not the array length which includes deleted rows.
+  It never infers ownership from nicknames.
   Edit/delete controls explain that only the author's own comments can be changed;
   the server enforces this, and a 404 can mean either a missing comment or no permission.
   Successful deletion reloads the server tree without guessing descendant semantics.
@@ -251,8 +254,7 @@ its fixture data lives under `data/mock/community.ts`.
 
 Remaining integration boundaries:
 
-- No global review feed, comment recommendation, bookmark count,
-  recommended-by-me flag or author user ID is documented.
+- No global review feed, comment recommendation, bookmark count or author user ID is documented.
 - Companion/course sections have been removed from the free board and its details.
   Only reviews carry these sections. Public pet details are not documented and course
   detail is owner-only, so review sections show unavailable states instead of reading
@@ -263,8 +265,10 @@ Remaining integration boundaries:
   if the editor is unmounted during logout. This is not server-side draft storage.
 - Typed post/review create adapters remain ready, but actual text-only post submission
   is disabled: the published contract still lists petId/photoId/courseId and does not
-  state they may be omitted or null. These requirements must be confirmed before
-  enabling registration. Photo attachment and review creation still need their real
+  state they may be omitted or null. A live all-null request returned 400 because courseId
+  must not be null. Individual petId/photoId null support remains unverified. Title input
+  is now limited to 100 characters; overlong existing drafts are retained with guidance.
+  Photo attachment and review creation still need their real
   selection flows. Do not submit prototype IDs. Review update is not documented.
 - Production write verification needs a designated test account/data set. Automated
   tests exercise mutation requests and responses locally without publishing content,
@@ -487,3 +491,42 @@ and `npm run build` passed. Canonical API/security, Next.js/UI and test reviews 
 without outstanding must-fix findings. Added coverage includes real-list count updates,
 re-entry, reply trees, failed reads, 404 edit/delete failures, edit draft preservation,
 duplicate submissions, stale reads, server-tree reloads and development-only safe logging.
+
+### Updated contract preflight and live scenario verification (2026-09-04, evening)
+
+This section supersedes earlier missing-personal-state, hard-delete and bookmark-500
+observations above for the scenarios tested here. Source: current public API docs.
+
+Order: existing community tests first (79 passed); refreshed API documentation; explicit
+nullable request before functional testing; two failing new-contract tests reproduced
+the old parser's rejection of deleted/null-author rows and missing reaction validation;
+implementation and regression tests; live user-authorized functional scenarios.
+
+The temporary development-only probe used the existing authenticated apiClient and sent:
+`{ title: "[API 검증] nullable 20260904", content: "사용자 요청에 따른 임시 API 검증 게시글입니다. 검증 후 삭제합니다.", petId: null, photoId: null, courseId: null }`.
+The response was HTTP 400, `courseId: 널이어서는 안됩니다`. No post was created.
+This establishes rejection of the all-null combination, not separate rejection of every
+ID field. No fabricated or another author's IDs were substituted. The probe was removed.
+
+Live functional checks used existing sample post ending 707, starting with both personal
+reaction flags false and zero comments:
+
+- Bookmark POST 201 (22:56:01 KST), DELETE 204 (22:56:24). False again after reload.
+- Recommendation POST 201 (22:57:19), actual back-to-list navigation and card re-entry
+  showed the cancel state; DELETE 204 (22:59:21). Count 187 → 188 → 187 and false on reload.
+- Parent and child creation each returned 201; parent DELETE returned 204 (23:01:34).
+  GET preserved the parent placeholder and live nested child, also after reload.
+  Server commentCount changed 0 → 1 → 2 → 1; deleted rows were not counted.
+- Test child was also deleted after verification. Soft-deleted placeholders remain
+  under the API's documented semantics; test body/author text is hidden. Existing
+  comments and other users' reaction state were not edited.
+
+Post editing now updates only title/content locally so an old edit response cannot
+overwrite a concurrently refreshed comment count or reaction state. Comment count
+callbacks carry absolute server totals rather than deltas against captured old counts.
+API and UI inputs enforce the new 100-character title limit without truncating drafts.
+
+Final validation: `npm run lint`, `npm run typecheck`, `npm run test` (44 files / 350 tests),
+`npm run build` and `git diff --check` passed. API/security, Next.js/UI and test reviewers
+completed their checks. The count-race finding was fixed and covered for either response
+order. Temporary probe files are absent from the final build and working changes.

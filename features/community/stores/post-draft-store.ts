@@ -3,7 +3,7 @@
 import { create } from 'zustand'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
 
-export const POST_TITLE_LIMIT = 500
+export const POST_TITLE_LIMIT = 100
 export const POST_CONTENT_LIMIT = 20_000
 
 interface PostDraftState {

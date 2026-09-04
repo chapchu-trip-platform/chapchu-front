@@ -14,14 +14,18 @@ interface PostRecommendationStore {
   generation: number
   change: (postId: string, enabled: boolean) => Promise<void>
   reset: () => void
+  applyRead: (postId: string, value: boolean, expected: RecommendationState | undefined) => void
 }
 
-// The API has no recommended-by-me read field. Keep only confirmed writes in this
-// login session; undefined still means unknown, not "not recommended".
+// Server reads hydrate state. A read started before a write cannot overwrite that write.
 export const usePostRecommendationStore = create<PostRecommendationStore>((set, get) => ({
   byPost: {},
   generation: 0,
   reset: () => set(state => ({ byPost: {}, generation: state.generation + 1 })),
+  applyRead: (postId, value, expected) => {
+    if (get().byPost[postId] !== expected || expected?.pending) return
+    set(state => ({ byPost: { ...state.byPost, [postId]: { value, pending: false } } }))
+  },
   change: async (postId, enabled) => {
     if (get().byPost[postId]?.pending) throw new Error('A recommendation request is already pending.')
     const epoch = useAuthStore.getState().sessionEpoch

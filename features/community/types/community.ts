@@ -9,6 +9,8 @@ export interface Post {
   photoUrl: string | null
   viewCount: number
   recommendationCount: number
+  recommended: boolean
+  bookmarked: boolean
   commentCount: number
   createdAt: string | null
 }
@@ -33,7 +35,8 @@ export interface Comment {
   depth: number
   commentOrder: number
   content: string
-  nickname: string
+  nickname: string | null
+  deleted: boolean
   createdAt: string | null
 }
 

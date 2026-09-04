@@ -1,16 +1,16 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useRef, useState, type ReactNode } from 'react'
 import { Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
-import { createComment, deleteComment, fetchComments, updateComment } from '@/features/community/api/community-api'
+import { createComment, deleteComment, fetchComments, fetchPost, updateComment } from '@/features/community/api/community-api'
 import { useCommunityAction, useCommunityQuery } from '@/features/community/hooks/use-community-request'
 import { commentMutationErrorMessage, formatCommunityDate, orderComments } from '@/features/community/lib/community-model'
 import { CommunityFeedback, QueryFeedback, communityTextAreaClass } from './community-shared'
 
-export function PostComments({ postId, count, onCountChange, children }: { postId: string; count: number; onCountChange: (delta: number) => void; children?: ReactNode }) {
+export function PostComments({ postId, count, onCountChange, children }: { postId: string; count: number; onCountChange: (total: number) => void; children?: ReactNode }) {
   const request = useCallback((signal: AbortSignal) => fetchComments(postId, signal), [postId])
   const query = useCommunityQuery(request)
   const comments = query.data ?? []
@@ -24,18 +24,21 @@ export function PostComments({ postId, count, onCountChange, children }: { postI
   const editAction = useCommunityAction()
   const busy = action.busy || editAction.busy || query.loading || Boolean(query.error)
 
-  useEffect(() => {
-    if (query.data && query.data.length !== count) onCountChange(query.data.length - count)
-  }, [query.data, count, onCountChange])
+  async function readCount(signal: AbortSignal) {
+    try { return (await fetchPost(postId, signal)).commentCount } catch { return null }
+  }
 
   function submit() {
     if (!content.trim() || busy) return
-    void action.run(() => createComment(postId, content.trim(), replyTo), comment => {
+    void action.run(async ({ signal, isCurrent }) => {
+      const comment = await createComment(postId, content.trim(), replyTo)
+      return { comment, total: isCurrent() ? await readCount(signal) : null }
+    }, ({ comment, total }) => {
       query.setData(previous => [...(previous ?? []).filter(item => item.id !== comment.id), comment])
       setContent('')
       setReplyTo(null)
-      onCountChange(1)
-    }, '댓글을 등록했어요.')
+      if (total !== null) onCountChange(total)
+    }, result => '댓글을 등록했어요.' + (result.total === null ? ' 최신 댓글 수는 다시 열어 확인해 주세요.' : ''))
   }
 
   return <>
@@ -48,14 +51,14 @@ export function PostComments({ postId, count, onCountChange, children }: { postI
     {comments.length > 0 && <p className="mb-4 text-[12px] text-warm-gray">본인이 작성한 댓글만 수정·삭제할 수 있어요.</p>}
     <div className="space-y-4">
       {orderComments(comments).map(({ comment, depth }) => <div key={comment.id} style={{ marginLeft: Math.min(depth, 3) * 16 }} className={depth ? 'border-l border-border pl-3' : ''}>
-        <p className="text-[12px] text-warm-gray">{comment.nickname} · {formatCommunityDate(comment.createdAt)}</p>
-        <p className="mt-1 whitespace-pre-wrap break-words text-[13px] text-deep-brown">{comment.content}</p>
-        <div className="mt-1 flex gap-2">
+        {!comment.deleted && <p className="text-[12px] text-warm-gray">{comment.nickname} · {formatCommunityDate(comment.createdAt)}</p>}
+        <p className="mt-1 whitespace-pre-wrap break-words text-[13px] text-deep-brown">{comment.deleted ? '삭제된 댓글입니다' : comment.content}</p>
+        {!comment.deleted && <div className="mt-1 flex gap-2">
           <Button variant="ghost" size="sm" disabled={busy} onClick={() => { setReplyTo(comment.id); inputRef.current?.focus() }}>답글</Button>
           <Button variant="ghost" size="sm" disabled={busy} onClick={() => { editAction.clearFeedback(); setDeleting(null); setEditing(comment.id); setEditContent(comment.content) }}>댓글 수정</Button>
           <Button variant="ghost" size="sm" disabled={busy} onClick={() => { setEditing(null); setDeleting(comment.id) }}>댓글 삭제</Button>
-        </div>
-        {editing === comment.id && <form className="space-y-2 rounded-xl bg-muted p-3" onSubmit={event => {
+        </div>}
+        {!comment.deleted && editing === comment.id && <form className="space-y-2 rounded-xl bg-muted p-3" onSubmit={event => {
           event.preventDefault()
           if (busy || !editContent.trim()) return
           void editAction.run(() => updateComment(postId, comment.id, editContent.trim()), updated => {
@@ -68,14 +71,18 @@ export function PostComments({ postId, count, onCountChange, children }: { postI
           <Button type="submit" size="sm" disabled={busy || !editContent.trim() || editContent.trim() === comment.content}>수정 저장</Button>
           <Button variant="ghost" size="sm" disabled={busy} onClick={() => setEditing(null)}>수정 취소</Button>
         </form>}
-        {deleting === comment.id && <div className="space-y-2 rounded-xl bg-muted p-3">
+        {!comment.deleted && deleting === comment.id && <div className="space-y-2 rounded-xl bg-muted p-3">
           <p className="text-[12px]">이 댓글을 삭제할까요?</p>
-          <Button variant="destructive" size="sm" disabled={busy} onClick={() => void action.run(() => deleteComment(comment.id), () => {
+          <Button variant="destructive" size="sm" disabled={busy} onClick={() => void action.run(async ({ signal, isCurrent }) => {
+            await deleteComment(comment.id)
+            return isCurrent() ? readCount(signal) : null
+          }, total => {
             // The server owns descendant deletion semantics. Read the resulting tree.
             query.reload()
             setDeleting(null)
             setReplyTo(null)
-          }, '댓글을 삭제했어요.', commentMutationErrorMessage)}>삭제 확인</Button>
+            if (total !== null) onCountChange(total)
+          }, total => '댓글을 삭제했어요.' + (total === null ? ' 최신 댓글 수는 다시 열어 확인해 주세요.' : ''), commentMutationErrorMessage)}>삭제 확인</Button>
           <Button variant="ghost" size="sm" disabled={busy} onClick={() => setDeleting(null)}>취소</Button>
         </div>}
       </div>)}

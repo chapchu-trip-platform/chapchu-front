@@ -21,7 +21,7 @@ export function parsePost(value: unknown): Post {
   if (!record(value) || !id(value.id) || !nullableId(value.petId) || !nullableId(value.photoId) ||
       !nullableId(value.courseId) || !text(value.title, 500) || !text(value.content) ||
       !text(value.nickname, 100) || !(value.photoUrl === null || text(value.photoUrl, 4096)) ||
-      !count(value.viewCount) || !count(value.recommendationCount) || !count(value.commentCount) || !date(value.createdAt)) {
+      !count(value.viewCount) || !count(value.recommendationCount) || !count(value.commentCount) || !date(value.createdAt) || typeof value.recommended !== 'boolean' || typeof value.bookmarked !== 'boolean') {
     throw new Error('Invalid community post response.')
   }
   return { ...(value as unknown as Post), photoUrl: safePhotoUrl(value.photoUrl as string | null) }
@@ -41,10 +41,11 @@ export function parsePostPage(value: unknown): PostPage {
 
 export function parseComment(value: unknown): Comment {
   if (!record(value) || !id(value.id) || !id(value.postId) || !nullableId(value.parentCommentId) ||
-      !count(value.depth) || !count(value.commentOrder) || !text(value.content) || !text(value.nickname, 100) || !date(value.createdAt)) {
+      !count(value.depth) || !count(value.commentOrder) || !text(value.content) || typeof value.deleted !== 'boolean' ||
+      !(value.deleted ? value.nickname === null : text(value.nickname, 100)) || !date(value.createdAt)) {
     throw new Error('Invalid comment response.')
   }
-  return value as unknown as Comment
+  return { ...(value as unknown as Comment), ...(value.deleted ? { content: '삭제된 댓글입니다', nickname: null } : {}) }
 }
 
 export function parseComments(value: unknown): Comment[] {
