@@ -691,8 +691,10 @@ describe('ProfileRoute', () => {
     expect(settingsTrigger.closest('[inert]')).not.toBeNull()
 
     await user.click(screen.getByRole('button', { name: '뒤로 가기' }))
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: '내정보 설정' })).not.toBeInTheDocument())
-    expect(settingsTrigger).toHaveFocus()
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: '내정보 설정' })).not.toBeInTheDocument()
+      expect(settingsTrigger).toHaveFocus()
+    })
   })
   it('includes post links in the settings keyboard loop and encodes the post ID', async () => {
     const posts = [

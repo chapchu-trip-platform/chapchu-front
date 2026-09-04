@@ -219,9 +219,11 @@ its fixture data lives under `data/mock/community.ts`.
   post IDs come from `GET /users/me/posts`. The backend still enforces ownership.
   Failed ownership/bookmark reads never imply permission or a negative bookmark state.
 - Post recommendation and bookmark mutations use POST/DELETE subresources. The API
-  has no recommended-by-me flag, so initial recommendation state is unknown. Both
-  explicit recommendation and cancellation are available. Counts are refreshed from
-  the server after successful recommendation changes; no guessed increment is applied.
+  has no recommended-by-me flag. Successful post recommendation writes are retained
+  per post in session memory, so returning from the list preserves the cancel action.
+  New sessions/reloads have unknown state and expose an explicit cancellation action
+  next to the reaction buttons. Counts are refreshed from the server after successful
+  recommendation changes; no guessed increment is applied.
 - Report UI supports only the documented `SPAM` example with optional detail. Other
   reason values require a published enum. Success appears only after the server response.
 - Comments use POST with `{ parentCommentId, content }` and DELETE by comment ID.
@@ -390,3 +392,51 @@ Validation: `npm run lint`, `npm run typecheck`, `npm run test` (41 files / 319 
 and `npm run build` passed. Canonical API/security, Next.js/UI, and test reviews completed.
 Findings about free-tab navigation and outdated demo expectations were resolved and
 covered by regression tests. Existing comment-query and photo-upload limitations remain.
+
+### Recommendation re-entry and bookmark cancellation (2026-09-04)
+
+The recommendation re-entry regression was reproduced in a test before the fix:
+recommend a post, return to the list, reopen it, then attempt cancellation. The old
+component reset its own recommendation state to unknown, making the main button send
+POST again. Confirmed recommendation writes now live in a per-post, memory-only store.
+The store records success before refreshing counts, retains same-session results after
+the detail unmounts, and holds a pending lock across navigation. Epoch and store-generation
+checks discard old responses, including their lock cleanup, after logout/session changes.
+It cannot determine changes from another device/tab or recover state after reload;
+a recommended-by-me response field is still needed for authoritative hydration.
+
+Cancellation errors identify the operation and appear beside the reaction buttons.
+Panel actions keep their separate feedback above the post. Unknown recommendation state
+exposes explicit cancellation without opening a menu. HTTP 404/409/500 is not treated as
+success, and mutation requests are not automatically replayed. The bookmark collection
+remains the source of initial bookmark state; the active button visibly says 북마크 취소.
+
+Backend issue remains open: authenticated bookmark cancellation returned HTTP 500.
+Reproduction observed on sample post `00000000-0000-4000-8000-000000000703`:
+
+1. The active bookmark was visible on the detail.
+2. `DELETE /posts/{postId}/bookmarks` was sent with the documented path and method.
+3. The response was `500 Internal Server Error`; the server timestamp was
+   `2026-09-04T05:23:47.485+00:00`. No more specific error code was provided.
+4. Reopening the detail triggered `GET /users/me/bookmarks`, which returned 200 and
+   still included the same post. Therefore this was not merely stale button styling.
+
+Backend follow-up: inspect the server exception at that timestamp and the bookmark
+lookup/deletion transaction for the authenticated user and post. The precise server
+root cause is not available in this frontend repository. Verify POST → collection read
+→ DELETE 204 → collection absence, and document repeat-cancellation semantics.
+Do not change a failed deletion to a successful local toggle as a workaround.
+
+An explicit recommendation cancellation on the same sample returned 404 with
+`code: NOT_FOUND` and a message indicating no recommendation record. That request had
+no prior confirmed recommendation, so it does not establish a broken recommendation
+DELETE handler. Successful recommendation → re-entry → cancellation and delayed-response
+cases were tested locally with controlled responses. No live recommendation/bookmark
+creation was used to manufacture data while cancellation reliability was uncertain.
+
+Validation: `npm run lint`, `npm run typecheck`, `npm run test` (42 files / 330 tests),
+and `npm run build` passed. API/security, Next.js/UI, and test reviewers found no
+remaining must-fix frontend issues. An existing profile focus-restoration test now
+waits for the asynchronous restoration as well as dialog removal. The browser also
+confirmed that a failed live bookmark cancellation preserves the active bookmark,
+shows the contextual server-error message, and re-enables an explicit retry.

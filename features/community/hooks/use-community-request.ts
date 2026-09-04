@@ -41,7 +41,7 @@ export function useCommunityAction() {
   const activeRequest = useRef<AbortController | null>(null)
   useEffect(() => { alive.current = true; return () => { alive.current = false; activeRequest.current?.abort() } }, [])
 
-  async function run<T>(request: (context: { isCurrent: () => boolean; signal: AbortSignal }) => Promise<T>, onSuccess: (value: T) => void, message?: string | ((value: T) => string | undefined)) {
+  async function run<T>(request: (context: { isCurrent: () => boolean; signal: AbortSignal }) => Promise<T>, onSuccess: (value: T) => void, message?: string | ((value: T) => string | undefined), errorMessage: (error: unknown) => string = communityErrorMessage) {
     if (locked.current) return
     locked.current = true
     setBusy(true)
@@ -56,7 +56,7 @@ export function useCommunityAction() {
       if (current()) { onSuccess(result); setNotice((typeof message === 'function' ? message(result) : message) ?? null) }
     } catch (reason) {
       if (current() && !(reason instanceof DOMException && reason.name === 'AbortError')) {
-        setError(communityErrorMessage(reason))
+        setError(errorMessage(reason))
       }
     } finally {
       locked.current = false

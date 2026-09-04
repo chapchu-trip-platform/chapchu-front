@@ -104,3 +104,12 @@ export function communityErrorMessage(error: unknown) {
     default: return '정보를 처리하지 못했어요. 잠시 후 다시 시도해 주세요.'
   }
 }
+
+export function postReactionErrorMessage(error: unknown, action: '추천' | '추천 취소' | '북마크 등록' | '북마크 취소') {
+  const detail = record(error) && (error.type === 'server' || (typeof error.status === 'number' && error.status >= 500))
+    ? '서버 오류가 발생했어요. 잠시 후 다시 시도해 주세요.'
+    : record(error) && error.status === 404
+      ? '해당 내역을 찾지 못했어요. 이미 취소되었거나 게시글이 없을 수 있어요.'
+      : communityErrorMessage(error)
+  return `${action}${action.endsWith('취소') ? '를' : '을'} 완료하지 못했어요. ${detail}`
+}

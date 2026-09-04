@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as api from '@/features/community/api/community-api'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
+import { usePostRecommendationStore } from '@/features/community/stores/post-recommendation-store'
 import { commentFixture, postFixture, reviewFixture } from '@/test/fixtures/community'
 import { mockRouter } from '@/test/mocks/next-navigation'
 import type { PostPage } from '@/features/community/types/community'
@@ -22,6 +23,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() })
   useAuthStore.setState({ status: 'authenticated', sessionEpoch: 0 })
+  usePostRecommendationStore.getState().reset()
   vi.mocked(api.fetchPosts).mockResolvedValue({ posts: [postFixture], nextCursor: null })
   vi.mocked(api.fetchPost).mockResolvedValue(postFixture)
   vi.mocked(api.fetchMyBookmarks).mockResolvedValue([])
@@ -33,6 +35,96 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('live community board', () => {
+  it('retains a successful recommendation across list navigation and cancels rather than posting again', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<CommunityBoard initialPostId="post-1" />)
+    await user.click(await screen.findByRole('button', { name: '게시글 추천' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '추천 취소' })).toHaveAttribute('aria-pressed', 'true'))
+    rerender(<CommunityBoard />)
+    await screen.findByText(postFixture.title)
+    rerender(<CommunityBoard initialPostId="post-1" />)
+    await screen.findByRole('heading', { name: postFixture.title })
+    await user.click(screen.getByRole('button', { name: '추천 취소' }))
+    await waitFor(() => expect(api.setPostRecommendation).toHaveBeenLastCalledWith('post-1', false))
+    expect(api.setPostRecommendation).toHaveBeenCalledTimes(2)
+  })
+
+  it('rehydrates a bookmark on re-entry, preserves it on server failure and allows an explicit cancellation retry', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<CommunityBoard initialPostId="post-1" />)
+    await user.click(await screen.findByRole('button', { name: '북마크' }))
+    await screen.findByRole('button', { name: '북마크 취소' })
+    rerender(<CommunityBoard />)
+    await screen.findByText(postFixture.title)
+    vi.mocked(api.fetchMyBookmarks).mockResolvedValue([postFixture])
+    vi.mocked(api.setPostBookmark).mockRejectedValueOnce({ type: 'server', status: 500 }).mockResolvedValueOnce(undefined)
+    rerender(<CommunityBoard initialPostId="post-1" />)
+    await user.click(await screen.findByRole('button', { name: '북마크 취소' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('북마크 취소를 완료하지 못했어요')
+    expect(screen.getByRole('button', { name: '북마크 취소' })).toHaveAttribute('aria-pressed', 'true')
+    expect(api.setPostBookmark).toHaveBeenCalledTimes(2)
+    await user.click(screen.getByRole('button', { name: '북마크 취소' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '북마크' })).toHaveAttribute('aria-pressed', 'false'))
+    expect(api.setPostBookmark).toHaveBeenLastCalledWith('post-1', false)
+  })
+
+  it('retains success when leaving before the recommendation response and does not issue a stale count refresh', async () => {
+    const user = userEvent.setup()
+    const pending = deferred<void>()
+    vi.mocked(api.setPostRecommendation).mockReturnValueOnce(pending.promise)
+    const { rerender } = render(<CommunityBoard initialPostId="post-1" />)
+    await user.click(await screen.findByRole('button', { name: '게시글 추천' }))
+    rerender(<CommunityBoard />)
+    await screen.findByText(postFixture.title)
+    rerender(<CommunityBoard initialPostId="post-1" />)
+    expect(await screen.findByRole('button', { name: '게시글 추천' })).toBeDisabled()
+    await act(async () => pending.resolve())
+    expect(await screen.findByRole('button', { name: '추천 취소' })).toHaveAttribute('aria-pressed', 'true')
+    expect(api.fetchPost).toHaveBeenCalledTimes(2)
+    await user.click(screen.getByRole('button', { name: '추천 취소' }))
+    await waitFor(() => expect(api.setPostRecommendation).toHaveBeenLastCalledWith('post-1', false))
+  })
+
+  it('does not wait for the count refresh to preserve a successful recommendation across navigation', async () => {
+    const user = userEvent.setup()
+    const count = deferred<typeof postFixture>()
+    vi.mocked(api.fetchPost).mockResolvedValueOnce(postFixture).mockReturnValueOnce(count.promise).mockResolvedValue(postFixture)
+    const { rerender } = render(<CommunityBoard initialPostId="post-1" />)
+    await user.click(await screen.findByRole('button', { name: '게시글 추천' }))
+    await waitFor(() => expect(api.fetchPost).toHaveBeenCalledTimes(2))
+    rerender(<CommunityBoard />)
+    await screen.findByText(postFixture.title)
+    rerender(<CommunityBoard initialPostId="post-1" />)
+    expect(await screen.findByRole('button', { name: '추천 취소' })).toHaveAttribute('aria-pressed', 'true')
+    await act(async () => count.resolve(postFixture))
+  })
+
+  it('offers explicit cancellation when previous recommendation state is unknown without assuming 404 means success', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.setPostRecommendation).mockRejectedValueOnce({ type: 'not-found', status: 404 })
+    render(<CommunityBoard initialPostId="post-1" />)
+    await user.click(await screen.findByRole('button', { name: '추천 취소' }))
+    expect(api.setPostRecommendation).toHaveBeenCalledExactlyOnceWith('post-1', false)
+    expect(await screen.findByRole('alert')).toHaveTextContent('추천 취소를 완료하지 못했어요')
+    expect(screen.queryByText('추천을 취소했어요.')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '게시글 추천' })).not.toHaveAttribute('aria-pressed')
+  })
+
+  it('keeps reaction errors by the action row while a panel is open and panel success above the post', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.fetchMyBookmarks).mockResolvedValue([postFixture])
+    vi.mocked(api.setPostBookmark).mockRejectedValueOnce({ status: 500, type: 'server' })
+    render(<CommunityBoard initialPostId="post-1" />)
+    await user.click(await screen.findByRole('button', { name: '신고' }))
+    await user.click(screen.getByRole('button', { name: '북마크 취소' }))
+    const heading = screen.getByRole('heading', { name: postFixture.title })
+    const error = await screen.findByRole('alert')
+    expect(heading.compareDocumentPosition(error) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: '신고 접수' }))
+    const notice = await screen.findByText('신고가 접수되었어요.')
+    expect(notice.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('shows writing on the free board, reserves companion info for reviews, and replaces sharing with bookmarking', async () => {
     const user = userEvent.setup()
     const { unmount } = render(<CommunityBoard initialTab="free" />)
