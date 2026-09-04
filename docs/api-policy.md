@@ -239,20 +239,29 @@ its fixture data lives under `data/mock/community.ts`.
   existing client intentionally does not replay writes after a 401 refresh. Users must
   explicitly retry. Read requests are cancelled on view changes and state is discarded
   on session-epoch changes. No access token or community response is persisted.
-- Remote photos accept credential-free HTTPS URLs, render directly in the browser
-  without a referrer or server-side fetch, and fall back to a neutral pet illustration
-  on absence/failure. They are not replaced with unrelated travel photographs.
+- Remote photos accept credential-free HTTPS URLs and render directly in the browser
+  without a referrer or server-side fetch. At the user's request, free-board cards,
+  details, and editor previews use the existing local `post-cover.png` on absence/failure,
+  visibly labeled as a temporary photo. It is never submitted as a photo ID. If that
+  local asset also fails, the neutral icon fallback remains available.
 
 Remaining integration boundaries:
 
 - No global review feed, comment list, comment recommendation, bookmark count,
   recommended-by-me flag or author user ID is documented.
-- Post DTOs expose only pet/course IDs. Public pet details are not documented and
-  course detail is owner-only; keep the existing companion/course card positions with
-  honest unavailable states instead of fetching another user's private resources.
-- Typed post/review create adapters are ready, but board creation UI is deferred until
-  real pet/photo/course/place selection is wired from the travel and album flows.
-  Do not submit prototype IDs. Review update is not documented.
+- Companion/course sections have been removed from the free board and its details.
+  Only reviews carry these sections. Public pet details are not documented and course
+  detail is owner-only, so review sections show unavailable states instead of reading
+  another user's private resources or displaying raw IDs.
+- The `/community/write` screen supports title/body editing, preview, and memory-only
+  drafts retained across client navigation. Reload/logout clears drafts, with an explicit
+  UI notice and a browser reload warning. A global auth subscription also clears drafts
+  if the editor is unmounted during logout. This is not server-side draft storage.
+- Typed post/review create adapters remain ready, but actual text-only post submission
+  is disabled: the published contract still lists petId/photoId/courseId and does not
+  state they may be omitted or null. These requirements must be confirmed before
+  enabling registration. Photo attachment and review creation still need their real
+  selection flows. Do not submit prototype IDs. Review update is not documented.
 - Production write verification needs a designated test account/data set. Automated
   tests exercise mutation requests and responses locally without publishing content,
   recommendations, reports, or deletions to the shared live service.
@@ -358,3 +367,26 @@ Validation: lint, typecheck, all 309 tests across 40 files, and production build
 Regression coverage includes failed post edits and reports with explicit retry, profile
 detail links, encoded IDs, keyboard navigation, and asynchronous dialog cleanup.
 Canonical API/security, Next.js/UI, and test reviews completed with no remaining blockers.
+
+### Free-board screen update (2026-09-04)
+
+The detail action row now uses the existing bookmark API in place of sharing; the
+duplicate header bookmark control has been removed. Companion/course information is
+reserved for reviews in both runtime and demo screens. The existing local photo is an
+explicit temporary fallback on free-board cards/details and editor previews.
+
+The new editor supports writing, preview, and memory-only drafts. Publishing remains
+unavailable pending the text-only creation contract described above. No unconfirmed
+request shape or fabricated ID was sent. The free tab is preserved when entering a
+detail from the editor's return page and navigating back.
+
+Preflight: dev was already current, Home and API docs responded successfully, the backend
+returned 401 to the unauthenticated reachability check, default-region weather/UV was
+available, and Home TMAP tiles rendered. Browser checks confirmed the editor, preview,
+draft restoration after navigation, temporary photos, and the revised detail layout.
+Browser-created verification text was cleared; no live posts/comments/bookmarks were changed.
+
+Validation: `npm run lint`, `npm run typecheck`, `npm run test` (41 files / 319 tests),
+and `npm run build` passed. Canonical API/security, Next.js/UI, and test reviews completed.
+Findings about free-tab navigation and outdated demo expectations were resolved and
+covered by regression tests. Existing comment-query and photo-upload limitations remain.

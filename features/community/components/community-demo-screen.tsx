@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -11,7 +12,7 @@ import {
   Flag,
   Send,
   MoreHorizontal,
-  Share2,
+  PenLine,
   PawPrint,
   Route,
 } from 'lucide-react'
@@ -24,6 +25,7 @@ import { cn } from '@/lib/utils'
 
 interface CommunityScreenProps {
   initialPostId?: string
+  initialTab?: 'free'
 }
 
 const tabs = ['HOT', '자유게시판', '여행 리뷰']
@@ -43,12 +45,6 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
           <ChevronLeft className="w-5 h-5 text-deep-brown" />
         </IconButton>
         <div className="flex gap-1">
-          <IconButton
-            onClick={() => setBookmarked(!bookmarked)}
-            aria-label="북마크"
-          >
-            <Bookmark className={cn('w-5 h-5', bookmarked ? 'text-soft-orange fill-soft-orange' : 'text-deep-brown')} />
-          </IconButton>
           <IconButton
             onClick={() => setShowReport(!showReport)}
             aria-label="더보기"
@@ -86,7 +82,7 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
           <p className="text-[14px] text-deep-brown leading-relaxed py-4 border-b border-border">{post.body}</p>
 
           {/* Pet and course info */}
-          <div className="py-4 border-b border-border flex flex-col gap-3">
+          {post.tab === '여행 리뷰' && <div className="py-4 border-b border-border flex flex-col gap-3">
             <div className="rounded-card border border-border bg-card-surface p-3.5">
               <div className="mb-3 flex items-center gap-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sage-green-light">
@@ -133,8 +129,7 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
                 ))}
               </ol>
             </div>
-          </div>
-
+          </div>}
           {/* Actions */}
           <div className="flex gap-4 py-3 border-b border-border">
             <Button
@@ -150,9 +145,9 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
               <MessageCircle className="w-5 h-5" />
               <span className="text-[13px] font-medium">{post.comments}</span>
             </Button>
-            <Button variant="ghost" size="sm" className="h-auto px-0 py-1 text-warm-gray">
-              <Share2 className="w-5 h-5" />
-              <span className="text-[13px] font-medium">공유</span>
+            <Button variant="ghost" size="sm" aria-label={bookmarked ? '북마크 취소' : '북마크'} aria-pressed={bookmarked} onClick={() => setBookmarked(!bookmarked)} className={cn('h-auto px-0 py-1', bookmarked ? 'text-soft-orange' : 'text-warm-gray')}>
+              <Bookmark className={cn('w-5 h-5', bookmarked && 'fill-soft-orange')} />
+              <span className="text-[13px] font-medium">북마크</span>
             </Button>
             <Button
               variant="ghost"
@@ -232,9 +227,9 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
   )
 }
 
-export default function CommunityScreen({ initialPostId }: CommunityScreenProps) {
+export default function CommunityScreen({ initialPostId, initialTab }: CommunityScreenProps) {
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState(0)
+  const [activeTab, setActiveTab] = useState(initialTab === 'free' ? 1 : 0)
   const [selectedPost, setSelectedPost] = useState<typeof posts[0] | null>(() =>
     posts.find((post) => String(post.id) === initialPostId) ?? null
   )
@@ -282,6 +277,7 @@ export default function CommunityScreen({ initialPostId }: CommunityScreenProps)
       </div>
 
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
+        {activeTab !== 2 && <div className="flex justify-end px-4 pt-3"><Link href="/community/write" className="inline-flex items-center gap-2 rounded-full bg-sage-green px-4 py-2 text-[13px] font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-green focus-visible:ring-offset-2"><PenLine className="h-4 w-4" />글쓰기</Link></div>}
         <div className="flex flex-col gap-3 p-4">
           {filteredPosts.map((post, i) => (
             <InteractiveCard
@@ -292,7 +288,7 @@ export default function CommunityScreen({ initialPostId }: CommunityScreenProps)
             >
               <div className="relative h-36">
                 <Image src={post.image} alt={post.title} fill className="object-cover" />
-                {post.tab === 'HOT' && i === 0 && (
+                {activeTab === 0 && i === 0 && (
                   <div className="absolute top-3 left-3 bg-soft-orange px-2.5 py-1 rounded-full">
                     <span className="text-[11px] font-bold text-white">HOT</span>
                   </div>
@@ -302,7 +298,7 @@ export default function CommunityScreen({ initialPostId }: CommunityScreenProps)
                 <h3 className="text-[14px] font-semibold text-deep-brown leading-snug line-clamp-2 text-balance mb-2">
                   {post.title}
                 </h3>
-                <div className="mb-2.5 flex flex-col gap-1 rounded-xl bg-muted/55 px-2.5 py-2">
+                {post.tab === '여행 리뷰' && <div className="mb-2.5 flex flex-col gap-1 rounded-xl bg-muted/55 px-2.5 py-2">
                   <p className="flex items-center gap-1.5 text-[11px] text-deep-brown">
                     <PawPrint className="h-3 w-3 flex-shrink-0 text-sage-green" />
                     <span className="truncate">
@@ -313,7 +309,7 @@ export default function CommunityScreen({ initialPostId }: CommunityScreenProps)
                     <Route className="h-3 w-3 flex-shrink-0 text-soft-orange" />
                     <span className="truncate">{post.course.name} · 경유 {post.course.places.length}곳</span>
                   </p>
-                </div>
+                </div>}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <div className="w-5 h-5 rounded-full bg-sage-green/20 flex items-center justify-center">

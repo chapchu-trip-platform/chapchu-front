@@ -4,18 +4,31 @@ import Image from 'next/image'
 import { useState } from 'react'
 import { PawPrint, Route } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import type { Post } from '@/features/community/types/community'
+import type { Review } from '@/features/community/types/community'
 
-export function CommunityPhoto({ url, title, className }: { url: string | null; title: string; className: string }) {
-  return <Photo key={url} url={url} title={title} className={className} />
+interface CommunityPhotoProps {
+  url: string | null
+  title: string
+  className: string
+  temporaryFallback?: boolean
 }
 
-function Photo({ url, title, className }: { url: string | null; title: string; className: string }) {
+export function CommunityPhoto(props: CommunityPhotoProps) {
+  return <Photo key={props.url} {...props} />
+}
+
+function Photo({ url, title, className, temporaryFallback = false }: CommunityPhotoProps) {
   const [failed, setFailed] = useState(false)
+  const [fallbackFailed, setFallbackFailed] = useState(false)
   return (
     <div className={`relative overflow-hidden bg-sage-green-light ${className}`}>
       {url && !failed ? (
         <Image src={url} alt={title} fill unoptimized sizes="430px" referrerPolicy="no-referrer" className="object-cover" onError={() => setFailed(true)} />
+      ) : temporaryFallback && !fallbackFailed ? (
+        <>
+          <Image src="/images/post-cover.png" alt="임시 사진: 반려견과 함께하는 해변 산책" fill sizes="430px" className="object-cover" onError={() => setFallbackFailed(true)} />
+          <span className="absolute bottom-2 right-2 rounded-full bg-card-surface/95 px-2 py-1 text-[10px] font-medium text-deep-brown">임시 사진</span>
+        </>
       ) : (
         <div className="flex h-full flex-col items-center justify-center gap-2 text-sage-green">
           <PawPrint className="h-9 w-9" aria-hidden="true" />
@@ -40,16 +53,16 @@ export function QueryFeedback({ loading, error, onRetry }: { loading: boolean; e
   </div>
 }
 
-/** Public post responses carry IDs only; private pet/course APIs cannot fill these cards. */
-export function PostCompanionInfo({ post, compact = false }: { post: Post; compact?: boolean }) {
-  return <div className={compact ? 'mb-2.5 space-y-1 rounded-xl bg-muted/55 px-2.5 py-2' : 'space-y-3 border-b border-border py-4'}>
-    <div className={compact ? '' : 'rounded-card border border-border bg-card-surface p-3.5'}>
+/** Review IDs do not authorize reads of another user's private pet/course details. */
+export function ReviewCompanionInfo({ review }: { review: Review }) {
+  return <div className="space-y-2 rounded-xl bg-muted/55 p-3">
+    <div>
       <p className="flex items-center gap-1.5 text-[11px] text-warm-gray"><PawPrint className="h-3 w-3 text-sage-green" />동행 반려동물</p>
-      <p className="mt-1 text-[12px] text-deep-brown">{post.petId ? '반려동물 상세 정보 준비 중' : '등록된 동행 정보가 없어요'}</p>
+      <p className="mt-1 text-[12px] text-deep-brown">반려동물 상세 정보 준비 중</p>
     </div>
-    <div className={compact ? '' : 'rounded-card border border-border bg-card-surface p-3.5'}>
+    <div>
       <p className="flex items-center gap-1.5 text-[11px] text-warm-gray"><Route className="h-3 w-3 text-soft-orange" />코스 정보</p>
-      <p className="mt-1 text-[12px] text-deep-brown">{post.courseId ? '공유 코스 상세 정보 준비 중' : '연결된 코스가 없어요'}</p>
+      <p className="mt-1 text-[12px] text-deep-brown">{review.coursePlaceId ? '연결된 여행 정보 준비 중' : '연결된 코스가 없어요'}</p>
     </div>
   </div>
 }

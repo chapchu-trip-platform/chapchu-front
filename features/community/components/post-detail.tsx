@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bookmark, ChevronLeft, Flag, MessageCircle, MoreHorizontal, Share2, ThumbsUp } from 'lucide-react'
+import { Bookmark, ChevronLeft, Flag, MessageCircle, MoreHorizontal, ThumbsUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
@@ -10,7 +10,7 @@ import { useCommunityAction, useCommunityQuery } from '@/features/community/hook
 import { formatCommunityDate } from '@/features/community/lib/community-model'
 import type { Post } from '@/features/community/types/community'
 import { cn } from '@/lib/utils'
-import { CommunityFeedback, CommunityPhoto, communityTextAreaClass, PostCompanionInfo, QueryFeedback } from './community-shared'
+import { CommunityFeedback, CommunityPhoto, communityTextAreaClass, QueryFeedback } from './community-shared'
 import { PostComments } from './post-comments'
 
 export function PostDetail({ postId, onBack }: { postId: string; onBack: () => void }) {
@@ -53,26 +53,19 @@ function LoadedPost({ initialPost, onBack }: { initialPost: Post; onBack: () => 
     if (refreshed) setPost(previous => ({ ...previous, recommendationCount: refreshed.recommendationCount }))
   }, refreshed => (enabled ? '추천했어요.' : '추천을 취소했어요.') + (refreshed ? '' : ' 최신 추천 수는 다시 열어 확인해 주세요.'))
 
-  const share = () => void action.run(async () => {
-    const url = new URL('/community', window.location.origin)
-    url.searchParams.set('post', post.id)
-    if (navigator.share) { await navigator.share({ title: post.title, url: url.href }); return undefined }
-    if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(url.href); return '게시글 링크를 복사했어요.' }
-    throw new Error('Sharing is unavailable.')
-  }, () => {}, message => message)
+  const toggleBookmark = () => void action.run(() => setPostBookmark(post.id, !bookmarked), () => {
+    bookmarks.setData(previous => bookmarked ? previous?.filter(item => item.id !== post.id) ?? null : [...(previous ?? []), post])
+  }, bookmarked ? '북마크를 취소했어요.' : '북마크에 저장했어요.')
 
   return <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-warm-beige">
     <div className="z-40 flex h-14 flex-shrink-0 items-center justify-between border-b border-border bg-card-surface px-4">
       <IconButton onClick={onBack} aria-label="뒤로가기"><ChevronLeft className="h-5 w-5 text-deep-brown" /></IconButton>
       <div className="flex gap-1">
-        <IconButton aria-label={bookmarked ? '북마크 취소' : '북마크'} aria-pressed={bookmarked ?? undefined} disabled={action.busy || !bookmarks.data} onClick={() => void action.run(() => setPostBookmark(post.id, !bookmarked), () => {
-          bookmarks.setData(previous => bookmarked ? previous?.filter(item => item.id !== post.id) ?? null : [...(previous ?? []), post])
-        }, bookmarked ? '북마크를 취소했어요.' : '북마크에 저장했어요.')}><Bookmark className={cn('h-5 w-5', bookmarked ? 'fill-soft-orange text-soft-orange' : 'text-deep-brown')} /></IconButton>
         <IconButton aria-label="더보기" aria-expanded={panel === 'menu'} onClick={() => setPanel(panel === 'menu' ? null : 'menu')} disabled={action.busy}><MoreHorizontal className="h-5 w-5" /></IconButton>
       </div>
     </div>
     <PostComments postId={post.id} count={post.commentCount} onCountChange={delta => setPost(previous => ({ ...previous, commentCount: Math.max(0, previous.commentCount + delta) }))}>
-      <CommunityPhoto url={post.photoUrl} title={post.title} className="h-52" />
+      <CommunityPhoto url={post.photoUrl} title={post.title} className="h-52" temporaryFallback />
       <div className="space-y-3 px-4 pt-4">
         <CommunityFeedback error={action.error} notice={action.notice} />
         {bookmarks.error && <div><CommunityFeedback error="북마크 상태를 확인하지 못했어요." /><Button variant="ghost" size="sm" onClick={bookmarks.reload}>북마크 다시 확인</Button></div>}
@@ -117,11 +110,10 @@ function LoadedPost({ initialPost, onBack }: { initialPost: Post; onBack: () => 
           <div><p className="text-[13px] font-semibold text-deep-brown">{post.nickname || '작성자'}</p><p className="text-[11px] text-warm-gray">{formatCommunityDate(post.createdAt)} · 조회 {post.viewCount.toLocaleString()}</p></div>
         </div>
         <p className="whitespace-pre-wrap break-words border-b border-border py-4 text-[14px] leading-relaxed text-deep-brown">{post.content}</p>
-        <PostCompanionInfo post={post} />
         <div className="flex flex-wrap gap-3 py-3">
           <Button variant="ghost" size="sm" aria-label={recommendation ? '추천 취소' : '게시글 추천'} aria-pressed={recommendation ?? undefined} disabled={action.busy} className={cn('px-0', recommendation ? 'text-sage-green' : 'text-warm-gray')} onClick={() => recommend(recommendation !== true)}><ThumbsUp className={recommendation ? 'fill-sage-green' : ''} />{post.recommendationCount}</Button>
           <Button variant="ghost" size="sm" aria-label="댓글로 이동" className="px-0" onClick={() => document.getElementById('community-comments')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}><MessageCircle />{post.commentCount}</Button>
-          <Button variant="ghost" size="sm" className="px-0" disabled={action.busy} onClick={share}><Share2 />공유</Button>
+          <Button variant="ghost" size="sm" aria-label={bookmarked ? '북마크 취소' : '북마크'} aria-pressed={bookmarked ?? undefined} className={cn('px-0', bookmarked && 'text-soft-orange')} disabled={action.busy || !bookmarks.data} onClick={toggleBookmark}><Bookmark className={bookmarked ? 'fill-soft-orange' : ''} />북마크</Button>
           <Button variant="ghost" size="sm" className="ml-auto px-0" disabled={action.busy} onClick={() => setPanel('report')}><Flag />신고</Button>
         </div>
       </div>

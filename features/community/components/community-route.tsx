@@ -6,12 +6,13 @@ import { useAuthStore } from '@/features/auth/stores/auth-store'
 
 interface CommunityRouteProps {
   initialPostId?: string
+  initialTab?: 'free'
 }
 
-export default function CommunityRoute({ initialPostId }: CommunityRouteProps) {
+export default function CommunityRoute({ initialPostId, initialTab }: CommunityRouteProps) {
   const status = useAuthStore(state => state.status)
   if (status === 'demo' && process.env.NODE_ENV !== 'production') {
-    return <CommunityDemoScreen initialPostId={initialPostId} />
+    return <CommunityDemoScreen initialPostId={initialPostId} initialTab={initialTab} />
   }
-  return <CommunityScreen initialPostId={initialPostId} />
+  return <CommunityScreen initialPostId={initialPostId} initialTab={initialTab} />
 }

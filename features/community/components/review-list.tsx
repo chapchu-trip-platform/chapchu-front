@@ -7,7 +7,7 @@ import { deleteReview, fetchMyReviews, fetchPlaceReviews, setReviewRecommendatio
 import { useCommunityAction, useCommunityQuery } from '@/features/community/hooks/use-community-request'
 import { formatCommunityDate } from '@/features/community/lib/community-model'
 import type { Review } from '@/features/community/types/community'
-import { CommunityFeedback, QueryFeedback } from './community-shared'
+import { CommunityFeedback, QueryFeedback, ReviewCompanionInfo } from './community-shared'
 
 const weatherLabels = { SUNNY: '맑음', CLOUDY: '흐림', RAINY: '비', SNOWY: '눈' }
 
@@ -57,6 +57,7 @@ function ReviewCard({ review, own, onPlace, onDeleted }: { review: Review; own: 
     <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-warm-gray"><span>{own ? '내 리뷰' : '여행자 리뷰'}</span><span>{formatCommunityDate(review.createdAt)}</span></div>
     <div className="flex items-center justify-between"><span aria-label={`별점 ${review.rating}점`} className="flex items-center gap-1 text-[14px] font-semibold text-soft-orange"><Star className="h-4 w-4 fill-soft-orange" />{review.rating} / 5</span><span className="text-[12px] text-warm-gray">{review.weather ? weatherLabels[review.weather] : '날씨 정보 없음'}</span></div>
     <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed text-deep-brown">{review.contents}</p>
+    <ReviewCompanionInfo review={review} />
     <div className="flex flex-wrap items-center gap-2">
       <Button variant="ghost" size="sm" aria-label={recommendation ? '리뷰 추천 취소' : '리뷰 추천'} aria-pressed={recommendation ?? undefined} disabled={action.busy} onClick={() => recommend(recommendation !== true)}><ThumbsUp className={recommendation ? 'fill-sage-green text-sage-green' : ''} />{count}</Button>
       {recommendation !== true && <Button variant="ghost" size="sm" disabled={action.busy} onClick={() => recommend(false)}>추천 취소</Button>}

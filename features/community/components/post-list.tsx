@@ -7,7 +7,7 @@ import { InteractiveCard } from '@/components/ui/interactive-card'
 import { fetchPosts } from '@/features/community/api/community-api'
 import { useCommunityQuery } from '@/features/community/hooks/use-community-request'
 import { communityErrorMessage, formatCommunityDate, mergePosts } from '@/features/community/lib/community-model'
-import { CommunityFeedback, CommunityPhoto, PostCompanionInfo, QueryFeedback } from './community-shared'
+import { CommunityFeedback, CommunityPhoto, QueryFeedback } from './community-shared'
 
 export function PostList({ sort, onOpen }: { sort: 'popular' | 'latest'; onOpen: (id: string) => void }) {
   const request = useCallback((signal: AbortSignal) => fetchPosts(sort, undefined, signal), [sort])
@@ -41,12 +41,11 @@ export function PostList({ sort, onOpen }: { sort: 'popular' | 'latest'; onOpen:
     {query.data?.posts.length === 0 && <p className="py-10 text-center text-[13px] text-warm-gray">아직 등록된 게시글이 없어요.</p>}
     {query.data?.posts.map((post, index) => <InteractiveCard key={post.id} onClick={() => onOpen(post.id)} padding="none" className="overflow-hidden">
       <div className="relative">
-        <CommunityPhoto url={post.photoUrl} title={post.title} className="h-36" />
+        <CommunityPhoto url={post.photoUrl} title={post.title} className="h-36" temporaryFallback />
         {sort === 'popular' && index === 0 && <span className="absolute left-3 top-3 rounded-full bg-soft-orange px-2.5 py-1 text-[11px] font-bold text-white">HOT</span>}
       </div>
       <div className="p-3">
         <h3 className="mb-2 line-clamp-2 text-balance text-[14px] font-semibold leading-snug text-deep-brown">{post.title}</h3>
-        <PostCompanionInfo post={post} compact />
         <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-warm-gray">
           <span className="min-w-0 break-words">{post.nickname || '작성자'} · {formatCommunityDate(post.createdAt)}</span>
           <span className="flex gap-2"><span className="flex items-center gap-0.5"><ThumbsUp className="h-3 w-3" />{post.recommendationCount}</span><span className="flex items-center gap-0.5"><MessageCircle className="h-3 w-3" />{post.commentCount}</span></span>

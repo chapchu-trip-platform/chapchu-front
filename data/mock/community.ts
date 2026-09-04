@@ -10,7 +10,7 @@ export const posts = [
     bookmarks: 156,
     date: '2024.07.02',
     image: '/images/album-cover.png',
-    tab: 'HOT',
+    tab: '여행 리뷰',
     pet: { name: '봄이', breed: '비글', size: '중형견', age: '4살' },
     course: {
       name: '제주 올레 7코스',
