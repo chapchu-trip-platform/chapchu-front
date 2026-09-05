@@ -7,11 +7,16 @@ import { deleteReview, fetchMyReviews, fetchPlaceReviews, setReviewRecommendatio
 import { useCommunityAction, useCommunityQuery } from '@/features/community/hooks/use-community-request'
 import { formatCommunityDate } from '@/features/community/lib/community-model'
 import type { Review } from '@/features/community/types/community'
-import { CommunityFeedback, QueryFeedback, ReviewCompanionInfo } from './community-shared'
+import { QueryFeedback, ReviewCompanionInfo } from './community-shared'
+import { CommunityNoticeProvider } from './community-notice-provider'
 
 const weatherLabels = { SUNNY: '맑음', CLOUDY: '흐림', RAINY: '비', SNOWY: '눈' }
 
 export function ReviewList() {
+  return <CommunityNoticeProvider><ReviewListContent /></CommunityNoticeProvider>
+}
+
+function ReviewListContent() {
   const [placeId, setPlaceId] = useState<string | null>(null)
   const mine = useCommunityQuery(fetchMyReviews)
   return <div className="space-y-3 p-4">
@@ -64,7 +69,6 @@ function ReviewCard({ review, own, onPlace, onDeleted }: { review: Review; own: 
       {onPlace && <Button variant="soft" size="sm" onClick={onPlace}>이 장소 리뷰 보기</Button>}
       {own && <Button variant="ghost" size="sm" disabled={action.busy} onClick={() => setConfirmDelete(true)}>리뷰 삭제</Button>}
     </div>
-    <CommunityFeedback error={action.error} notice={action.notice} />
     {confirmDelete && <div className="space-y-2 rounded-xl bg-muted p-3">
       <p className="text-[12px]">리뷰를 삭제할까요? 삭제 후에는 되돌릴 수 없어요.</p>
       <Button variant="destructive" size="sm" disabled={action.busy} onClick={() => void action.run(() => deleteReview(review.id), onDeleted)}>리뷰 삭제 확인</Button>

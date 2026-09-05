@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
 import { communityErrorMessage } from '@/features/community/lib/community-model'
+import { useCommunityNotice } from '@/features/community/components/community-notice-provider'
 
 /** Callers key their view by resource/sort so drafts and responses cannot cross views. */
 export function useCommunityQuery<T>(request: (signal: AbortSignal) => Promise<T>) {
@@ -33,6 +34,7 @@ export function useCommunityQuery<T>(request: (signal: AbortSignal) => Promise<T
 }
 
 export function useCommunityAction() {
+  const showNotice = useCommunityNotice()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -43,6 +45,7 @@ export function useCommunityAction() {
 
   async function run<T>(request: (context: { isCurrent: () => boolean; signal: AbortSignal }) => Promise<T>, onSuccess: (value: T) => void, message?: string | ((value: T) => string | undefined), errorMessage: (error: unknown) => string = communityErrorMessage) {
     if (locked.current) return
+    const returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
     locked.current = true
     setBusy(true)
     setError(null)
@@ -53,10 +56,17 @@ export function useCommunityAction() {
     const current = () => alive.current && !controller.signal.aborted && epoch === useAuthStore.getState().sessionEpoch
     try {
       const result = await request({ isCurrent: current, signal: controller.signal })
-      if (current()) { onSuccess(result); setNotice((typeof message === 'function' ? message(result) : message) ?? null) }
+      if (current()) {
+        onSuccess(result)
+        const feedback = (typeof message === 'function' ? message(result) : message) ?? null
+        setNotice(feedback)
+        if (feedback) showNotice(feedback, returnFocus)
+      }
     } catch (reason) {
       if (current() && !(reason instanceof DOMException && reason.name === 'AbortError')) {
-        setError(errorMessage(reason))
+        const feedback = errorMessage(reason)
+        setError(feedback)
+        showNotice(feedback, returnFocus)
       }
     } finally {
       locked.current = false

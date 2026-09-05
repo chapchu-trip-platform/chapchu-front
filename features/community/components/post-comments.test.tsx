@@ -7,11 +7,12 @@ import { useAuthStore } from '@/features/auth/stores/auth-store'
 import { commentFixture, postFixture } from '@/test/fixtures/community'
 import type { Comment } from '@/features/community/types/community'
 import { PostComments } from './post-comments'
+import { CommunityNoticeProvider } from './community-notice-provider'
 
 vi.mock('@/features/community/api/community-api')
 function Harness({ postId = 'post-1' }: { postId?: string }) {
   const [count, setCount] = useState(8)
-  return <PostComments key={postId} postId={postId} count={count} onCountChange={setCount} />
+  return <CommunityNoticeProvider key={postId}><PostComments postId={postId} count={count} onCountChange={setCount} /></CommunityNoticeProvider>
 }
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -35,10 +36,11 @@ describe('persisted post comments', () => {
     await screen.findByText(/첫 댓글을 남겨/)
     await user.type(screen.getByRole('textbox', { name: '댓글 내용' }), '댓글')
     await user.click(screen.getByRole('button', { name: '댓글 전송' }))
+    expect(await screen.findByRole('dialog')).toHaveTextContent('최신 댓글 수는 다시 열어')
+    await user.click(screen.getByRole('button', { name: '닫기' }))
     expect(await screen.findByText(commentFixture.content)).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: '댓글 내용' })).toHaveValue('')
     expect(screen.getByRole('heading', { name: '댓글 8' })).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('최신 댓글 수는 다시 열어')
     expect(api.createComment).toHaveBeenCalledTimes(1)
   })
   it('keeps a deleted parent and its child after deletion, hides parent actions and reads the server count', async () => {
@@ -50,6 +52,7 @@ describe('persisted post comments', () => {
     render(<Harness />)
     await user.click((await screen.findAllByRole('button', { name: '댓글 삭제' }))[0])
     await user.click(screen.getByRole('button', { name: '삭제 확인' }))
+    await user.click(await screen.findByRole('button', { name: '닫기' }))
     const placeholder = await screen.findByText('삭제된 댓글입니다')
     expect(screen.getByText(child.content)).toBeInTheDocument()
     expect(placeholder.compareDocumentPosition(screen.getByText(child.content)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -94,7 +97,8 @@ describe('persisted post comments', () => {
     await user.clear(editor)
     await user.type(editor, '수정한 댓글')
     await user.click(screen.getByRole('button', { name: '수정 저장' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('수정·삭제할 권한이 없어요')
+    expect(await screen.findByRole('dialog')).toHaveTextContent('수정·삭제할 권한이 없어요')
+    await user.click(screen.getByRole('button', { name: '닫기' }))
     expect(editor).toHaveValue('수정한 댓글')
     expect(screen.getByText(commentFixture.content)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '수정 저장' }))
@@ -102,6 +106,7 @@ describe('persisted post comments', () => {
     expect(api.updateComment).toHaveBeenCalledTimes(2)
     expect(api.updateComment).toHaveBeenLastCalledWith('post-1', 'comment-1', '수정한 댓글')
     await act(async () => save.resolve({ ...commentFixture, content: '수정한 댓글' }))
+    await user.click(await screen.findByRole('button', { name: '닫기' }))
     expect(screen.queryByRole('textbox', { name: '수정할 댓글 내용' })).not.toBeInTheDocument()
     expect(screen.getByText('수정한 댓글')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '댓글 8' })).toBeInTheDocument()
@@ -135,6 +140,7 @@ describe('persisted post comments', () => {
     await screen.findByText(reply.content)
     await user.click(screen.getAllByRole('button', { name: '댓글 삭제' })[0])
     await user.click(screen.getByRole('button', { name: '삭제 확인' }))
+    await user.click(await screen.findByRole('button', { name: '닫기' }))
     await screen.findByRole('alert')
     expect(api.deleteComment).toHaveBeenCalledExactlyOnceWith('comment-1')
     await user.click(screen.getByRole('button', { name: '다시 시도' }))
@@ -148,7 +154,8 @@ describe('persisted post comments', () => {
     render(<Harness />)
     await user.click(await screen.findByRole('button', { name: '댓글 삭제' }))
     await user.click(screen.getByRole('button', { name: '삭제 확인' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('권한이 없어요')
+    expect(await screen.findByRole('dialog')).toHaveTextContent('권한이 없어요')
+    await user.click(screen.getByRole('button', { name: '닫기' }))
     expect(screen.getByText(commentFixture.content)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '댓글 8' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '삭제 확인' })).toBeEnabled()
@@ -162,7 +169,7 @@ describe('persisted post comments', () => {
     await user.click(await screen.findByRole('button', { name: '댓글 수정' }))
     await user.type(screen.getByRole('textbox', { name: '수정할 댓글 내용' }), ' 수정')
     await user.click(screen.getByRole('button', { name: '수정 저장' }))
-    await screen.findByRole('alert')
+    await user.click(await screen.findByRole('button', { name: '닫기' }))
     await user.click(screen.getByRole('button', { name: '수정 취소' }))
     await user.click(screen.getByRole('button', { name: '댓글 수정' }))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()

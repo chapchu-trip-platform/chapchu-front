@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { createComment, deleteComment, fetchComments, fetchPost, updateComment } from '@/features/community/api/community-api'
 import { useCommunityAction, useCommunityQuery } from '@/features/community/hooks/use-community-request'
 import { commentMutationErrorMessage, formatCommunityDate, orderComments } from '@/features/community/lib/community-model'
-import { CommunityFeedback, QueryFeedback, communityTextAreaClass } from './community-shared'
+import { QueryFeedback, communityTextAreaClass } from './community-shared'
 
 export function PostComments({ postId, count, onCountChange, children }: { postId: string; count: number; onCountChange: (total: number) => void; children?: ReactNode }) {
   const request = useCallback((signal: AbortSignal) => fetchComments(postId, signal), [postId])
@@ -67,7 +67,6 @@ export function PostComments({ postId, count, onCountChange, children }: { postI
           }, '댓글을 수정했어요.', commentMutationErrorMessage)
         }}>
           <textarea autoFocus aria-label="수정할 댓글 내용" className={communityTextAreaClass} maxLength={20_000} value={editContent} disabled={busy} onChange={event => setEditContent(event.target.value)} />
-          <CommunityFeedback error={editAction.error} />
           <Button type="submit" size="sm" disabled={busy || !editContent.trim() || editContent.trim() === comment.content}>수정 저장</Button>
           <Button variant="ghost" size="sm" disabled={busy} onClick={() => setEditing(null)}>수정 취소</Button>
         </form>}
@@ -90,8 +89,6 @@ export function PostComments({ postId, count, onCountChange, children }: { postI
     </section>
     </div>
     <form className="mb-20 shrink-0 border-t border-border bg-card-surface px-4 py-3" onSubmit={event => { event.preventDefault(); submit() }}>
-      <CommunityFeedback error={action.error} notice={action.notice} />
-      {!editing && <CommunityFeedback notice={editAction.notice} />}
       {replyTo && <div className="mb-2 flex items-center justify-between text-[12px] text-sage-green"><span>답글 작성 중</span><Button size="sm" variant="ghost" disabled={busy} onClick={() => setReplyTo(null)}>답글 취소</Button></div>}
       <div className="flex gap-2">
         <Input ref={inputRef} aria-label="댓글 내용" value={content} maxLength={20_000} disabled={busy} onChange={event => setContent(event.target.value)} placeholder="댓글을 입력하세요..." size="compact" className="h-10 flex-1 rounded-full border-transparent bg-muted" />

@@ -13,7 +13,8 @@ import { formatCommunityDate, postReactionErrorMessage } from '@/features/commun
 import { usePostRecommendationStore } from '@/features/community/stores/post-recommendation-store'
 import type { Post } from '@/features/community/types/community'
 import { cn } from '@/lib/utils'
-import { CommunityFeedback, CommunityPhoto, communityTextAreaClass, QueryFeedback } from './community-shared'
+import { CommunityPhoto, communityTextAreaClass, QueryFeedback } from './community-shared'
+import { CommunityNoticeProvider } from './community-notice-provider'
 import { PostComments } from './post-comments'
 
 export function PostDetail({ postId, onBack }: { postId: string; onBack: () => void }) {
@@ -31,7 +32,7 @@ export function PostDetail({ postId, onBack }: { postId: string; onBack: () => v
     <IconButton onClick={onBack} aria-label="뒤로가기"><ChevronLeft /></IconButton>
     <QueryFeedback loading={query.loading} error={query.error} onRetry={query.reload} />
   </div>
-  return <LoadedPost initialPost={query.data} onBack={onBack} />
+  return <CommunityNoticeProvider key={query.data.id}><LoadedPost initialPost={query.data} onBack={onBack} /></CommunityNoticeProvider>
 }
 
 function LoadedPost({ initialPost, onBack }: { initialPost: Post; onBack: () => void }) {
@@ -79,7 +80,6 @@ function LoadedPost({ initialPost, onBack }: { initialPost: Post; onBack: () => 
     <PostComments postId={post.id} count={post.commentCount} onCountChange={total => setPost(previous => ({ ...previous, commentCount: total }))}>
       <CommunityPhoto url={post.photoUrl} title={post.title} className="h-52" temporaryFallback />
       <div className="space-y-3 px-4 pt-4">
-        <CommunityFeedback error={action.error} notice={action.notice} />
         {panel && <div ref={panelRef} tabIndex={-1} aria-label="게시글 작업" className="outline-none" />}
         {panel === 'menu' && <div className="space-y-2 rounded-card border border-border bg-card-surface p-3">
           <Button variant="ghost" size="sm" onClick={() => setPanel('report')}>광고·스팸 신고</Button>
@@ -127,7 +127,6 @@ function LoadedPost({ initialPost, onBack }: { initialPost: Post; onBack: () => 
           <Button variant="ghost" size="sm" aria-label={bookmarked ? '북마크 취소' : '북마크'} aria-pressed={bookmarked} className={cn('px-0', bookmarked && 'text-soft-orange')} disabled={busy} onClick={toggleBookmark}><Bookmark className={bookmarked ? 'fill-soft-orange' : ''} />{bookmarked ? '북마크 취소' : '북마크'}</Button>
           <Button variant="ghost" size="sm" className="ml-auto px-0" disabled={busy} onClick={() => setPanel('report')}><Flag />신고</Button>
         </div>
-        <CommunityFeedback error={reactionAction.error} notice={reactionAction.notice} />
       </div>
     </PostComments>
   </div>

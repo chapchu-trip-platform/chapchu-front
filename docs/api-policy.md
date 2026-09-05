@@ -530,3 +530,20 @@ Final validation: `npm run lint`, `npm run typecheck`, `npm run test` (44 files 
 `npm run build` and `git diff --check` passed. API/security, Next.js/UI and test reviewers
 completed their checks. The count-race finding was fixed and covered for either response
 order. Temporary probe files are absent from the final build and working changes.
+
+### Community action feedback (2026-09-05)
+
+- Completed recommendation, bookmark, report, post/comment edit and comment write/delete
+  requests show a shared message-and-Close modal. Draft saves use the same presentation.
+- Existing mutation success/failure semantics and partial refresh warnings are preserved;
+  no endpoint, request shape or authentication contract changes were made.
+- Query failures retain inline retry controls; input validation remains next to its field.
+- Each community screen owns one modal queue. Close or Escape acknowledges each result;
+  outside presses do not dismiss it. Focus returns to the action button, or the community
+  screen's first available control when the action removed its button. Navigation/session
+  changes clear feedback.
+- Automated tests cover dismissal, keyboard focus, repeated/concurrent notices and the
+  existing reaction/comment/report failure and retry paths. Reports are tested with mocks.
+- Browser verification confirmed bookmark save/cancel and recommendation/list/re-entry/
+  cancellation notices, Close/Escape and focus restoration. Test reactions were restored.
+- Validation passed: lint, typecheck, production build, and 45 test files / 352 tests.
