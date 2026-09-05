@@ -14,9 +14,19 @@ export function CommunityNoticeProvider({ children }: { children: ReactNode }) {
   const show = useCallback<ShowNotice>((message, returnFocus = null) => {
     setQueue(previous => [...previous, { message, returnFocus }])
   }, [])
+  const close = useCallback(() => {
+    const [current, ...remaining] = queue
+    setQueue(remaining)
+    if (!current || remaining.length > 0) return
+    window.setTimeout(() => {
+      const fallback = fallbackFocus.current?.querySelector<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])') ?? fallbackFocus.current
+      const target = current.returnFocus?.isConnected && !current.returnFocus.matches(':disabled') ? current.returnFocus : fallback
+      target?.focus({ preventScroll: true })
+    }, 0)
+  }, [queue])
   return <NoticeContext.Provider value={show}>
     <div ref={fallbackFocus} tabIndex={-1} aria-label="커뮤니티 화면" className="flex min-h-0 flex-1 flex-col outline-none">{children}</div>
-    <NoticeModal message={queue[0]?.message ?? null} returnFocus={queue[0]?.returnFocus} fallbackFocus={fallbackFocus} onClose={() => setQueue(previous => previous.slice(1))} />
+    <NoticeModal message={queue[0]?.message ?? null} returnFocus={queue[0]?.returnFocus} fallbackFocus={fallbackFocus} onClose={close} />
   </NoticeContext.Provider>
 }
 

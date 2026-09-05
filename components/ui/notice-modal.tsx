@@ -11,14 +11,14 @@ interface NoticeModalProps {
   fallbackFocus?: RefObject<HTMLElement | null>
 }
 
-/** Acknowledged feedback: stays open until Close or Escape, including on touch. */
+/** Acknowledged feedback: closes with its button, Escape or the dimmed backdrop. */
 export function NoticeModal({ message, onClose, returnFocus, fallbackFocus }: NoticeModalProps) {
   const closeRef = useRef<HTMLButtonElement>(null)
   const returnFocusRef = useRef<HTMLElement | null>(null)
   useEffect(() => { if (message !== null) returnFocusRef.current = returnFocus ?? null }, [message, returnFocus])
-  return <Dialog.Root open={message !== null} disablePointerDismissal onOpenChange={open => { if (!open) onClose() }}>
+  return <Dialog.Root open={message !== null} onOpenChange={open => { if (!open) onClose() }}>
     <Dialog.Portal>
-      <Dialog.Backdrop className="fixed inset-0 z-[80] bg-black/45" />
+      <Dialog.Backdrop data-testid="notice-modal-backdrop" className="fixed inset-0 z-[80] bg-black/45" />
       <Dialog.Popup
         initialFocus={closeRef}
         finalFocus={() => {

@@ -538,8 +538,8 @@ order. Temporary probe files are absent from the final build and working changes
 - Existing mutation success/failure semantics and partial refresh warnings are preserved;
   no endpoint, request shape or authentication contract changes were made.
 - Query failures retain inline retry controls; input validation remains next to its field.
-- Each community screen owns one modal queue. Close or Escape acknowledges each result;
-  outside presses do not dismiss it. Focus returns to the action button, or the community
+- Each community screen owns one modal queue. Close, Escape or a press on the dimmed
+  backdrop acknowledges each result. Focus returns to the action button, or the community
   screen's first available control when the action removed its button. Navigation/session
   changes clear feedback.
 - Automated tests cover dismissal, keyboard focus, repeated/concurrent notices and the

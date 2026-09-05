@@ -17,7 +17,7 @@ function Actions() {
 }
 
 describe('community notice modal', () => {
-  it('traps focus, ignores outside clicks, restores focus on Escape and supports repeated identical notices', async () => {
+  it('traps focus, closes from the backdrop, restores focus and supports repeated identical notices', async () => {
     const user = userEvent.setup()
     render(<CommunityNoticeProvider><Actions /></CommunityNoticeProvider>)
     const trigger = screen.getByRole('button', { name: '저장' })
@@ -30,8 +30,13 @@ describe('community notice modal', () => {
     await waitFor(() => expect(close).toHaveFocus())
     await user.tab({ shift: true })
     await waitFor(() => expect(close).toHaveFocus())
-    await user.click(document.body)
+    await user.click(modal)
     expect(screen.getByRole('dialog')).toBeInTheDocument()
+    await user.click(screen.getByTestId('notice-modal-backdrop'))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(trigger).toHaveFocus())
+    await user.click(trigger)
+    expect(await screen.findByRole('dialog')).toHaveTextContent('북마크에 저장했어요.')
     await user.keyboard('{Escape}')
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     await waitFor(() => expect(trigger).toHaveFocus())
