@@ -27,9 +27,9 @@ export async function fetchMyBookmarks(signal?: AbortSignal) {
   return parsePosts(data)
 }
 
-export async function createPost(input: PostInput) {
+export async function createPost(input: PostInput, signal?: AbortSignal) {
   if (input.title.length > 100) throw new Error('Post title exceeds 100 characters.')
-  const { data } = await apiClient.post<unknown>(endpoints.posts, input)
+  const { data } = await apiClient.post<unknown>(endpoints.posts, input, { signal })
   return parsePost(data)
 }
 

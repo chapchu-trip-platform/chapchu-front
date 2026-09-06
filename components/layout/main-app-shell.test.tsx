@@ -82,4 +82,18 @@ describe('MainAppShell auth gate', () => {
     expect(screen.getByText('demo content')).toBeInTheDocument()
     expect(refreshAccessToken).not.toHaveBeenCalled()
   })
+
+  it('hides global navigation while a community post is being written', () => {
+    setMockPathname('/community/write')
+    useAuthStore.setState({ status: 'authenticated' })
+
+    render(
+      <MainAppShell>
+        <p>post editor</p>
+      </MainAppShell>
+    )
+
+    expect(screen.getByText('post editor')).toBeInTheDocument()
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
+  })
 })

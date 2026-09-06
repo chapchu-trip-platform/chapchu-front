@@ -31,13 +31,14 @@ describe('community API requests', () => {
     expect(apiClient.get).toHaveBeenCalledWith('/users/me/posts', { signal: undefined })
     expect(apiClient.get).toHaveBeenCalledWith('/users/me/bookmarks', { signal: undefined })
   })
-  it('creates and edits posts with documented fields', async () => {
+  it('creates a free-board post with null optional references and edits text fields', async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ data: postFixture })
     vi.mocked(apiClient.patch).mockResolvedValue({ data: postFixture })
-    const input = { petId: 'pet-1', photoId: 'photo-1', courseId: 'course-1', title: '제목', content: '내용' }
-    await api.createPost(input)
+    const input = { petId: null, photoId: null, courseId: null, title: '제목', content: '내용' }
+    const signal = new AbortController().signal
+    await api.createPost(input, signal)
     await api.updatePost('post-1', { title: '수정', content: '본문' })
-    expect(apiClient.post).toHaveBeenCalledWith('/posts', input)
+    expect(apiClient.post).toHaveBeenCalledWith('/posts', input, { signal })
     expect(apiClient.patch).toHaveBeenCalledWith('/posts/post-1', { title: '수정', content: '본문' })
     await api.deletePost('post-1')
     expect(apiClient.delete).toHaveBeenCalledWith('/posts/post-1')

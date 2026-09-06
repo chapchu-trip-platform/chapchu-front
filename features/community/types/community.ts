@@ -21,9 +21,9 @@ export interface PostPage {
 }
 
 export interface PostInput {
-  petId: string
-  photoId: string
-  courseId: string
+  petId: string | null
+  photoId: string | null
+  courseId: string | null
   title: string
   content: string
 }

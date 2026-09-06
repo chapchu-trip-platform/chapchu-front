@@ -547,3 +547,21 @@ order. Temporary probe files are absent from the final build and working changes
 - Browser verification confirmed bookmark save/cancel and recommendation/list/re-entry/
   cancellation notices, Close/Escape and focus restoration. Test reactions were restored.
 - Validation passed: lint, typecheck, production build, and 45 test files / 352 tests.
+
+### Text-only free-board publication (2026-09-06)
+
+- The refreshed `POST /posts` documentation explicitly makes `petId`, `photoId` and
+  `courseId` optional and permits body-only publication. Missing references are returned
+  as `null`; a missing photo also produces a null photo URL.
+- The free-board UI requires a nonblank title and content as a product rule even though
+  the backend describes both text fields as optional. The title remains limited to 100.
+- Publication sends `{ petId: null, photoId: null, courseId: null, title, content }`.
+  Empty reference strings are avoided because they can enter UUID format validation.
+- A successful response clears the memory-only draft and opens the returned post ID.
+  A failed request preserves both inputs for an explicit retry, and pending requests
+  block in-app navigation and disable publication to prevent duplicate writes. The API
+  receives an `AbortSignal`; session changes and unmounts abort the client request and
+  late responses cannot clear the draft or navigate. A POST already accepted by the
+  backend still requires server-side idempotency to guarantee de-duplication.
+- Development demo sessions may draft and preview but cannot call the authenticated
+  publication API.
