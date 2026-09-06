@@ -30,15 +30,15 @@ function Editor() {
   const titleRef = useRef<HTMLInputElement>(null)
   const pendingRef = useRef<HTMLDivElement>(null)
   const hasDraft = Boolean(title || content)
-  const valid = Boolean(title.trim() && title.length <= POST_TITLE_LIMIT && content.trim())
+  const valid = Boolean(title.trim() && title.length <= POST_TITLE_LIMIT && content.trim() && content.length <= POST_CONTENT_LIMIT)
 
   function publish() {
     if (!valid || !authenticated || action.busy) return
     void action.run(
-      ({ signal }) => createPost({ petId: null, photoId: null, courseId: null, title: title.trim(), content: content.trim() }, signal),
-      created => {
+      ({ signal }) => createPost({ petId: '', photoId: '', courseId: '', title: title.trim(), content: content.trim() }, signal),
+      () => {
         clear()
-        router.replace(`/community?post=${encodeURIComponent(created.id)}&tab=free`)
+        router.replace('/community?tab=free')
       },
     )
   }
@@ -95,6 +95,7 @@ function Editor() {
           <div className="flex items-center gap-1.5"><label htmlFor="post-content" className="text-[13px] font-semibold text-deep-brown">내용</label><span aria-hidden="true" className="text-[11px] font-medium text-soft-orange">필수</span></div>
           <textarea id="post-content" value={content} maxLength={POST_CONTENT_LIMIT} required disabled={action.busy} placeholder="반려동물과의 일상이나 궁금한 이야기를 자유롭게 적어 주세요." onChange={event => update({ content: event.target.value })} aria-describedby="post-content-count" className={`${communityTextAreaClass} min-h-64`} />
           <p id="post-content-count" className="text-right text-[11px] text-warm-gray">{content.length.toLocaleString()} / {POST_CONTENT_LIMIT.toLocaleString()}</p>
+          {content.length > POST_CONTENT_LIMIT && <p role="alert">기존 내용을 임시 제한인 {POST_CONTENT_LIMIT}자 이내로 줄여 주세요. 작성 내용은 유지돼요.</p>}
         </div>
         <div className="rounded-card border border-dashed border-border bg-card-surface p-4">
           <p className="flex items-center gap-2 text-[13px] font-medium text-warm-gray"><ImagePlus className="h-4 w-4" />사진 첨부 준비 중</p>

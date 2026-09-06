@@ -31,10 +31,10 @@ describe('community API requests', () => {
     expect(apiClient.get).toHaveBeenCalledWith('/users/me/posts', { signal: undefined })
     expect(apiClient.get).toHaveBeenCalledWith('/users/me/bookmarks', { signal: undefined })
   })
-  it('creates a free-board post with null optional references and edits text fields', async () => {
+  it('creates a free-board post with empty optional references and edits text fields', async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ data: postFixture })
     vi.mocked(apiClient.patch).mockResolvedValue({ data: postFixture })
-    const input = { petId: null, photoId: null, courseId: null, title: '제목', content: '내용' }
+    const input = { petId: '', photoId: '', courseId: '', title: '제목', content: '내용' }
     const signal = new AbortController().signal
     await api.createPost(input, signal)
     await api.updatePost('post-1', { title: '수정', content: '본문' })

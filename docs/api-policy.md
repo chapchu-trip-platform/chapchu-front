@@ -554,10 +554,12 @@ order. Temporary probe files are absent from the final build and working changes
   `courseId` optional and permits body-only publication. Missing references are returned
   as `null`; a missing photo also produces a null photo URL.
 - The free-board UI requires a nonblank title and content as a product rule even though
-  the backend describes both text fields as optional. The title remains limited to 100.
-- Publication sends `{ petId: null, photoId: null, courseId: null, title, content }`.
-  Empty reference strings are avoided because they can enter UUID format validation.
-- A successful response clears the memory-only draft and opens the returned post ID.
+  the backend describes both text fields as optional. Title and content are temporarily
+  limited to 100 characters in the frontend.
+- Publication sends `{ petId: "", photoId: "", courseId: "", title, content }` under
+  the current frontend contract. The published backend contract explicitly guarantees
+  omitted optional references; deployed handling of empty strings still needs a live check.
+- A successful response clears the memory-only draft and returns to the free-board list.
   A failed request preserves both inputs for an explicit retry, and pending requests
   block in-app navigation and disable publication to prevent duplicate writes. The API
   receives an `AbortSignal`; session changes and unmounts abort the client request and

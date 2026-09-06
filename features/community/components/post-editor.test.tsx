@@ -67,21 +67,21 @@ describe('free-board post editor', () => {
     expect(screen.getByLabelText('제목')).toHaveFocus()
   })
 
-  it('publishes trimmed text with null references, clears the draft and opens the created detail', async () => {
+  it('publishes trimmed text with empty references, clears the draft and returns to the free board', async () => {
     const user = userEvent.setup()
     render(<PostEditor />)
     await user.type(screen.getByLabelText('제목'), '  오늘의 산책  ')
     await user.type(screen.getByLabelText('내용'), '  함께 걸었어요.  ')
     await user.click(screen.getByRole('button', { name: '게시글 등록' }))
     await waitFor(() => expect(createPost).toHaveBeenCalledWith({
-      petId: null,
-      photoId: null,
-      courseId: null,
+      petId: '',
+      photoId: '',
+      courseId: '',
       title: '오늘의 산책',
       content: '함께 걸었어요.',
     }, expect.any(AbortSignal)))
     expect(usePostDraftStore.getState()).toMatchObject({ title: '', content: '' })
-    expect(mockRouter.replace).toHaveBeenCalledWith('/community?post=post-1&tab=free')
+    expect(mockRouter.replace).toHaveBeenCalledWith('/community?tab=free')
   })
 
   it('preserves the required text and permits retry after a failed publication', async () => {
@@ -96,7 +96,7 @@ describe('free-board post editor', () => {
     expect(screen.getByLabelText('내용')).toHaveValue('보존할 내용')
     await user.click(screen.getByRole('button', { name: '닫기' }))
     await user.click(screen.getByRole('button', { name: '게시글 등록' }))
-    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/community?post=post-1&tab=free'))
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/community?tab=free'))
     expect(createPost).toHaveBeenCalledTimes(2)
   })
 
@@ -117,6 +117,16 @@ describe('free-board post editor', () => {
     expect(createPost).toHaveBeenCalledTimes(1)
     await act(async () => pending.resolve(postFixture))
     expect(mockRouter.replace).toHaveBeenCalledOnce()
+  })
+
+  it('temporarily limits content to 100 characters without discarding an older draft', () => {
+    usePostDraftStore.getState().update({ title: '제목', content: '가'.repeat(101) })
+    render(<PostEditor />)
+    expect(screen.getByLabelText('내용')).toHaveValue('가'.repeat(101))
+    expect(screen.getByLabelText('내용')).toHaveAttribute('maxlength', '100')
+    expect(screen.getByRole('button', { name: '미리보기' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '게시글 등록' })).toBeDisabled()
+    expect(screen.getByRole('alert')).toHaveTextContent('임시 제한인 100자')
   })
 
   it('aborts a pending publication and ignores its late response after the session changes', async () => {
