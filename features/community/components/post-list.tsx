@@ -2,14 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ThumbsUp, MessageCircle } from 'lucide-react'
+import { motion } from 'motion/react'
 import { Button } from '@/components/ui/button'
 import { InteractiveCard } from '@/components/ui/interactive-card'
 import { fetchPosts } from '@/features/community/api/community-api'
 import { useCommunityQuery } from '@/features/community/hooks/use-community-request'
+import { usePrefersReducedMotion } from '@/features/community/hooks/use-prefers-reduced-motion'
 import { communityErrorMessage, formatCommunityDate, mergePosts } from '@/features/community/lib/community-model'
 import { CommunityFeedback, CommunityPhoto, QueryFeedback } from './community-shared'
 
 export function PostList({ sort, onOpen }: { sort: 'popular' | 'latest'; onOpen: (id: string) => void }) {
+  const prefersReducedMotion = usePrefersReducedMotion()
   const request = useCallback((signal: AbortSignal) => fetchPosts(sort, undefined, signal), [sort])
   const query = useCommunityQuery(request)
   const [moreError, setMoreError] = useState<string | null>(null)
@@ -36,10 +39,11 @@ export function PostList({ sort, onOpen }: { sort: 'popular' | 'latest'; onOpen:
     }
   }
 
-  return <div className="flex flex-col gap-3 p-4">
+  return <motion.div className="flex flex-col gap-3 p-4">
     <QueryFeedback loading={query.loading} error={query.error} onRetry={query.reload} />
-    {query.data?.posts.length === 0 && <p className="py-10 text-center text-[13px] text-warm-gray">아직 등록된 게시글이 없어요.</p>}
-    {query.data?.posts.map((post, index) => <InteractiveCard key={post.id} onClick={() => onOpen(post.id)} padding="none" className="overflow-hidden">
+    {query.data?.posts.length === 0 && <motion.p initial={prefersReducedMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} className="py-10 text-center text-[13px] text-warm-gray">아직 등록된 게시글이 없어요.</motion.p>}
+    {query.data?.posts.map((post, index) => <motion.div key={post.id} initial={prefersReducedMotion ? false : { opacity: 0, y: 12, scale: 0.99 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: prefersReducedMotion ? 0 : 0.24, delay: prefersReducedMotion ? 0 : Math.min(index, 6) * 0.035, ease: [0.22, 1, 0.36, 1] }} whileTap={prefersReducedMotion ? undefined : { scale: 0.985 }}>
+      <InteractiveCard onClick={() => onOpen(post.id)} padding="none" className="overflow-hidden">
       <div className="relative">
         <CommunityPhoto url={post.photoUrl} title={post.title} className="h-36" temporaryFallback />
         {sort === 'popular' && index === 0 && <span className="absolute left-3 top-3 rounded-full bg-soft-orange px-2.5 py-1 text-[11px] font-bold text-white">HOT</span>}
@@ -51,8 +55,9 @@ export function PostList({ sort, onOpen }: { sort: 'popular' | 'latest'; onOpen:
           <span className="flex gap-2"><span className="flex items-center gap-0.5"><ThumbsUp className="h-3 w-3" />{post.recommendationCount}</span><span className="flex items-center gap-0.5"><MessageCircle className="h-3 w-3" />{post.commentCount}</span></span>
         </div>
       </div>
-    </InteractiveCard>)}
+      </InteractiveCard>
+    </motion.div>)}
     <CommunityFeedback error={moreError} />
-    {query.data?.nextCursor && <Button variant="outline" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? '불러오는 중…' : moreError ? '더 불러오기 다시 시도' : '더 불러오기'}</Button>}
-  </div>
+    {query.data?.nextCursor && <motion.div initial={prefersReducedMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} whileTap={prefersReducedMotion || loadingMore ? undefined : { scale: 0.98 }}><Button variant="outline" fullWidth disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? '불러오는 중…' : moreError ? '더 불러오기 다시 시도' : '더 불러오기'}</Button></motion.div>}
+  </motion.div>
 }
