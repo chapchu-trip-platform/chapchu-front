@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { Bookmark, Heart, Star } from 'lucide-react'
 import { AnimatePresence, m, useReducedMotion } from 'motion/react'
 import TopBar from '@/components/top-bar'
@@ -235,7 +236,7 @@ export default function ProfileSettings({
                       <Image src="/images/place-beach.png" alt="" fill className="object-cover" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="line-clamp-1 text-[13px] font-semibold text-deep-brown">{post.title}</p>
+                      <Link href={`/community?post=${encodeURIComponent(post.id)}`} className="line-clamp-1 rounded-sm text-[13px] font-semibold text-deep-brown focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-green">{post.title}</Link>
                       <p className="mt-1 line-clamp-2 text-[12px] text-warm-gray">{post.content}</p>
                       <p className="mt-2 text-[11px] text-warm-gray">{formatDate(post.createdAt)}</p>
                       <div className="mt-2 flex gap-3 text-[11px] text-warm-gray">
@@ -293,7 +294,7 @@ export default function ProfileSettings({
                 {bookmarks.length > 0 ? bookmarks.map((bookmark) => (
                   <m.div layout={!prefersReducedMotion} key={bookmark.id} initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -22, height: 0 }} transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: PROFILE_MOTION_EASE }} className="flex items-center justify-between overflow-hidden rounded-card border border-border bg-card-surface p-3">
                     <div className="min-w-0 flex-1">
-                      <p className="line-clamp-1 text-[13px] font-semibold text-deep-brown">{bookmark.title}</p>
+                      <Link href={`/community?post=${encodeURIComponent(bookmark.id)}`} className="line-clamp-1 rounded-sm text-[13px] font-semibold text-deep-brown focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-green">{bookmark.title}</Link>
                       <div className="mt-1 flex gap-2 text-[11px] text-warm-gray">
                         <span>{bookmark.nickname}</span>
                         <span>•</span>

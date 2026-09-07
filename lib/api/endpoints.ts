@@ -50,7 +50,17 @@ export const API_ENDPOINTS = {
   community: {
     posts: '/posts',
     post: (postId: string) => `/posts/${pathId(postId)}`,
+    recommendations: (postId: string) => `/posts/${pathId(postId)}/recommendations`,
     bookmark: (postId: string) => `/posts/${pathId(postId)}/bookmarks`,
+    reports: (postId: string) => `/posts/${pathId(postId)}/reports`,
+    comments: (postId: string) => `/posts/${pathId(postId)}/comments`,
+    comment: (commentId: string) => `/comments/${pathId(commentId)}`,
+  },
+  reviews: {
+    list: '/reviews',
+    byPlace: (placeId: string) => `/places/${pathId(placeId)}/reviews`,
+    detail: (reviewId: string) => `/reviews/${pathId(reviewId)}`,
+    recommendations: (reviewId: string) => `/reviews/${pathId(reviewId)}/recommendations`,
   },
   albums: {
     list: '/albums',

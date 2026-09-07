@@ -9,6 +9,7 @@ interface TopBarProps {
   title?: string
   showBack?: boolean
   onBack?: () => void
+  backDisabled?: boolean
   rightAction?: React.ReactNode
   hasUnreadNotifications?: boolean
   onNotificationClick?: () => void
@@ -20,6 +21,7 @@ export default function TopBar({
   title,
   showBack,
   onBack,
+  backDisabled,
   rightAction,
   hasUnreadNotifications = true,
   onNotificationClick,
@@ -40,6 +42,7 @@ export default function TopBar({
           {showBack && (
             <IconButton
               onClick={onBack}
+              disabled={backDisabled}
               aria-label="뒤로 가기"
             >
               <ArrowLeft className="w-5 h-5 text-deep-brown" />
