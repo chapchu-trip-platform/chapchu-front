@@ -71,10 +71,12 @@ beforeEach(() => {
   vi.mocked(fetchPopularPosts).mockReset().mockResolvedValue([
     {
       id: 'post-1',
+      nickname: '멍멍이아빠',
       title: '인기 여행기',
       content: '즐거운 여행',
       viewCount: 30,
       recommendationCount: 10,
+      commentCount: 3,
       createdAt: null,
       hasPhoto: false,
     },
@@ -332,10 +334,12 @@ describe('HomeRoute data and location flow', () => {
       .mockResolvedValueOnce([
         {
           id: 'post-2',
+          nickname: '재시도작성자',
           title: '다시 불러온 게시글',
           content: '내용',
           viewCount: 1,
           recommendationCount: 1,
+          commentCount: 2,
           createdAt: null,
           hasPhoto: false,
         },
