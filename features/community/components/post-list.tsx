@@ -19,6 +19,10 @@ export function PostList({ sort, onOpen }: { sort: 'popular' | 'latest'; onOpen:
   const [loadingMore, setLoadingMore] = useState(false)
   const moreController = useRef<AbortController | null>(null)
   useEffect(() => () => moreController.current?.abort(), [])
+  const posts = query.data?.posts ?? []
+  const visiblePosts = sort === 'popular'
+    ? [...posts].sort((first, second) => second.recommendationCount - first.recommendationCount)
+    : posts
 
   const loadMore = async () => {
     const cursor = query.data?.nextCursor
@@ -42,7 +46,7 @@ export function PostList({ sort, onOpen }: { sort: 'popular' | 'latest'; onOpen:
   return <motion.div className="flex flex-col gap-3 p-4">
     <QueryFeedback loading={query.loading} error={query.error} onRetry={query.reload} />
     {query.data?.posts.length === 0 && <motion.p initial={prefersReducedMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} className="py-10 text-center text-[13px] text-warm-gray">아직 등록된 게시글이 없어요.</motion.p>}
-    {query.data?.posts.map((post, index) => <motion.div key={post.id} initial={prefersReducedMotion ? false : { opacity: 0, y: 12, scale: 0.99 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: prefersReducedMotion ? 0 : 0.24, delay: prefersReducedMotion ? 0 : Math.min(index, 6) * 0.035, ease: [0.22, 1, 0.36, 1] }} whileTap={prefersReducedMotion ? undefined : { scale: 0.985 }}>
+    {visiblePosts.map((post, index) => <motion.div key={post.id} initial={prefersReducedMotion ? false : { opacity: 0, y: 12, scale: 0.99 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: prefersReducedMotion ? 0 : 0.24, delay: prefersReducedMotion ? 0 : Math.min(index, 6) * 0.035, ease: [0.22, 1, 0.36, 1] }} whileTap={prefersReducedMotion ? undefined : { scale: 0.985 }}>
       <InteractiveCard onClick={() => onOpen(post.id)} padding="none" className="overflow-hidden">
       <div className="relative">
         <CommunityPhoto url={post.photoUrl} photoId={post.photoId} title={post.title} className="h-36" temporaryFallback />

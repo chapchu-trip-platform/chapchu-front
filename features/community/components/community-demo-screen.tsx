@@ -249,7 +249,7 @@ export default function CommunityScreen({ initialPostId, initialTab }: Community
   }
 
   const filteredPosts = activeTab === 0
-    ? posts
+    ? [...posts].sort((first, second) => second.likes - first.likes)
     : posts.filter(p => p.tab === tabs[activeTab])
 
   return (
@@ -277,7 +277,7 @@ export default function CommunityScreen({ initialPostId, initialTab }: Community
       </div>
 
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
-        {activeTab !== 2 && <div className="flex justify-end px-4 pt-3"><Link href="/community/write" className="inline-flex items-center gap-2 rounded-full bg-sage-green px-4 py-2 text-[13px] font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-green focus-visible:ring-offset-2"><PenLine className="h-4 w-4" />글쓰기</Link></div>}
+        {activeTab === 1 && <div className="flex justify-end px-4 pt-3"><Link href="/community/write" className="inline-flex items-center gap-2 rounded-full bg-sage-green px-4 py-2 text-[13px] font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-green focus-visible:ring-offset-2"><PenLine className="h-4 w-4" />글쓰기</Link></div>}
         <div className="flex flex-col gap-3 p-4">
           {filteredPosts.map((post, i) => (
             <InteractiveCard

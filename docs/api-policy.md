@@ -213,6 +213,8 @@ its fixture data lives under `data/mock/community.ts`.
 
 - HOT uses `GET /posts?sort=popular&size=20`; 자유게시판 uses `sort=latest`.
   The API has no category field/filter: these are two orderings of the same feed.
+  HOT is a read-only ranking view: loaded cards are kept in descending recommendation
+  count order, and post creation is exposed only from 자유게시판.
   Return shape is `{ posts, nextCursor }`. Forward the cursor unchanged and stop at null.
   Details use `GET /posts/{postId}` independently of the loaded list or Home card IDs.
 - Detail recommendation/bookmark state comes from the server's `recommended` and
