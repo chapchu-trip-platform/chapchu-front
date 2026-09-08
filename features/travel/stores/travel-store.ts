@@ -17,9 +17,7 @@ interface TravelState {
   travelStage: TravelStage
   routeOrigin: SearchableLocation | null
   routeDestination: SearchableLocation | null
-  minimumWalkingTimeHours: number | null
   waypointCount: number | null
-  travelTimeHours: number | null
   recommendedCourse: RecommendedCourse | null
   selectedWaypoints: Waypoint[]
   candidatePlaces: Place[]
@@ -33,9 +31,7 @@ interface TravelState {
     destination: SearchableLocation
   ) => void
   setRouteOptions: (options: {
-    minimumWalkingTimeHours: number
     waypointCount: number
-    travelTimeHours: number
   }) => void
   setRecommendedCourse: (course: RecommendedCourse | null) => void
   setSelectedWaypoints: (waypoints: Waypoint[]) => void
@@ -50,9 +46,7 @@ const initialTravelState = {
   travelStage: 'idle' as TravelStage,
   routeOrigin: null,
   routeDestination: null,
-  minimumWalkingTimeHours: null,
   waypointCount: null,
-  travelTimeHours: null,
   recommendedCourse: null,
   selectedWaypoints: [],
   candidatePlaces: [],
@@ -73,9 +67,7 @@ export const useTravelStore = create<TravelState>((set) => ({
     set({
       routeOrigin,
       routeDestination,
-      minimumWalkingTimeHours: null,
-      waypointCount: null,
-      travelTimeHours: null,
+      waypointCount: 0,
       recommendedCourse: null,
     }),
   setRouteOptions: (options) => set({ ...options, recommendedCourse: null }),

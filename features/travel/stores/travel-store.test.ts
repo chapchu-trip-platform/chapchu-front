@@ -13,9 +13,7 @@ describe('useTravelStore', () => {
     expect(state.travelStage).toBe('idle')
     expect(state.routeOrigin).toBeNull()
     expect(state.routeDestination).toBeNull()
-    expect(state.minimumWalkingTimeHours).toBeNull()
     expect(state.waypointCount).toBeNull()
-    expect(state.travelTimeHours).toBeNull()
     expect(state.recommendedCourse).toBeNull()
     expect(state.selectedWaypoints).toEqual([])
     expect(state.noteDrafts).toEqual([])
@@ -79,15 +77,11 @@ describe('useTravelStore', () => {
 
   it('stores route options and clears them when endpoints change', () => {
     useTravelStore.getState().setRouteOptions({
-      minimumWalkingTimeHours: 2,
       waypointCount: 3,
-      travelTimeHours: 4,
     })
 
     expect(useTravelStore.getState()).toMatchObject({
-      minimumWalkingTimeHours: 2,
       waypointCount: 3,
-      travelTimeHours: 4,
     })
 
     useTravelStore.getState().setRouteEndpoints(
@@ -108,9 +102,7 @@ describe('useTravelStore', () => {
     )
 
     expect(useTravelStore.getState()).toMatchObject({
-      minimumWalkingTimeHours: null,
-      waypointCount: null,
-      travelTimeHours: null,
+      waypointCount: 0,
     })
   })
 
@@ -119,13 +111,18 @@ describe('useTravelStore', () => {
       id: 'course-1',
       travelDate: '2026-09-01',
       startLocation: '서울역',
+      endLocation: '서울숲',
       places: [
         {
           id: 'course-place-1',
           externalPlaceId: 'external-1',
           name: '서울숲',
+          imageUrl: null,
+          latitude: 37.5444,
+          longitude: 127.0374,
           visitOrder: 1,
           isFinal: true,
+          petPolicy: null,
         },
       ],
     })
@@ -133,9 +130,7 @@ describe('useTravelStore', () => {
     expect(useTravelStore.getState().recommendedCourse?.id).toBe('course-1')
 
     useTravelStore.getState().setRouteOptions({
-      minimumWalkingTimeHours: 2,
       waypointCount: 2,
-      travelTimeHours: 3,
     })
 
     expect(useTravelStore.getState().recommendedCourse).toBeNull()

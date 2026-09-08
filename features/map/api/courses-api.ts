@@ -5,16 +5,17 @@ import { mapCourse } from '@/features/map/lib/course-mapper'
 import type {
   CourseDto,
   CoursePlaceDto,
+  CourseWeatherInput,
   CreateCourseRequestDto,
 } from '@/features/map/types/course-api'
 import type { RecommendedCourse } from '@/features/map/types/course'
 import { apiClient } from '@/lib/api/client'
 import { API_ENDPOINTS } from '@/lib/api/endpoints'
 
-const DEFAULT_COURSE_RADIUS_METERS = 5_000
 const COURSE_RECOMMENDATION_TIMEOUT_MS = 60_000
 const MAX_COURSE_PLACES = 100
 const MAX_STRING_LENGTH = 500
+const MAX_URL_LENGTH = 2_048
 
 class InvalidCourseResponseError extends Error {
   constructor() {
@@ -40,10 +41,22 @@ function isCoursePlaceDto(value: unknown): value is CoursePlaceDto {
     isBoundedString(place.coursePlaceId) &&
     isBoundedString(place.externalPlaceId) &&
     isBoundedString(place.placeName) &&
+    (place.placeImageUrl === null ||
+      (typeof place.placeImageUrl === 'string' &&
+        place.placeImageUrl.length <= MAX_URL_LENGTH)) &&
+    typeof place.latitude === 'number' &&
+    Number.isFinite(place.latitude) &&
+    place.latitude >= -90 &&
+    place.latitude <= 90 &&
+    typeof place.longitude === 'number' &&
+    Number.isFinite(place.longitude) &&
+    place.longitude >= -180 &&
+    place.longitude <= 180 &&
     typeof place.visitOrder === 'number' &&
     Number.isInteger(place.visitOrder) &&
     place.visitOrder > 0 &&
-    typeof place.finalPlace === 'boolean'
+    typeof place.finalPlace === 'boolean' &&
+    Object.hasOwn(place, 'petPolicy')
   )
 }
 
@@ -54,6 +67,7 @@ function isCourseDto(value: unknown): value is CourseDto {
     isBoundedString(course.courseId) &&
     isBoundedString(course.travelDate) &&
     isBoundedString(course.startLocation) &&
+    isBoundedString(course.endLocation) &&
     Array.isArray(course.places) &&
     course.places.length <= MAX_COURSE_PLACES &&
     course.places.every(isCoursePlaceDto)
@@ -69,18 +83,47 @@ export function formatLocalTravelDate(date: Date) {
 }
 
 export function buildCreateCourseRequest(
-  origin: SearchableLocation,
+  {
+    destination,
+    intermediateStopCount,
+    origin,
+    petId,
+    weather,
+  }: {
+    destination: SearchableLocation
+    intermediateStopCount: number
+    origin: SearchableLocation
+    petId: string
+    weather?: CourseWeatherInput
+  },
   date = new Date()
 ): CreateCourseRequestDto {
   const startLocation = origin.name.trim() || origin.address.trim()
+  const endLocation = destination.name.trim() || destination.address.trim()
+  const normalizedPetId = petId.trim()
   if (!startLocation) throw new Error('Course start location is required.')
-
+  if (!endLocation) throw new Error('Course end location is required.')
+  if (!normalizedPetId) throw new Error('Course pet ID is required.')
+  if (!Number.isInteger(intermediateStopCount) || intermediateStopCount < 0) {
+    throw new Error('Course intermediate stop count is invalid.')
+  }
   return {
-    lat: origin.latitude,
-    lng: origin.longitude,
-    radiusMeters: DEFAULT_COURSE_RADIUS_METERS,
+    petId: normalizedPetId,
     travelDate: formatLocalTravelDate(date),
     startLocation,
+    startLat: origin.latitude,
+    startLng: origin.longitude,
+    endLocation,
+    endLat: destination.latitude,
+    endLng: destination.longitude,
+    intermediateStopCount,
+    ...(typeof weather?.temperature === 'number'
+      ? { temperature: weather.temperature }
+      : {}),
+    ...(typeof weather?.humidity === 'number' ? { humidity: weather.humidity } : {}),
+    ...(weather?.weatherStatus?.trim()
+      ? { weatherStatus: weather.weatherStatus.trim() }
+      : {}),
   }
 }
 
@@ -114,13 +157,13 @@ export function getCourseRecommendationErrorMessage(error: unknown) {
 
   const normalized = error as { status?: unknown; type?: unknown }
   if (normalized.status === 401) return '로그인이 만료되었습니다. 다시 로그인해주세요.'
-  if (normalized.status === 403) return '추천 코스를 생성할 권한이 없습니다. 로그인 상태를 확인해주세요.'
-  if (normalized.status === 404) return '추천 코스를 찾지 못했습니다. 출발지를 변경해주세요.'
+  if (normalized.status === 403) return '선택한 반려동물로 코스를 생성할 권한이 없습니다.'
+  if (normalized.status === 404) return '추천 코스를 찾지 못했습니다. 경로를 변경해주세요.'
   if (normalized.status === 429) return '추천 요청이 많습니다. 잠시 후 다시 시도해주세요.'
   if (normalized.type === 'network') return '네트워크 연결을 확인하고 다시 시도해주세요.'
   if (normalized.type === 'timeout') return '추천 요청 시간이 초과되었습니다. 다시 시도해주세요.'
   if (normalized.status === 400 || normalized.status === 422) {
-    return '출발 위치 정보를 확인한 뒤 다시 시도해주세요.'
+    return '반려동물과 경로 정보를 확인한 뒤 다시 시도해주세요.'
   }
   if (normalized.type === 'server') {
     return '서버에서 추천 코스를 생성하지 못했습니다. 잠시 후 다시 시도해주세요.'

@@ -31,20 +31,29 @@ const course = {
   id: 'course-1',
   travelDate: '2026-09-01',
   startLocation: '서울역',
+  endLocation: '서울숲',
   places: [
     {
       id: 'course-place-1',
       externalPlaceId: 'external-1',
       name: '반려견 카페',
+      imageUrl: null,
+      latitude: 37.55,
+      longitude: 127.01,
       visitOrder: 1,
       isFinal: false,
+      petPolicy: null,
     },
     {
       id: 'course-place-2',
       externalPlaceId: 'external-2',
       name: '서울숲',
+      imageUrl: null,
+      latitude: 37.5444,
+      longitude: 127.0374,
       visitOrder: 2,
       isFinal: true,
+      petPolicy: null,
     },
   ],
 }
@@ -73,7 +82,7 @@ describe('MapRouteScreen', () => {
     }
     expect(mapProps.center.lat).toBeCloseTo(37.54955)
     expect(mapProps.center.lng).toBeCloseTo(127.004)
-    expect(mapProps.locationLabel).toBe('서울역 추천 코스')
+    expect(mapProps.locationLabel).toBe('서울역 → 서울숲')
     expect(mapProps.markers).toEqual([
       {
         id: 'origin-seoul-station',
@@ -87,14 +96,14 @@ describe('MapRouteScreen', () => {
       },
     ])
     expect(screen.getByRole('status')).toHaveTextContent(
-      'POST /courses에서 생성된 실제 추천 코스입니다.'
+      '선택한 출발지·도착지와 중간 거점 수로 생성된 추천 코스입니다.'
     )
-    expect(screen.getByText(/선택한 도착지, 거점 수, 여행 시간/)).toBeInTheDocument()
+    expect(screen.getByText(/지도 경로선은 아직/)).toBeInTheDocument()
     expect(screen.queryByText('약 12.4km')).not.toBeInTheDocument()
     expect(screen.queryByText('반려동물 적합')).not.toBeInTheDocument()
 
     const summaryDock = screen.getByTestId('route-summary-dock')
-    expect(summaryDock).toHaveTextContent('서울역 추천 코스')
+    expect(summaryDock).toHaveTextContent('서울역 → 서울숲')
     expect(summaryDock).toHaveTextContent('장소 2개')
     expect(summaryDock).toHaveTextContent('2026-09-01')
     expect(summaryDock).toHaveTextContent('추천 완료')

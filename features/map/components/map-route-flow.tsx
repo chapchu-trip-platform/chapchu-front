@@ -17,6 +17,11 @@ import {
   getCourseRecommendationErrorMessage,
   isNoPlacesFoundCourseError,
 } from '@/features/map/api/courses-api'
+import { fetchCourseWeather } from '@/features/map/api/course-weather-api'
+import {
+  fetchSelectablePets,
+  type SelectablePet,
+} from '@/features/profile/api/pets-api'
 import { useTravelStore } from '@/features/travel/stores/travel-store'
 import { useLocationStore } from '@/features/location/stores/location-store'
 import type { ErrorType } from '@/types'
@@ -35,20 +40,24 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
   const [recommendationStatus, setRecommendationStatus] =
     useState<CourseRecommendationStatus>('idle')
   const [recommendationError, setRecommendationError] = useState<string | null>(null)
+  const [selectablePets, setSelectablePets] = useState<SelectablePet[]>([])
+  const [petLoadStatus, setPetLoadStatus] = useState<'loading' | 'success' | 'error'>(
+    'loading'
+  )
   const recommendationRequestRef = useRef<AbortController | null>(null)
   const {
     draftTripTitle,
     draftTripImage,
-    minimumWalkingTimeHours,
     recommendedCourse,
     routeDestination,
     routeOrigin,
+    selectedPetId,
     selectedPetName,
     setRouteEndpoints,
     setRouteOptions,
     setRecommendedCourse,
+    setSelectedPet,
     setTravelStage,
-    travelTimeHours,
     waypointCount,
   } = useTravelStore()
   const currentPosition = useLocationStore((state) => state.position)
@@ -62,6 +71,29 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
     return () => cancelLocationRequest()
   }, [cancelLocationRequest, initialErrorType, refreshLocation, step])
 
+  useEffect(() => {
+    if (initialErrorType) return
+    const controller = new AbortController()
+
+    void fetchSelectablePets(controller.signal)
+      .then((pets) => {
+        if (controller.signal.aborted) return
+        setSelectablePets(pets)
+        const currentPetId = useTravelStore.getState().selectedPetId
+        const selectedPet = pets.find((pet) => pet.id === currentPetId) ?? pets[0] ?? null
+        setSelectedPet(selectedPet)
+        setPetLoadStatus('success')
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return
+        setSelectablePets([])
+        setSelectedPet(null)
+        setPetLoadStatus('error')
+      })
+
+    return () => controller.abort()
+  }, [initialErrorType, setSelectedPet])
+
   useEffect(
     () => () => {
       recommendationRequestRef.current?.abort()
@@ -70,7 +102,25 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
   )
 
   const requestRecommendedCourse = async () => {
-    if (!routeOrigin || recommendationStatus === 'loading') return
+    if (
+      !routeOrigin ||
+      !routeDestination ||
+      waypointCount === null ||
+      recommendationStatus === 'loading'
+    ) {
+      return
+    }
+    if (!selectedPetId) {
+      setRecommendationError(
+        petLoadStatus === 'loading'
+          ? '반려동물 정보를 확인하고 있습니다. 잠시 후 다시 시도해주세요.'
+          : petLoadStatus === 'error'
+            ? '반려동물 정보를 불러오지 못했습니다. 다시 로그인한 뒤 시도해주세요.'
+            : '등록된 반려동물이 없습니다. 반려동물을 등록한 뒤 다시 시도해주세요.'
+      )
+      setRecommendationStatus('error')
+      return
+    }
 
     recommendationRequestRef.current?.abort()
     const controller = new AbortController()
@@ -80,8 +130,21 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
     setRecommendationStatus('loading')
 
     try {
+      let weather
+      try {
+        weather = await fetchCourseWeather(routeOrigin, controller.signal)
+      } catch {
+        if (controller.signal.aborted) return
+      }
+
       const course = await createRecommendedCourse(
-        buildCreateCourseRequest(routeOrigin),
+        buildCreateCourseRequest({
+          destination: routeDestination,
+          intermediateStopCount: waypointCount,
+          origin: routeOrigin,
+          petId: selectedPetId,
+          weather,
+        }),
         controller.signal
       )
       if (controller.signal.aborted) return
@@ -155,7 +218,6 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
     return (
       <MapRouteOptionsScreen
         destination={routeDestination}
-        minimumWalkingTimeHours={minimumWalkingTimeHours}
         onBack={() => {
           recommendationRequestRef.current?.abort()
           setRecommendationError(null)
@@ -163,11 +225,21 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
           setStep('setup')
         }}
         onOptionsChange={setRouteOptions}
+        onPetSelect={(petId) => {
+          recommendationRequestRef.current?.abort()
+          recommendationRequestRef.current = null
+          const pet = selectablePets.find((item) => item.id === petId) ?? null
+          setSelectedPet(pet)
+          setRecommendationError(null)
+          setRecommendationStatus('idle')
+        }}
         onRecommend={() => void requestRecommendedCourse()}
         origin={routeOrigin}
+        petLoadStatus={petLoadStatus}
+        pets={selectablePets}
         recommendationError={recommendationError}
         recommendationStatus={recommendationStatus}
-        travelTimeHours={travelTimeHours}
+        selectedPetId={selectedPetId}
         waypointCount={waypointCount}
       />
     )

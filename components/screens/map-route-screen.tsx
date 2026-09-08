@@ -84,7 +84,7 @@ export default function MapRouteScreen({
       : []),
   ]
   const mapZoom = origin && destination ? getRouteMapZoom(origin, destination) : 14
-  const routeTitle = `${course.startLocation} 추천 코스`
+  const routeTitle = `${course.startLocation} → ${course.endLocation}`
 
   const startSheetDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const sheetHeight = sheetRef.current?.getBoundingClientRect().height ?? 0
@@ -197,11 +197,10 @@ export default function MapRouteScreen({
               role="status"
               className="rounded-xl border border-sage-green/30 bg-sage-green-light px-3 py-2 text-[11px] font-medium text-deep-brown"
             >
-              POST /courses에서 생성된 실제 추천 코스입니다.
+              선택한 출발지·도착지와 중간 거점 수로 생성된 추천 코스입니다.
             </div>
             <div className="rounded-xl border border-soft-orange/30 bg-soft-orange/10 px-3 py-2 text-[11px] leading-relaxed text-deep-brown">
-              현재 API는 출발 위치 주변 장소만 추천합니다. 선택한 도착지, 거점 수, 여행
-              시간과 지도 경로선은 아직 API에 포함되지 않습니다.
+              지도 경로선은 아직 코스 생성 API에 포함되지 않습니다.
             </div>
           </div>
 

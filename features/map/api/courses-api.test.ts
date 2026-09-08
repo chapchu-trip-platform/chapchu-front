@@ -24,20 +24,43 @@ describe('courses API', () => {
     expect(
       buildCreateCourseRequest(
         {
+          petId: ' pet-1 ',
+          origin: {
           id: 'origin',
           name: ' 서울역 ',
           address: '서울 용산구 한강대로 405',
           latitude: 37.5547,
           longitude: 126.9706,
+          },
+          destination: {
+            id: 'destination',
+            name: ' 서울숲 ',
+            address: '서울 성동구 뚝섬로 273',
+            latitude: 37.5444,
+            longitude: 127.0374,
+          },
+          intermediateStopCount: 2,
+          weather: {
+            temperature: 25,
+            humidity: 60,
+            weatherStatus: ' 맑음 ',
+          },
         },
         new Date(2026, 8, 1, 23, 30)
       )
     ).toEqual({
-      lat: 37.5547,
-      lng: 126.9706,
-      radiusMeters: 5000,
+      petId: 'pet-1',
       travelDate: '2026-09-01',
       startLocation: '서울역',
+      startLat: 37.5547,
+      startLng: 126.9706,
+      endLocation: '서울숲',
+      endLat: 37.5444,
+      endLng: 127.0374,
+      intermediateStopCount: 2,
+      temperature: 25,
+      humidity: 60,
+      weatherStatus: '맑음',
     })
   })
 
@@ -54,23 +77,32 @@ describe('courses API', () => {
         courseId: 'course-1',
         travelDate: '2026-09-01',
         startLocation: '서울역',
+        endLocation: '서울숲',
         places: [
           {
             coursePlaceId: 'course-place-1',
             externalPlaceId: 'external-1',
             placeName: '서울숲',
+            placeImageUrl: null,
+            latitude: 37.5444,
+            longitude: 127.0374,
             visitOrder: 1,
             finalPlace: true,
+            petPolicy: null,
           },
         ],
       })
     }
     const request = {
-      lat: 37.5547,
-      lng: 126.9706,
-      radiusMeters: 5000,
+      petId: 'pet-1',
       travelDate: '2026-09-01',
       startLocation: '서울역',
+      startLat: 37.5547,
+      startLng: 126.9706,
+      endLocation: '서울숲',
+      endLat: 37.5444,
+      endLng: 127.0374,
+      intermediateStopCount: 2,
     }
 
     await expect(createRecommendedCourse(request, signal)).resolves.toMatchObject({
@@ -96,11 +128,15 @@ describe('courses API', () => {
 
     await expect(
       createRecommendedCourse({
-        lat: 37.5547,
-        lng: 126.9706,
-        radiusMeters: 5000,
+        petId: 'pet-1',
         travelDate: '2026-09-01',
         startLocation: '서울역',
+        startLat: 37.5547,
+        startLng: 126.9706,
+        endLocation: '서울숲',
+        endLat: 37.5444,
+        endLng: 127.0374,
+        intermediateStopCount: 2,
       })
     ).rejects.toThrow('Course response was invalid.')
   })
@@ -109,7 +145,7 @@ describe('courses API', () => {
     expect(getCourseRecommendationErrorMessage({ type: 'network' })).toContain('네트워크')
     expect(getCourseRecommendationErrorMessage({ type: 'timeout' })).toContain('시간이 초과')
     expect(getCourseRecommendationErrorMessage({ status: 401 })).toContain('로그인')
-    expect(getCourseRecommendationErrorMessage({ status: 400 })).toContain('출발 위치')
+    expect(getCourseRecommendationErrorMessage({ status: 400 })).toContain('반려동물과 경로')
     expect(getCourseRecommendationErrorMessage({ type: 'server', status: 500 })).toContain(
       '서버에서'
     )
@@ -137,11 +173,15 @@ describe('courses API', () => {
     apiClient.defaults.adapter = async (config) => response(config, { courseId: 'course-1' })
 
     const error = await createRecommendedCourse({
-      lat: 37.5547,
-      lng: 126.9706,
-      radiusMeters: 5000,
+      petId: 'pet-1',
       travelDate: '2026-09-01',
       startLocation: '서울역',
+      startLat: 37.5547,
+      startLng: 126.9706,
+      endLocation: '서울숲',
+      endLat: 37.5444,
+      endLng: 127.0374,
+      intermediateStopCount: 2,
     }).catch((caught: unknown) => caught)
 
     expect(getCourseRecommendationErrorMessage(error)).toContain('응답 형식')

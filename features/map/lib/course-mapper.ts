@@ -6,14 +6,19 @@ export function mapCourse(dto: CourseDto): RecommendedCourse {
     id: dto.courseId,
     travelDate: dto.travelDate,
     startLocation: dto.startLocation.trim(),
+    endLocation: dto.endLocation.trim(),
     places: [...dto.places]
       .sort((first, second) => first.visitOrder - second.visitOrder)
       .map((place) => ({
         id: place.coursePlaceId,
         externalPlaceId: place.externalPlaceId,
         name: place.placeName.trim(),
+        imageUrl: place.placeImageUrl,
+        latitude: place.latitude,
+        longitude: place.longitude,
         visitOrder: place.visitOrder,
         isFinal: place.finalPlace,
+        petPolicy: place.petPolicy,
       })),
   }
 }

@@ -1,15 +1,10 @@
 import { useState } from 'react'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import MapRouteOptionsScreen, {
   type CourseRecommendationStatus,
 } from '@/components/screens/map-route-options-screen'
-import { getMinimumWalkingTimeSeconds } from '@/features/map/api/walking-time-api'
-
-vi.mock('@/features/map/api/walking-time-api', () => ({
-  getMinimumWalkingTimeSeconds: vi.fn(),
-}))
 
 const origin = {
   id: 'origin',
@@ -28,102 +23,98 @@ const destination = {
 }
 
 function Harness({
+  onPetSelect = vi.fn(),
   onRecommend = vi.fn(),
+  pets = [
+    { id: 'pet-1', name: '초코' },
+    { id: 'pet-2', name: '보리' },
+  ],
   recommendationError = null,
   recommendationStatus = 'idle',
 }: {
+  onPetSelect?: (petId: string) => void
   onRecommend?: () => void
+  pets?: Array<{ id: string; name: string }>
   recommendationError?: string | null
   recommendationStatus?: CourseRecommendationStatus
 } = {}) {
   const [options, setOptions] = useState({
-    minimumWalkingTimeHours: null as number | null,
-    waypointCount: null as number | null,
-    travelTimeHours: null as number | null,
+    waypointCount: 0,
   })
+  const [selectedPetId, setSelectedPetId] = useState<string | null>('pet-1')
 
   return (
     <MapRouteOptionsScreen
       destination={destination}
-      minimumWalkingTimeHours={options.minimumWalkingTimeHours}
       onBack={vi.fn()}
       onOptionsChange={setOptions}
+      onPetSelect={(petId) => {
+        setSelectedPetId(petId)
+        onPetSelect(petId)
+      }}
       onRecommend={onRecommend}
       origin={origin}
+      petLoadStatus="success"
+      pets={pets}
       recommendationError={recommendationError}
       recommendationStatus={recommendationStatus}
-      travelTimeHours={options.travelTimeHours}
+      selectedPetId={selectedPetId}
       waypointCount={options.waypointCount}
     />
   )
 }
 
 describe('MapRouteOptionsScreen', () => {
-  beforeEach(() => {
-    vi.mocked(getMinimumWalkingTimeSeconds).mockReset().mockResolvedValue(3900)
-  })
-
   afterEach(() => cleanup())
 
-  it('rounds the TMAP result up and limits waypoint/time choices', async () => {
+  it('offers zero to seven intermediate stops without showing walking time', async () => {
     const user = userEvent.setup()
     render(<Harness />)
 
-    expect(await screen.findByRole('button', { name: '2H' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '1개' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: '0개 · 직행' })).toHaveAttribute(
       'aria-pressed',
       'true'
     )
-    expect(screen.getByRole('button', { name: '1개' })).toHaveClass(
+    expect(screen.getByRole('button', { name: '0개 · 직행' })).toHaveClass(
       'focus-visible:ring-2',
       'rounded-xl'
     )
-    expect(screen.queryByRole('button', { name: '0개 · 직행' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '5개' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '2H' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
-    expect(screen.getByRole('button', { name: '2H' })).toHaveClass(
-      'focus-visible:ring-2',
-      'rounded-xl'
-    )
-    expect(screen.getByRole('button', { name: '5H' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '6H' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '2H' }).parentElement).toHaveClass(
+    expect(screen.getByRole('button', { name: '7개' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '8개' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '0개 · 직행' }).parentElement).toHaveClass(
       'grid-cols-4'
     )
+    expect(screen.queryByRole('heading', { name: '여행 시간' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: '최소 도보 이동 시간' })
+    ).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: '4개' }))
-    await user.click(screen.getByRole('button', { name: '5H' }))
+    await user.click(screen.getByRole('button', { name: '7개' }))
 
-    expect(screen.getByRole('button', { name: '4개' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
-    expect(screen.getByRole('button', { name: '5H' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: '7개' })).toHaveAttribute(
       'aria-pressed',
       'true'
     )
     expect(screen.getByRole('button', { name: '추천 코스 받기' })).toBeEnabled()
-    expect(screen.getByText(/현재 API는 출발 위치 주변 추천만 지원하며/)).toBeInTheDocument()
+    expect(screen.getByText(/선택한 반려동물·출발지·도착지와/)).toBeInTheDocument()
   })
 
-  it('shows an error and retries the TMAP request', async () => {
+  it('shows pets and changes the selected pet', async () => {
     const user = userEvent.setup()
-    vi.mocked(getMinimumWalkingTimeSeconds)
-      .mockRejectedValueOnce(new Error('failed'))
-      .mockResolvedValueOnce(3600)
+    const onPetSelect = vi.fn()
+    render(<Harness onPetSelect={onPetSelect} />)
 
-    render(<Harness />)
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      '최소 이동 시간을 확인하지 못했어요.'
+    expect(screen.getByRole('button', { name: '초코' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
     )
-    await user.click(screen.getByRole('button', { name: '다시 시도' }))
+    await user.click(screen.getByRole('button', { name: '보리' }))
 
-    await waitFor(() => expect(getMinimumWalkingTimeSeconds).toHaveBeenCalledTimes(2))
-    expect(await screen.findByRole('button', { name: '1H' })).toBeInTheDocument()
+    expect(onPetSelect).toHaveBeenCalledWith('pet-2')
+    expect(screen.getByRole('button', { name: '보리' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
   })
 
   it('disables duplicate submissions and exposes recommendation failures', async () => {
