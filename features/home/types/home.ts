@@ -7,10 +7,12 @@ export interface HomeSummary {
 
 export interface HotPost {
   id: string
+  nickname: string
   title: string
   content: string
   viewCount: number
   recommendationCount: number
+  commentCount: number
   createdAt: string | null
   hasPhoto: boolean
 }

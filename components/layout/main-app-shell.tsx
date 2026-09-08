@@ -28,7 +28,7 @@ export default function MainAppShell({ children }: { children: React.ReactNode }
   const router = useRouter()
   const status = useAuthStore((state) => state.status)
   const activeTab = getActiveTab(pathname)
-  const showBottomNav = !pathname.startsWith('/map')
+  const showBottomNav = !pathname.startsWith('/map') && pathname !== '/community/write'
 
   const demoSessionAllowed = status === 'demo' && process.env.NODE_ENV !== 'production'
 
