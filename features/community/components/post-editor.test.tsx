@@ -5,7 +5,6 @@ import { useAuthStore } from '@/features/auth/stores/auth-store'
 import { usePostDraftStore } from '@/features/community/stores/post-draft-store'
 import { createPost } from '@/features/community/api/community-api'
 import { mockRouter } from '@/test/mocks/next-navigation'
-import { postFixture } from '@/test/fixtures/community'
 import PostEditor from './post-editor'
 
 vi.mock('@/features/community/api/community-api')
@@ -20,7 +19,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   useAuthStore.setState({ status: 'authenticated', sessionEpoch: 0 })
   usePostDraftStore.getState().clear()
-  vi.mocked(createPost).mockResolvedValue(postFixture)
+  vi.mocked(createPost).mockResolvedValue(undefined)
 })
 afterEach(cleanup)
 
@@ -67,16 +66,13 @@ describe('free-board post editor', () => {
     expect(screen.getByLabelText('제목')).toHaveFocus()
   })
 
-  it('publishes trimmed text with empty references, clears the draft and returns to the free board', async () => {
+  it('publishes only trimmed text, clears the draft and returns to the free board after an empty success response', async () => {
     const user = userEvent.setup()
     render(<PostEditor />)
     await user.type(screen.getByLabelText('제목'), '  오늘의 산책  ')
     await user.type(screen.getByLabelText('내용'), '  함께 걸었어요.  ')
     await user.click(screen.getByRole('button', { name: '게시글 등록' }))
     await waitFor(() => expect(createPost).toHaveBeenCalledWith({
-      petId: '',
-      photoId: '',
-      courseId: '',
       title: '오늘의 산책',
       content: '함께 걸었어요.',
     }, expect.any(AbortSignal)))
@@ -85,7 +81,7 @@ describe('free-board post editor', () => {
   })
 
   it('preserves the required text and permits retry after a failed publication', async () => {
-    vi.mocked(createPost).mockRejectedValueOnce({ type: 'network' }).mockResolvedValueOnce(postFixture)
+    vi.mocked(createPost).mockRejectedValueOnce({ type: 'network' }).mockResolvedValueOnce(undefined)
     const user = userEvent.setup()
     render(<PostEditor />)
     await user.type(screen.getByLabelText('제목'), '보존할 제목')
@@ -101,7 +97,7 @@ describe('free-board post editor', () => {
   })
 
   it('prevents duplicate publication while the first request is pending', async () => {
-    const pending = deferred<typeof postFixture>()
+    const pending = deferred<void>()
     vi.mocked(createPost).mockReturnValue(pending.promise)
     const user = userEvent.setup()
     render(<PostEditor />)
@@ -115,7 +111,7 @@ describe('free-board post editor', () => {
     expect(screen.getByRole('button', { name: '뒤로 가기' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: '등록 중…' }))
     expect(createPost).toHaveBeenCalledTimes(1)
-    await act(async () => pending.resolve(postFixture))
+    await act(async () => pending.resolve())
     expect(mockRouter.replace).toHaveBeenCalledOnce()
   })
 
@@ -130,7 +126,7 @@ describe('free-board post editor', () => {
   })
 
   it('aborts a pending publication and ignores its late response after the session changes', async () => {
-    const pending = deferred<typeof postFixture>()
+    const pending = deferred<void>()
     vi.mocked(createPost).mockReturnValue(pending.promise)
     const user = userEvent.setup()
     render(<PostEditor />)
@@ -142,7 +138,7 @@ describe('free-board post editor', () => {
     expect(signal?.aborted).toBe(false)
     act(() => useAuthStore.setState({ sessionEpoch: 1, status: 'unauthenticated' }))
     expect(signal?.aborted).toBe(true)
-    await act(async () => pending.resolve(postFixture))
+    await act(async () => pending.resolve())
     expect(mockRouter.replace).not.toHaveBeenCalled()
   })
 

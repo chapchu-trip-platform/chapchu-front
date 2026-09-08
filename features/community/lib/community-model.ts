@@ -1,11 +1,11 @@
-import { REVIEW_WEATHER, type Comment, type Post, type PostPage, type Review } from '@/features/community/types/community'
+import { REVIEW_WEATHER, type Comment, type PhotoDownload, type Post, type PostPage, type PostPhoto, type PostSummary, type Review } from '@/features/community/types/community'
 
 const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 const text = (value: unknown, max = 20_000): value is string => typeof value === 'string' && value.length <= max
 const id = (value: unknown): value is string => text(value, 200) && value.trim().length > 0
-const nullableId = (value: unknown) => value === null || id(value)
-const count = (value: unknown) => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
-const date = (value: unknown) => value === null || (text(value, 100) && Number.isFinite(Date.parse(value)))
+const nullableId = (value: unknown): value is string | null => value === null || id(value)
+const count = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+const date = (value: unknown): value is string | null => value === null || (text(value, 100) && Number.isFinite(Date.parse(value)))
 
 /** Remote photos are rendered by the browser, never fetched by a server-side proxy. */
 export function safePhotoUrl(value: string | null): string | null {
@@ -18,13 +18,23 @@ export function safePhotoUrl(value: string | null): string | null {
 }
 
 export function parsePost(value: unknown): Post {
+  const photoValues = record(value) && Array.isArray(value.photos) && value.photos.length <= 10 ? value.photos : null
+  const photos = photoValues?.map(parsePostPhoto) ?? null
   if (!record(value) || !id(value.id) || !nullableId(value.petId) || !nullableId(value.photoId) ||
       !nullableId(value.courseId) || !text(value.title, 500) || !text(value.content) ||
       !text(value.nickname, 100) || !(value.photoUrl === null || text(value.photoUrl, 4096)) ||
-      !count(value.viewCount) || !count(value.recommendationCount) || !count(value.commentCount) || !date(value.createdAt) || typeof value.recommended !== 'boolean' || typeof value.bookmarked !== 'boolean') {
+      !count(value.viewCount) || !count(value.recommendationCount) || !count(value.commentCount) || !date(value.createdAt) ||
+      typeof value.recommended !== 'boolean' || typeof value.bookmarked !== 'boolean' || !photos) {
     throw new Error('Invalid community post response.')
   }
-  return { ...(value as unknown as Post), photoUrl: safePhotoUrl(value.photoUrl as string | null) }
+  return { ...(value as unknown as Post), photoUrl: safePhotoUrl(value.photoUrl as string | null), photos }
+}
+
+function parsePostPhoto(value: unknown): PostPhoto {
+  if (!record(value) || !id(value.photoId) || !(value.photoKey === null || (text(value.photoKey, 4096) && value.photoKey.trim()))) {
+    throw new Error('Invalid community post photo response.')
+  }
+  return { photoId: value.photoId, photoKey: value.photoKey }
 }
 
 export function parsePosts(value: unknown): Post[] {
@@ -32,11 +42,52 @@ export function parsePosts(value: unknown): Post[] {
   return value.map(parsePost)
 }
 
+export function parsePostSummary(value: unknown): PostSummary {
+  if (!record(value)) throw new Error('Invalid community post summary response.')
+
+  const thumbnail = value.thumbnail
+  const validThumbnail = thumbnail === null || (
+    record(thumbnail) && id(thumbnail.photoId) && (thumbnail.photoKey === null || text(thumbnail.photoKey, 4096))
+  )
+  if (!id(value.id) || !text(value.title, 500) || !text(value.nickname, 100) || !value.nickname.trim() ||
+      !count(value.recommendationCount) || !count(value.commentCount) || !validThumbnail || !date(value.createdAt)) {
+    throw new Error('Invalid community post summary response.')
+  }
+
+  // photoKey is always opaque storage metadata; only the photo read API may return a URL.
+  return {
+    id: value.id,
+    photoId: record(thumbnail) && typeof thumbnail.photoKey === 'string' && thumbnail.photoKey.trim()
+      ? thumbnail.photoId as string
+      : null,
+    title: value.title,
+    nickname: value.nickname,
+    recommendationCount: value.recommendationCount,
+    commentCount: value.commentCount,
+    photoUrl: null,
+    createdAt: value.createdAt,
+  }
+}
+
+export function parsePostSummaries(value: unknown): PostSummary[] {
+  if (!Array.isArray(value)) throw new Error('Invalid community list response.')
+  return value.map(parsePostSummary)
+}
+
+export function parsePhotoDownload(value: unknown): PhotoDownload {
+  if (!record(value) || !id(value.id) || !text(value.downloadUrl, 4096) || !date(value.takenAt)) {
+    throw new Error('Invalid photo download response.')
+  }
+  const downloadUrl = safePhotoUrl(value.downloadUrl)
+  if (!downloadUrl) throw new Error('Invalid photo download URL.')
+  return { id: value.id, downloadUrl, takenAt: value.takenAt }
+}
+
 export function parsePostPage(value: unknown): PostPage {
   if (!record(value) || !(value.nextCursor === null || (text(value.nextCursor, 1024) && value.nextCursor.trim()))) {
     throw new Error('Invalid community cursor response.')
   }
-  return { posts: parsePosts(value.posts), nextCursor: value.nextCursor as string | null }
+  return { posts: parsePostSummaries(value.posts), nextCursor: value.nextCursor as string | null }
 }
 
 export function parseComment(value: unknown): Comment {
@@ -75,7 +126,7 @@ export function parseReviews(value: unknown): Review[] {
   return value.map(parseReview)
 }
 
-export function mergePosts(previous: Post[], next: Post[]) {
+export function mergePosts(previous: PostSummary[], next: PostSummary[]) {
   return Array.from(new Map([...previous, ...next].map(post => [post.id, post])).values())
 }
 
