@@ -35,7 +35,7 @@ function Editor() {
   function publish() {
     if (!valid || !authenticated || action.busy) return
     void action.run(
-      ({ signal }) => createPost({ petId: '', photoId: '', courseId: '', title: title.trim(), content: content.trim() }, signal),
+      ({ signal }) => createPost({ title: title.trim(), content: content.trim() }, signal),
       () => {
         clear()
         router.replace('/community?tab=free')

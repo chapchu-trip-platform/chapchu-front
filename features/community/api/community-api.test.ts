@@ -12,9 +12,16 @@ beforeEach(() => vi.resetAllMocks())
 
 describe('community API requests', () => {
   it('requests paginated posts with opaque cursor and signal', async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ data: { posts: [postFixture], nextCursor: null } })
+    const summary = {
+      id: 'summary-1', title: '목록 제목', nickname: '작성자', recommendationCount: 1, commentCount: 2,
+      thumbnail: null, createdAt: '2026-09-08T12:00:00Z',
+    }
+    vi.mocked(apiClient.get).mockResolvedValue({ data: { posts: [summary], nextCursor: null } })
     const signal = new AbortController().signal
-    await api.fetchPosts('popular', 'date~id+/=', signal)
+    await expect(api.fetchPosts('popular', 'date~id+/=', signal)).resolves.toEqual({
+      posts: [{ id: 'summary-1', photoId: null, title: '목록 제목', nickname: '작성자', recommendationCount: 1, commentCount: 2, photoUrl: null, createdAt: '2026-09-08T12:00:00Z' }],
+      nextCursor: null,
+    })
     expect(apiClient.get).toHaveBeenCalledWith('/posts', { params: { sort: 'popular', size: 20, cursor: 'date~id+/=' }, signal })
     await api.fetchPosts('latest')
     expect(apiClient.get).toHaveBeenLastCalledWith('/posts', { params: { sort: 'latest', size: 20 }, signal: undefined })
@@ -31,17 +38,35 @@ describe('community API requests', () => {
     expect(apiClient.get).toHaveBeenCalledWith('/users/me/posts', { signal: undefined })
     expect(apiClient.get).toHaveBeenCalledWith('/users/me/bookmarks', { signal: undefined })
   })
-  it('creates a free-board post with empty optional references and edits text fields', async () => {
-    vi.mocked(apiClient.post).mockResolvedValue({ data: postFixture })
+  it.each([200, 201])('creates a text-only free-board post from a %i response without parsing a body', async status => {
+    vi.mocked(apiClient.post).mockResolvedValue({ data: undefined, status })
     vi.mocked(apiClient.patch).mockResolvedValue({ data: postFixture })
-    const input = { petId: '', photoId: '', courseId: '', title: '제목', content: '내용' }
+    const input = { title: '제목', content: '내용' }
     const signal = new AbortController().signal
-    await api.createPost(input, signal)
+    await expect(api.createPost(input, signal)).resolves.toBeUndefined()
     await api.updatePost('post-1', { title: '수정', content: '본문' })
     expect(apiClient.post).toHaveBeenCalledWith('/posts', input, { signal })
     expect(apiClient.patch).toHaveBeenCalledWith('/posts/post-1', { title: '수정', content: '본문' })
     await api.deletePost('post-1')
     expect(apiClient.delete).toHaveBeenCalledWith('/posts/post-1')
+  })
+  it('loads a documented photo download URL and binds it to the requested photo', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: { id: 'photo-1', downloadUrl: 'https://example.com/photo.jpg', takenAt: null },
+    })
+    const signal = new AbortController().signal
+    await expect(api.fetchPhotoDownload('photo-1', signal)).resolves.toMatchObject({ id: 'photo-1' })
+    expect(apiClient.get).toHaveBeenCalledWith('/photos/photo-1', { signal })
+
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: { id: 'other-photo', downloadUrl: 'https://example.com/photo.jpg', takenAt: null },
+    })
+    await expect(api.fetchPhotoDownload('photo-1')).rejects.toThrow('did not match')
+  })
+  it.each([202, 204])('does not confirm publication from an unexpected %i response', async status => {
+    vi.mocked(apiClient.post).mockResolvedValue({ data: undefined, status })
+
+    await expect(api.createPost({ title: '제목', content: '내용' })).rejects.toThrow('Unexpected post creation status.')
   })
   it('keeps recommendation and bookmark creation/cancellation separate', async () => {
     await api.setPostRecommendation('post-1', true)

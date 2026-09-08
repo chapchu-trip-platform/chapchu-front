@@ -175,10 +175,10 @@ is aborted immediately when Home/Map unmounts or the location store is reset; tr
 
 Home now reads `petNames` from `GET /home` and shows the first name plus the remaining
 count. Its three HOT cards come from `GET /posts?sort=popular&size=3`; the frontend validates
-the current `{ posts, nextCursor }` cursor-page contract before mapping the cards. Although the
-contract now includes `photoUrl`, the current Home card keeps local fallback images until the
-remote-image host policy and failure handling are finalized. Public post `nickname` and
-`commentCount` values are validated, mapped, and displayed on each HOT card.
+the current summary-shaped `{ posts, nextCursor }` cursor-page contract before mapping the
+cards. The summary omits body and view count, so Home no longer invents either value. Its cards
+keep local images while the community board resolves documented thumbnail IDs independently.
+Public post `nickname` and `commentCount` values are validated, mapped, and displayed.
 
 Before production location rollout, backend coordination still needs to provide:
 
@@ -548,17 +548,31 @@ order. Temporary probe files are absent from the final build and working changes
   cancellation notices, Close/Escape and focus restoration. Test reactions were restored.
 - Validation passed: lint, typecheck, production build, and 45 test files / 352 tests.
 
-### Text-only free-board publication (2026-09-06)
+### Text-only free-board publication (2026-09-08)
 
-- The refreshed `POST /posts` documentation explicitly makes `petId`, `photoId` and
-  `courseId` optional and permits body-only publication. Missing references are returned
-  as `null`; a missing photo also produces a null photo URL.
+- The deployed post-list response now uses a summary DTO containing title, author,
+  reaction/comment counts, `thumbnail` and creation time. The list adapter validates this
+  shape independently from the full detail response.
+- A thumbnail `photoKey` is treated as an opaque storage key, not a public image URL.
+  When `thumbnail.photoId` exists, the board requests its short-lived HTTPS download URL
+  through the documented photo read API. A missing, rejected or malformed photo response
+  keeps the temporary image without failing the surrounding post list.
+- Deployed legacy seed posts currently return `photoKey: null` and their photo reads return
+  404. These incomplete thumbnails are treated as unavailable and are not requested; this
+  compatibility path can be removed after backend seed data conforms to the string contract.
+- Full post detail, edit, authored-post and bookmark responses validate the documented
+  `photos[]` collection separately from the representative `photoUrl`.
+- The refreshed `POST /posts` documentation makes `petId`, `courseId` and `photos`
+  optional and permits text-only publication. `photoId` is no longer a creation field;
+  future attachments use up to ten `photos[]` entries containing an owned `photoKey`
+  and an optional `takenAt` date.
 - The free-board UI requires a nonblank title and content as a product rule even though
   the backend describes both text fields as optional. Title and content are temporarily
   limited to 100 characters in the frontend.
-- Publication sends `{ petId: "", photoId: "", courseId: "", title, content }` under
-  the current frontend contract. The published backend contract explicitly guarantees
-  omitted optional references; deployed handling of empty strings still needs a live check.
+- Text-only publication sends `{ title, content }` and omits every unused optional field.
+- The documented success response is `201 Created` with no body. The adapter therefore
+  accepts only `200 OK` or `201 Created` without parsing a post resource. Other resolved
+  `2xx` statuses, including `202 Accepted`, do not clear the draft or trigger navigation.
 - A successful response clears the memory-only draft and returns to the free-board list.
   A failed request preserves both inputs for an explicit retry, and pending requests
   block in-app navigation and disable publication to prevent duplicate writes. The API

@@ -228,6 +228,20 @@ describe('live community board', () => {
     expect(screen.getByRole('img', { name: /임시 사진/ })).toBeInTheDocument()
   })
 
+  it('replaces the temporary list image with the documented photo download URL', async () => {
+    vi.mocked(api.fetchPhotoDownload).mockResolvedValue({
+      id: 'photo-1', downloadUrl: 'https://example.com/resolved.jpg', takenAt: null,
+    })
+    const { unmount } = render(
+      <CommunityPhoto title="목록 사진" url={null} photoId="photo-1" className="h-36" temporaryFallback />,
+    )
+    expect(screen.getByRole('img', { name: /임시 사진/ })).toBeInTheDocument()
+    expect(await screen.findByRole('img', { name: '목록 사진' })).toHaveAttribute('src', 'https://example.com/resolved.jpg')
+    const signal = vi.mocked(api.fetchPhotoDownload).mock.calls[0][1]
+    unmount()
+    expect(signal?.aborted).toBe(true)
+  })
+
   it('loads popular/latest sorting and routes real IDs to detail', async () => {
     const user = userEvent.setup()
     render(<CommunityBoard />)

@@ -47,8 +47,6 @@ export const Default: Story = {
         id: 'post-1',
         nickname: '멍멍이아빠',
         title: '반려견과 함께한 첫추 여행기',
-        content: '따뜻한 날씨에 가까운 산책로를 다녀왔어요.',
-        viewCount: 320,
         recommendationCount: 48,
         commentCount: 12,
         createdAt: '2026-08-26T05:00:00Z',

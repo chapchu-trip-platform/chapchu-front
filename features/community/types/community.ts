@@ -1,3 +1,8 @@
+export interface PostPhoto {
+  photoId: string
+  photoKey: string | null
+}
+
 export interface Post {
   id: string
   petId: string | null
@@ -7,6 +12,7 @@ export interface Post {
   content: string
   nickname: string
   photoUrl: string | null
+  photos: PostPhoto[]
   viewCount: number
   recommendationCount: number
   recommended: boolean
@@ -15,17 +21,39 @@ export interface Post {
   createdAt: string | null
 }
 
+export interface PostSummary {
+  id: string
+  photoId: string | null
+  title: string
+  nickname: string
+  recommendationCount: number
+  commentCount: number
+  photoUrl: string | null
+  createdAt: string | null
+}
+
 export interface PostPage {
-  posts: Post[]
+  posts: PostSummary[]
   nextCursor: string | null
 }
 
+export interface PostPhotoInput {
+  photoKey: string
+  takenAt?: string
+}
+
+export interface PhotoDownload {
+  id: string
+  downloadUrl: string
+  takenAt: string | null
+}
+
 export interface PostInput {
-  petId: string
-  photoId: string
-  courseId: string
+  petId?: string
+  courseId?: string
   title: string
   content: string
+  photos?: PostPhotoInput[]
 }
 
 export interface Comment {

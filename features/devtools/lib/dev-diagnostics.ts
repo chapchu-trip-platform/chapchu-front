@@ -44,6 +44,7 @@ const SENSITIVE_EXACT_KEYS = new Set([
   'accuracymeters',
   'coordinate',
   'coordinates',
+  'downloadurl',
   'lat',
   'latitude',
   'lng',

@@ -2,32 +2,12 @@
 
 import { apiClient } from '@/lib/api/client'
 import { API_ENDPOINTS } from '@/lib/api/endpoints'
+import { parsePostPage } from '@/features/community/lib/community-model'
 import type { HomeSummary, HotPost } from '@/features/home/types/home'
 
 interface HomeSummaryDto {
   nickname: string
   petNames: string[]
-}
-
-interface PostDto {
-  id: string
-  photoId: string | null
-  nickname: string
-  title: string
-  content: string
-  viewCount: number
-  recommendationCount: number
-  commentCount: number
-  createdAt: string | null
-}
-
-interface PostPageDto {
-  posts: PostDto[]
-  nextCursor: string | null
-}
-
-function isNonNegativeCount(value: unknown): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
 }
 
 function isBoundedString(value: unknown, maxLength: number): value is string {
@@ -42,35 +22,6 @@ function isHomeSummaryDto(value: unknown): value is HomeSummaryDto {
     Array.isArray(data.petNames) &&
     data.petNames.length <= 100 &&
     data.petNames.every((name) => isBoundedString(name, 100))
-  )
-}
-
-function isPostDto(value: unknown): value is PostDto {
-  if (!value || typeof value !== 'object') return false
-  const post = value as Partial<PostDto>
-  return (
-    isBoundedString(post.id, 100) &&
-    (post.photoId === null || isBoundedString(post.photoId, 100)) &&
-    isBoundedString(post.nickname, 100) &&
-    post.nickname.trim().length > 0 &&
-    isBoundedString(post.title, 500) &&
-    isBoundedString(post.content, 20_000) &&
-    isNonNegativeCount(post.viewCount) &&
-    isNonNegativeCount(post.recommendationCount) &&
-    isNonNegativeCount(post.commentCount) &&
-    (post.createdAt === null || isBoundedString(post.createdAt, 100))
-  )
-}
-
-function isPostPageDto(value: unknown): value is PostPageDto {
-  if (!value || typeof value !== 'object') return false
-  const page = value as Partial<PostPageDto>
-  return (
-    Array.isArray(page.posts) &&
-    page.posts.length <= 3 &&
-    page.posts.every(isPostDto) &&
-    (page.nextCursor === null ||
-      (isBoundedString(page.nextCursor, 512) && page.nextCursor.trim().length > 0))
   )
 }
 
@@ -91,17 +42,21 @@ export async function fetchPopularPosts(signal?: AbortSignal): Promise<HotPost[]
     params: { sort: 'popular', size: 3 },
     signal,
   })
-  if (!isPostPageDto(data)) {
+  let page
+  try {
+    page = parsePostPage(data)
+  } catch {
+    throw new Error('Popular posts response was invalid.')
+  }
+  if (page.posts.length > 3) {
     throw new Error('Popular posts response was invalid.')
   }
 
-  return data.posts
+  return page.posts
     .map((post) => ({
       id: post.id,
       nickname: post.nickname.trim(),
       title: post.title.trim(),
-      content: post.content.trim(),
-      viewCount: post.viewCount,
       recommendationCount: post.recommendationCount,
       commentCount: post.commentCount,
       createdAt: post.createdAt,

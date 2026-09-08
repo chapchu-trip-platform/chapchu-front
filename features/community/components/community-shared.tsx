@@ -1,29 +1,40 @@
 'use client'
 
 import Image from 'next/image'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { PawPrint, Route } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { fetchPhotoDownload } from '@/features/community/api/community-api'
 import type { Review } from '@/features/community/types/community'
 
 interface CommunityPhotoProps {
   url: string | null
+  photoId?: string | null
   title: string
   className: string
   temporaryFallback?: boolean
 }
 
 export function CommunityPhoto(props: CommunityPhotoProps) {
-  return <Photo key={props.url} {...props} />
+  return <Photo key={`${props.url ?? ''}:${props.photoId ?? ''}`} {...props} />
 }
 
-function Photo({ url, title, className, temporaryFallback = false }: CommunityPhotoProps) {
+function Photo({ url, photoId, title, className, temporaryFallback = false }: CommunityPhotoProps) {
+  const [resolvedUrl, setResolvedUrl] = useState(url)
   const [failed, setFailed] = useState(false)
   const [fallbackFailed, setFallbackFailed] = useState(false)
+  useEffect(() => {
+    if (url || !photoId) return
+    const controller = new AbortController()
+    void fetchPhotoDownload(photoId, controller.signal)
+      .then(photo => { if (!controller.signal.aborted) setResolvedUrl(photo.downloadUrl) })
+      .catch(() => { /* Keep the visual fallback when the photo is unavailable. */ })
+    return () => controller.abort()
+  }, [photoId, url])
   return (
     <div className={`relative overflow-hidden bg-sage-green-light ${className}`}>
-      {url && !failed ? (
-        <Image src={url} alt={title} fill unoptimized sizes="430px" referrerPolicy="no-referrer" className="object-cover" onError={() => setFailed(true)} />
+      {resolvedUrl && !failed ? (
+        <Image src={resolvedUrl} alt={title} fill unoptimized sizes="430px" referrerPolicy="no-referrer" className="object-cover" onError={() => setFailed(true)} />
       ) : temporaryFallback && !fallbackFailed ? (
         <>
           <Image src="/images/post-cover.png" alt="임시 사진: 반려견과 함께하는 해변 산책" fill sizes="430px" className="object-cover" onError={() => setFallbackFailed(true)} />

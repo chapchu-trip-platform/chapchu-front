@@ -40,8 +40,6 @@ const hotPosts: HotPost[] = [
     id: 'post-1',
     nickname: '멍멍이아빠',
     title: '첫추 인기 여행기',
-    content: '반려견과 함께 다녀왔어요.',
-    viewCount: 120,
     recommendationCount: 42,
     commentCount: 7,
     createdAt: null,
@@ -88,12 +86,10 @@ describe('HomeScreen', () => {
     expect(screen.getByText('루이와 2마리')).toBeInTheDocument()
   })
 
-  it('renders API-backed HOT post fields with a fallback image', () => {
+  it('renders API-backed HOT summary fields with a fallback image', () => {
     render(<HomeScreen {...defaultProps} />)
 
     expect(screen.getByText('첫추 인기 여행기')).toBeInTheDocument()
-    expect(screen.getByText('반려견과 함께 다녀왔어요.')).toBeInTheDocument()
-    expect(screen.getByText('120')).toBeInTheDocument()
     expect(screen.getByText('42')).toBeInTheDocument()
     expect(screen.getByText('멍멍이아빠')).toBeInTheDocument()
     expect(screen.getByLabelText('댓글 7개')).toHaveTextContent('7')

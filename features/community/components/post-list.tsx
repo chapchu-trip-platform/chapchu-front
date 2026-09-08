@@ -45,7 +45,7 @@ export function PostList({ sort, onOpen }: { sort: 'popular' | 'latest'; onOpen:
     {query.data?.posts.map((post, index) => <motion.div key={post.id} initial={prefersReducedMotion ? false : { opacity: 0, y: 12, scale: 0.99 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: prefersReducedMotion ? 0 : 0.24, delay: prefersReducedMotion ? 0 : Math.min(index, 6) * 0.035, ease: [0.22, 1, 0.36, 1] }} whileTap={prefersReducedMotion ? undefined : { scale: 0.985 }}>
       <InteractiveCard onClick={() => onOpen(post.id)} padding="none" className="overflow-hidden">
       <div className="relative">
-        <CommunityPhoto url={post.photoUrl} title={post.title} className="h-36" temporaryFallback />
+        <CommunityPhoto url={post.photoUrl} photoId={post.photoId} title={post.title} className="h-36" temporaryFallback />
         {sort === 'popular' && index === 0 && <span className="absolute left-3 top-3 rounded-full bg-soft-orange px-2.5 py-1 text-[11px] font-bold text-white">HOT</span>}
       </div>
       <div className="p-3">
