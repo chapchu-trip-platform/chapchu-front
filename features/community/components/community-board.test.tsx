@@ -188,10 +188,14 @@ describe('live community board', () => {
     expect(screen.getByRole('heading', { name: postFixture.title })).toBeInTheDocument()
   })
 
-  it('shows writing on the free board, reserves companion info for reviews, and replaces sharing with bookmarking', async () => {
+  it('offers writing only on the free board, reserves companion info for reviews, and replaces sharing with bookmarking', async () => {
     const user = userEvent.setup()
-    const { unmount } = render(<CommunityBoard initialTab="free" />)
+    const { unmount } = render(<CommunityBoard />)
     await screen.findByText(postFixture.title)
+    expect(api.fetchPosts).toHaveBeenCalledWith('popular', undefined, expect.any(AbortSignal))
+    expect(screen.queryByRole('link', { name: '글쓰기' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '자유게시판' }))
+    await waitFor(() => expect(api.fetchPosts).toHaveBeenCalledWith('latest', undefined, expect.any(AbortSignal)))
     expect(screen.getByRole('link', { name: '글쓰기' })).toHaveAttribute('href', '/community/write')
     expect(screen.queryByText('동행 반려동물')).not.toBeInTheDocument()
     expect(screen.queryByText('코스 정보')).not.toBeInTheDocument()
@@ -217,6 +221,26 @@ describe('live community board', () => {
     expect(await screen.findByRole('button', { name: '북마크' })).toHaveAttribute('aria-pressed', 'false')
   })
 
+  it('orders HOT posts by recommendation count without changing the server order for the free board', async () => {
+    const user = userEvent.setup()
+    const low = { ...postFixture, id: 'post-low', title: '추천 1개', recommendationCount: 1 }
+    const high = { ...postFixture, id: 'post-high', title: '추천 9개', recommendationCount: 9 }
+    const middle = { ...postFixture, id: 'post-middle', title: '추천 4개', recommendationCount: 4 }
+    vi.mocked(api.fetchPosts).mockResolvedValue({ posts: [low, high, middle], nextCursor: null })
+
+    render(<CommunityBoard />)
+    await screen.findByRole('heading', { name: high.title })
+    expect(screen.getAllByRole('heading', { level: 3 }).map(heading => heading.textContent)).toEqual([
+      high.title, middle.title, low.title,
+    ])
+
+    await user.click(screen.getByRole('button', { name: '자유게시판' }))
+    await waitFor(() => expect(api.fetchPosts).toHaveBeenCalledWith('latest', undefined, expect.any(AbortSignal)))
+    expect(screen.getAllByRole('heading', { level: 3 }).map(heading => heading.textContent)).toEqual([
+      low.title, high.title, middle.title,
+    ])
+  })
+
   it('uses a labeled temporary photo on free posts only when the actual photo is missing or fails', () => {
     const { rerender } = render(<CommunityPhoto title="실제 사진" url="https://example.com/photo.jpg" className="h-52" temporaryFallback />)
     expect(screen.queryByText('임시 사진')).not.toBeInTheDocument()
@@ -226,6 +250,20 @@ describe('live community board', () => {
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
     rerender(<CommunityPhoto title="사진 없는 글" url={null} className="h-52" temporaryFallback />)
     expect(screen.getByRole('img', { name: /임시 사진/ })).toBeInTheDocument()
+  })
+
+  it('replaces the temporary list image with the documented photo download URL', async () => {
+    vi.mocked(api.fetchPhotoDownload).mockResolvedValue({
+      id: 'photo-1', downloadUrl: 'https://example.com/resolved.jpg', takenAt: null,
+    })
+    const { unmount } = render(
+      <CommunityPhoto title="목록 사진" url={null} photoId="photo-1" className="h-36" temporaryFallback />,
+    )
+    expect(screen.getByRole('img', { name: /임시 사진/ })).toBeInTheDocument()
+    expect(await screen.findByRole('img', { name: '목록 사진' })).toHaveAttribute('src', 'https://example.com/resolved.jpg')
+    const signal = vi.mocked(api.fetchPhotoDownload).mock.calls[0][1]
+    unmount()
+    expect(signal?.aborted).toBe(true)
   })
 
   it('loads popular/latest sorting and routes real IDs to detail', async () => {

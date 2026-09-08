@@ -12,13 +12,11 @@ function response(config: InternalAxiosRequestConfig, data: unknown): AxiosRespo
 function post(recommendationCount: number) {
   return {
     id: `post-${recommendationCount}`,
-    photoId: recommendationCount === 4 ? 'photo-id' : null,
     nickname: `작성자 ${recommendationCount}`,
     title: `게시글 ${recommendationCount}`,
-    content: '내용',
-    viewCount: recommendationCount * 10,
     recommendationCount,
     commentCount: recommendationCount + 1,
+    thumbnail: recommendationCount === 4 ? { photoId: 'photo-id', photoKey: 'post/user/photo.jpg' } : null,
     createdAt: null,
   }
 }

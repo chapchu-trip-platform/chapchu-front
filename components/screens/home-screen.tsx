@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react'
-import { Eye, MessageCircle, Star, ThumbsUp } from 'lucide-react'
+import { MessageCircle, Star, ThumbsUp } from 'lucide-react'
 import { LazyMotion, animate, domAnimation, m, useReducedMotion } from 'motion/react'
 import { Button } from '@/components/ui/button'
 import { mockNearbyPlaces } from '@/data/mock'
@@ -422,9 +422,6 @@ export default function HomeScreen({
                 <h4 className="text-[13px] font-semibold text-deep-brown leading-snug line-clamp-2 text-balance">
                   <Link href={`/community?post=${encodeURIComponent(post.id)}`} className="after:absolute after:inset-0 after:rounded-card focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-sage-green">{post.title}</Link>
                 </h4>
-                <p className="line-clamp-1 text-[11px] text-warm-gray">
-                  {post.content || '게시글 내용이 없어요.'}
-                </p>
                 <p className="flex min-w-0 items-center gap-1 text-[10px] text-warm-gray/80">
                   <span className="truncate font-medium text-deep-brown/70" title={post.nickname}>
                     {post.nickname}
@@ -433,9 +430,6 @@ export default function HomeScreen({
                   <span className="shrink-0">{formatPostDate(post.createdAt)}</span>
                 </p>
                 <div className="flex items-center gap-2 mt-auto">
-                  <span className="flex items-center gap-0.5 text-[11px] text-warm-gray">
-                    <Eye className="w-3 h-3" /> {post.viewCount.toLocaleString()}
-                  </span>
                   <span className="flex items-center gap-0.5 text-[11px] text-warm-gray">
                     <ThumbsUp className="w-3 h-3" /> {post.recommendationCount.toLocaleString()}
                   </span>
