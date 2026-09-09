@@ -1,0 +1,36 @@
+{
+  "createdAt": "2026-09-09",
+  "source": "Frontend implementation review of https://api.chapchu.site/docs/index.html",
+  "requests": [
+    {
+      "priority": "blocking",
+      "topic": "Owned stamp list and stamp image contract",
+      "reason": "No stamp endpoint or response model is documented, so the My page cannot distinguish owned stamps or render their images without inventing backend behavior.",
+      "requestedContract": "Provide an authenticated owned-stamp list contract with a stable stamp ID, display name, acquired date, and either a frontend-readable image URL or documented photo identifier. Also define empty, unauthorized, and expired-image behavior."
+    },
+    {
+      "priority": "blocking",
+      "topic": "Community post photo read authorization",
+      "reason": "Post list/detail responses expose photo IDs and instruct the client to resolve them through GET /photos/{photoId}, while that endpoint is documented as owner-only. Other authors' post photos would therefore be unreadable.",
+      "requestedContract": "Either include temporary readable photo URLs in post list/detail responses or document an authorization scope that allows signed-in users to resolve photos attached to visible posts. Preserve privacy for non-post and private photos."
+    },
+    {
+      "priority": "high",
+      "topic": "Upload validation and signed PUT headers",
+      "reason": "Allowed image MIME types, maximum file size, and whether Content-Type participates in the presigned signature are not documented.",
+      "requestedContract": "Publish accepted MIME types, maximum bytes per file/request, and the exact headers the browser must send with the presigned PUT. Return a stable validation error for rejected files."
+    },
+    {
+      "priority": "high",
+      "topic": "Orphan upload cleanup",
+      "reason": "A photoKey can remain uploaded when metadata save, profile update, or post creation fails after the S3 PUT succeeds.",
+      "requestedContract": "Define automatic expiry/cleanup for unattached photo keys or provide an authenticated cancellation endpoint that is safe to retry."
+    },
+    {
+      "priority": "normal",
+      "topic": "Photo deletion and post photo editing",
+      "reason": "Deletion and replacement behavior is not documented.",
+      "requestedContract": "Document how profile and post photos are detached/deleted, including authorization, idempotency, and whether object storage deletion is immediate or deferred."
+    }
+  ]
+}

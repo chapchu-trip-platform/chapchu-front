@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import HomeRoute from '@/features/home/components/home-route'
-import { fetchHomeSummary, fetchPopularPosts } from '@/features/home/api/home-api'
+import { fetchHomeSummary, fetchNearbyPlaces, fetchPopularPosts } from '@/features/home/api/home-api'
 import { webLocationProvider } from '@/features/location/providers/web-location-provider'
 import { useLocationStore } from '@/features/location/stores/location-store'
 import type {
@@ -13,6 +13,7 @@ import type { CurrentWeather } from '@/types/weather'
 
 vi.mock('@/features/home/api/home-api', () => ({
   fetchHomeSummary: vi.fn(),
+  fetchNearbyPlaces: vi.fn(),
   fetchPopularPosts: vi.fn(),
 }))
 
@@ -76,9 +77,10 @@ beforeEach(() => {
       recommendationCount: 10,
       commentCount: 3,
       createdAt: null,
-      hasPhoto: false,
+      photoId: null,
     },
   ])
+  vi.mocked(fetchNearbyPlaces).mockReset().mockResolvedValue([])
   vi.mocked(webLocationProvider.checkPermission).mockReset().mockResolvedValue('granted')
   vi.mocked(webLocationProvider.requestCurrentPosition).mockReset().mockResolvedValue({
     ok: true,
@@ -337,7 +339,7 @@ describe('HomeRoute data and location flow', () => {
           recommendationCount: 1,
           commentCount: 2,
           createdAt: null,
-          hasPhoto: false,
+          photoId: null,
         },
       ])
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(weatherResponse()))

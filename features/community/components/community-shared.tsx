@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { PawPrint, Route } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { fetchPhotoDownload } from '@/features/community/api/community-api'
-import type { Review } from '@/features/community/types/community'
+import type { Post, Review } from '@/features/community/types/community'
 
 interface CommunityPhotoProps {
   url: string | null
@@ -17,6 +17,41 @@ interface CommunityPhotoProps {
 
 export function CommunityPhoto(props: CommunityPhotoProps) {
   return <Photo key={`${props.url ?? ''}:${props.photoId ?? ''}`} {...props} />
+}
+
+export function CommunityPhotoGallery({ post }: { post: Post }) {
+  if (post.photos.length === 0) {
+    return (
+      <CommunityPhoto
+        url={post.photoUrl}
+        photoId={post.photoId}
+        title={post.title}
+        className="h-52"
+        temporaryFallback
+      />
+    )
+  }
+
+  return (
+    <div className="relative" role="region" aria-label={`게시글 사진 ${post.photos.length}장`}>
+      <div className="flex snap-x snap-mandatory overflow-x-auto no-scrollbar">
+        {post.photos.map((photo, index) => (
+          <CommunityPhoto
+            key={photo.photoId}
+            url={photo.photoId === post.photoId ? post.photoUrl : null}
+            photoId={photo.photoId}
+            title={`${post.title} 사진 ${index + 1}`}
+            className="h-52 w-full flex-shrink-0 snap-center"
+          />
+        ))}
+      </div>
+      {post.photos.length > 1 && (
+        <span className="absolute bottom-3 right-3 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-semibold text-white">
+          사진 {post.photos.length}장
+        </span>
+      )}
+    </div>
+  )
 }
 
 function Photo({ url, photoId, title, className, temporaryFallback = false }: CommunityPhotoProps) {

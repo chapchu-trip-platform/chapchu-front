@@ -266,6 +266,29 @@ describe('live community board', () => {
     expect(signal?.aborted).toBe(true)
   })
 
+  it('resolves and displays every photo from the post detail collection', async () => {
+    vi.mocked(api.fetchPost).mockResolvedValue({
+      ...postFixture,
+      photoId: 'photo-1',
+      photos: [
+        { photoId: 'photo-1', photoKey: 'post/user/one.jpg' },
+        { photoId: 'photo-2', photoKey: 'post/user/two.jpg' },
+      ],
+    })
+    vi.mocked(api.fetchPhotoDownload).mockImplementation(async (photoId) => ({
+      id: photoId,
+      downloadUrl: `https://example.com/${photoId}.jpg`,
+      takenAt: null,
+    }))
+
+    render(<CommunityBoard initialPostId="post-1" />)
+
+    expect(await screen.findByRole('region', { name: '게시글 사진 2장' })).toBeInTheDocument()
+    expect(await screen.findByRole('img', { name: `${postFixture.title} 사진 1` })).toHaveAttribute('src', 'https://example.com/photo-1.jpg')
+    expect(await screen.findByRole('img', { name: `${postFixture.title} 사진 2` })).toHaveAttribute('src', 'https://example.com/photo-2.jpg')
+    expect(screen.getByText('사진 2장')).toBeInTheDocument()
+  })
+
   it('loads popular/latest sorting and routes real IDs to detail', async () => {
     const user = userEvent.setup()
     render(<CommunityBoard />)

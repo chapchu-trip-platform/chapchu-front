@@ -4,10 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
 import { usePostDraftStore } from '@/features/community/stores/post-draft-store'
 import { createPost } from '@/features/community/api/community-api'
+import { uploadPhotoFiles } from '@/features/photos/api/photo-api'
 import { mockRouter } from '@/test/mocks/next-navigation'
 import PostEditor from './post-editor'
 
 vi.mock('@/features/community/api/community-api')
+vi.mock('@/features/photos/api/photo-api')
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -20,6 +22,7 @@ beforeEach(() => {
   useAuthStore.setState({ status: 'authenticated', sessionEpoch: 0 })
   usePostDraftStore.getState().clear()
   vi.mocked(createPost).mockResolvedValue(undefined)
+  vi.mocked(uploadPhotoFiles).mockResolvedValue([])
 })
 afterEach(cleanup)
 
@@ -55,7 +58,7 @@ describe('free-board post editor', () => {
     expect(screen.getByLabelText('게시글 미리보기')).toHaveFocus()
     expect(screen.getByText('산책 이야기')).toBeInTheDocument()
     expect(screen.getByText('아직 게시되지 않은 글이에요.')).toBeInTheDocument()
-    expect(screen.getByRole('img', { name: /임시 사진/ })).toBeInTheDocument()
+    expect(screen.getByText('함께한 여행 이야기')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '게시글 등록' })).toBeEnabled()
     await user.click(screen.getByRole('button', { name: '임시 저장' }))
     expect(await screen.findByRole('dialog')).toHaveTextContent('아직 게시되지 않았어요')
@@ -78,6 +81,31 @@ describe('free-board post editor', () => {
     }, expect.any(AbortSignal)))
     expect(usePostDraftStore.getState()).toMatchObject({ title: '', content: '' })
     expect(mockRouter.replace).toHaveBeenCalledWith('/community?tab=free')
+  })
+
+  it('uploads selected photos and sends their keys with the post', async () => {
+    const createObjectUrl = vi.fn(() => 'blob:preview')
+    const revokeObjectUrl = vi.fn()
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectUrl })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectUrl })
+    vi.mocked(uploadPhotoFiles).mockResolvedValue([
+      { uploadUrl: 'https://upload.example/photo', photoKey: 'post/user/photo.jpg', fileName: 'photo.jpg' },
+    ])
+    const user = userEvent.setup()
+    render(<PostEditor />)
+    const file = new File(['photo'], 'photo.jpg', { type: 'image/jpeg' })
+    const input = screen.getByLabelText('게시글 사진 선택') as HTMLInputElement
+    await user.upload(input, file)
+    expect(screen.getByText('1 / 10장')).toBeInTheDocument()
+    await user.type(screen.getByLabelText('제목'), '사진 글')
+    await user.type(screen.getByLabelText('내용'), '사진을 공유해요')
+    await user.click(screen.getByRole('button', { name: '게시글 등록' }))
+    await waitFor(() => expect(uploadPhotoFiles).toHaveBeenCalledWith([file], 'POST', expect.any(AbortSignal)))
+    expect(createPost).toHaveBeenCalledWith({
+      title: '사진 글',
+      content: '사진을 공유해요',
+      photos: [{ photoKey: 'post/user/photo.jpg' }],
+    }, expect.any(AbortSignal))
   })
 
   it('preserves the required text and permits retry after a failed publication', async () => {

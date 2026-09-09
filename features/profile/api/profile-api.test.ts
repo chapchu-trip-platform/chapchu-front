@@ -8,6 +8,7 @@ import {
   fetchMyReviews,
   fetchPetOptions,
   fetchPets,
+  fetchProfilePhoto,
   fetchProfileSummary,
   fetchWishlist,
   getProfileErrorMessage,
@@ -15,6 +16,7 @@ import {
   removeWishlistPlace,
   updateNickname,
   updatePet,
+  updateProfilePhoto,
   withdrawAccount,
 } from '@/features/profile/api/profile-api'
 import { apiClient, publicApiClient } from '@/lib/api/client'
@@ -78,6 +80,41 @@ afterEach(() => {
 })
 
 describe('Profile API', () => {
+  it('loads and updates the documented profile photo contract', async () => {
+    const requests: InternalAxiosRequestConfig[] = []
+    apiClient.defaults.adapter = async (config) => {
+      requests.push(config)
+      return response(config, {
+        id: 'user-1',
+        profilePhoto: {
+          photoId: config.method === 'patch' ? 'photo-1' : null,
+          downloadUrl: 'https://bucket.example/profile?signature=test',
+        },
+      })
+    }
+
+    await expect(fetchProfilePhoto()).resolves.toEqual({
+      photoId: null,
+      downloadUrl: 'https://bucket.example/profile?signature=test',
+    })
+    await expect(updateProfilePhoto('photo-1')).resolves.toEqual({
+      photoId: 'photo-1',
+      downloadUrl: 'https://bucket.example/profile?signature=test',
+    })
+    expect(requests.map(({ method, url }) => ({ method, url }))).toEqual([
+      { method: 'get', url: '/users/me' },
+      { method: 'patch', url: '/users/me/photo' },
+    ])
+    expect(JSON.parse(requests[1].data as string)).toEqual({ photoId: 'photo-1' })
+  })
+
+  it('rejects a custom profile photo without a safe download URL', async () => {
+    apiClient.defaults.adapter = async (config) => response(config, {
+      profilePhoto: { photoId: 'photo-1', downloadUrl: 'http://bucket.example/profile' },
+    })
+    await expect(fetchProfilePhoto()).rejects.toThrow('Profile photo response was invalid')
+  })
+
   it('does not patch a nickname after the session changes during availability checking', async () => {
     const request = createDeferred<void>()
     const publicAdapter = vi.fn(async (config: InternalAxiosRequestConfig) => {

@@ -164,6 +164,36 @@ describe('development diagnostics redaction', () => {
     unsubscribe()
   })
 
+  it('redacts a presigned photo upload URL from API response diagnostics', () => {
+    const consoleDebug = vi.spyOn(console, 'debug').mockImplementation(() => undefined)
+    const listener = vi.fn()
+    const unsubscribe = subscribeToDiagnosticEvents(listener)
+    announceDiagnosticViewer()
+    const uploadUrl = 'https://bucket.example/photo.jpg?signature=active-upload-secret'
+    const config = {
+      url: '/photos/upload-url',
+      method: 'post',
+      headers: {},
+    } as InternalAxiosRequestConfig
+
+    recordApiResponse('authenticated', {
+      config,
+      data: [{ uploadUrl, photoKey: 'post/user/photo.jpg', fileName: 'photo.jpg' }],
+      headers: {},
+      status: 201,
+      statusText: 'Created',
+    } as AxiosResponse)
+
+    const emittedText = JSON.stringify({
+      listener: listener.mock.calls,
+      console: consoleDebug.mock.calls,
+    })
+    expect(emittedText).not.toContain(uploadUrl)
+    expect(emittedText).not.toContain('active-upload-secret')
+    expect(emittedText).toContain('[REDACTED]')
+    unsubscribe()
+  })
+
   it('sanitizes summaries before publishing them to listeners', () => {
     vi.spyOn(console, 'debug').mockImplementation(() => undefined)
     const listener = vi.fn()

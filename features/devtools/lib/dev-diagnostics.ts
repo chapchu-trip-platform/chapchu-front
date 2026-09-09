@@ -52,6 +52,7 @@ const SENSITIVE_EXACT_KEYS = new Set([
   'locationconsent',
   'longitude',
   'position',
+  'uploadurl',
 ])
 
 let eventSequence = 0

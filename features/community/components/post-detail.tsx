@@ -15,7 +15,7 @@ import { formatCommunityDate, postReactionErrorMessage } from '@/features/commun
 import { usePostRecommendationStore } from '@/features/community/stores/post-recommendation-store'
 import type { Post } from '@/features/community/types/community'
 import { cn } from '@/lib/utils'
-import { CommunityPhoto, communityTextAreaClass, QueryFeedback } from './community-shared'
+import { CommunityPhotoGallery, communityTextAreaClass, QueryFeedback } from './community-shared'
 import { CommunityNoticeProvider } from './community-notice-provider'
 import { PostComments } from './post-comments'
 
@@ -93,7 +93,7 @@ function LoadedPost({ initialPost, onBack }: { initialPost: Post; onBack: () => 
     </div>
     <PostComments postId={post.id} count={post.commentCount} onCountChange={total => setPost(previous => ({ ...previous, commentCount: total }))}>
       <motion.div initial={prefersReducedMotion ? false : { opacity: 0, scale: 1.015 }} animate={{ opacity: 1, scale: 1 }} transition={reveal}>
-        <CommunityPhoto url={post.photoUrl} title={post.title} className="h-52" temporaryFallback />
+        <CommunityPhotoGallery post={post} />
       </motion.div>
       <motion.div initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ ...reveal, delay: prefersReducedMotion ? 0 : 0.05 }} className="space-y-3 px-4 pt-4">
         {panel === 'menu' && <motion.div key="menu" ref={panelRef} tabIndex={-1} aria-label="게시글 작업" {...panelMotion} transition={reveal} className="overflow-hidden space-y-2 rounded-card border border-border bg-card-surface p-3 outline-none">
