@@ -1,4 +1,4 @@
-import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios'
+import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/lib/api/client'
 import {
@@ -88,10 +88,36 @@ describe('photo API', () => {
     }], 201)
     const file = new File(['photo'], 'photo.jpg', { type: 'image/jpeg' })
 
-    await expect(uploadPhotoFiles([file], 'POST')).rejects.toThrow('upload URL was invalid')
+    await expect(uploadPhotoFiles([file], 'POST')).rejects.toMatchObject({
+      name: 'PhotoUploadError',
+      stage: 'upload-ticket',
+      reason: 'contract',
+    })
+  })
+
+  it('classifies upload-ticket network failure separately from storage CORS candidates', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    apiClient.defaults.adapter = async (config) => {
+      throw new AxiosError('Network Error', 'ERR_NETWORK', config)
+    }
+    const file = new File(['photo'], 'photo.jpg', { type: 'image/jpeg' })
+
+    await expect(uploadPhotoFiles([file], 'POST')).rejects.toMatchObject({
+      name: 'PhotoUploadError',
+      stage: 'upload-ticket',
+      reason: 'network',
+    })
+    expect(log).toHaveBeenCalledWith(
+      '[photo-upload] request failed',
+      expect.objectContaining({
+        stage: 'upload-ticket',
+        reason: 'network',
+      })
+    )
   })
 
   it('aborts a stalled object-storage upload after the finite timeout', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     vi.useFakeTimers()
     const put = vi.fn((_url: string, init?: RequestInit) =>
       new Promise<Response>((_resolve, reject) => {
@@ -109,5 +135,34 @@ describe('photo API', () => {
     await vi.advanceTimersByTimeAsync(30_000)
 
     await uploadExpectation
+    expect(log).toHaveBeenCalledWith(
+      '[photo-upload] request failed',
+      expect.objectContaining({
+        stage: 'object-storage',
+        reason: 'timeout',
+        method: 'PUT',
+      })
+    )
+  })
+
+  it('tracks a likely CORS failure without logging the signed URL or file name', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch signed-secret')))
+    const file = new File(['photo'], 'private-name.jpg', { type: 'image/jpeg' })
+
+    await expect(uploadPhotoFile({
+      uploadUrl: 'https://bucket.example/upload?signature=signed-secret',
+      photoKey: 'post/user/private-name.jpg',
+      fileName: 'private-name.jpg',
+    }, file)).rejects.toMatchObject({
+      name: 'PhotoUploadError',
+      stage: 'object-storage',
+      reason: 'connection-or-cors',
+    })
+
+    const logged = JSON.stringify(log.mock.calls)
+    expect(logged).toContain('corsCandidate')
+    expect(logged).not.toContain('signed-secret')
+    expect(logged).not.toContain('private-name.jpg')
   })
 })

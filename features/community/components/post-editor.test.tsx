@@ -108,6 +108,63 @@ describe('free-board post editor', () => {
     }, expect.any(AbortSignal))
   })
 
+  it('identifies a likely object-storage CORS failure and keeps the draft', async () => {
+    vi.mocked(uploadPhotoFiles).mockRejectedValueOnce({
+      name: 'PhotoUploadError',
+      stage: 'object-storage',
+      reason: 'connection-or-cors',
+    })
+    const createObjectUrl = vi.fn(() => 'blob:preview')
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectUrl })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+    const user = userEvent.setup()
+    render(<PostEditor />)
+    const file = new File(['photo'], 'photo.jpg', { type: 'image/jpeg' })
+    await user.upload(screen.getByLabelText('게시글 사진 선택'), file)
+    await user.type(screen.getByLabelText('제목'), 'CORS 추적')
+    await user.type(screen.getByLabelText('내용'), '초안을 유지해요')
+
+    await user.click(screen.getByRole('button', { name: '게시글 등록' }))
+
+    expect(await screen.findByRole('dialog')).toHaveTextContent('사진 저장소 연결이 차단됐어요')
+    expect(screen.getAllByText(/CORS 후보 기록/)).toHaveLength(2)
+    expect(screen.getByLabelText('제목')).toHaveValue('CORS 추적')
+    expect(screen.getByLabelText('내용')).toHaveValue('초안을 유지해요')
+    expect(createPost).not.toHaveBeenCalled()
+  })
+
+  it('separates post creation failure after photos were uploaded', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:preview') })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+    vi.mocked(uploadPhotoFiles).mockResolvedValueOnce([
+      { uploadUrl: 'https://upload.example/photo', photoKey: 'post/user/photo.jpg', fileName: 'photo.jpg' },
+    ])
+    vi.mocked(createPost).mockRejectedValueOnce({ type: 'network' })
+    const user = userEvent.setup()
+    render(<PostEditor />)
+    await user.upload(
+      screen.getByLabelText('게시글 사진 선택'),
+      new File(['photo'], 'photo.jpg', { type: 'image/jpeg' })
+    )
+    await user.type(screen.getByLabelText('제목'), '등록 단계 추적')
+    await user.type(screen.getByLabelText('내용'), '초안을 유지해요')
+
+    await user.click(screen.getByRole('button', { name: '게시글 등록' }))
+
+    expect(await screen.findByRole('dialog')).toHaveTextContent('사진 업로드는 완료됐지만 게시글 등록에 실패했어요')
+    expect(screen.getByLabelText('제목')).toHaveValue('등록 단계 추적')
+    expect(createPost).toHaveBeenCalledOnce()
+    expect(log).toHaveBeenCalledWith(
+      '[post-publish] request failed',
+      expect.objectContaining({
+        stage: 'post-create',
+        photoUploadCompleted: true,
+        type: 'network',
+      })
+    )
+  })
+
   it('preserves the required text and permits retry after a failed publication', async () => {
     vi.mocked(createPost).mockRejectedValueOnce({ type: 'network' }).mockResolvedValueOnce(undefined)
     const user = userEvent.setup()

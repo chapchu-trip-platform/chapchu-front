@@ -2,6 +2,7 @@
 
 import { apiClient } from '@/lib/api/client'
 import { API_ENDPOINTS } from '@/lib/api/endpoints'
+import { publishDiagnosticEvent } from '@/features/devtools/lib/dev-diagnostics'
 import {
   PHOTO_PURPOSES,
   type PhotoDownload,
@@ -13,6 +14,35 @@ import {
 
 const MAX_POST_PHOTOS = 10
 const PHOTO_UPLOAD_TIMEOUT_MS = 30_000
+let photoUploadSequence = 0
+
+export type PhotoUploadFailureStage = 'upload-ticket' | 'object-storage'
+export type PhotoUploadFailureReason =
+  | 'connection-or-cors'
+  | 'contract'
+  | 'http'
+  | 'network'
+  | 'timeout'
+
+export class PhotoUploadError extends Error {
+  override readonly name = 'PhotoUploadError'
+
+  constructor(
+    readonly stage: PhotoUploadFailureStage,
+    readonly reason: PhotoUploadFailureReason,
+    readonly status?: number,
+    options?: ErrorOptions
+  ) {
+    super(
+      stage === 'upload-ticket'
+        ? 'Photo upload ticket request failed.'
+        : reason === 'timeout'
+          ? 'Photo upload timed out.'
+          : 'Photo object-storage upload failed.',
+      options
+    )
+  }
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -34,6 +64,41 @@ function safeHttpsUrl(value: unknown) {
     return url.href
   } catch {
     return null
+  }
+}
+
+function nextPhotoUploadId() {
+  photoUploadSequence += 1
+  return `photo-upload-${Date.now()}-${photoUploadSequence}`
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === 'AbortError'
+}
+
+function safeStatus(error: unknown) {
+  if (!isRecord(error)) return undefined
+  return typeof error.status === 'number' && Number.isInteger(error.status)
+    ? error.status
+    : undefined
+}
+
+function recordPhotoUploadStage(
+  operationId: string,
+  summary: string,
+  details: Record<string, unknown>,
+  failed = false
+) {
+  const safeDetails = { operationId, ...details }
+  publishDiagnosticEvent({
+    kind: 'network',
+    summary,
+    requestId: operationId,
+    details: safeDetails,
+  })
+  if (failed && process.env.NODE_ENV !== 'production') {
+    // Keep this available even when the live diagnostics viewer was opened after the failure.
+    console.error('[photo-upload] request failed', safeDetails)
   }
 }
 
@@ -107,9 +172,36 @@ export async function uploadPhotoFile(
   file: File,
   signal?: AbortSignal
 ) {
+  return putPhotoFile(ticket, file, signal, {
+    operationId: nextPhotoUploadId(),
+    photoIndex: 0,
+    photoCount: 1,
+  })
+}
+
+async function putPhotoFile(
+  ticket: PhotoUploadTicket,
+  file: File,
+  signal: AbortSignal | undefined,
+  context: { operationId: string; photoIndex: number; photoCount: number }
+) {
+  const uploadUrl = safeHttpsUrl(ticket.uploadUrl)
+  if (!uploadUrl) throw new Error('Photo upload URL was invalid.')
   if (ticket.fileName !== file.name || !file.type.startsWith('image/')) {
     throw new Error('Selected photo did not match its upload ticket.')
   }
+  const startedAt = performance.now()
+  const destinationOrigin = new URL(uploadUrl).origin
+  recordPhotoUploadStage(context.operationId, 'PHOTO_UPLOAD storage PUT started', {
+    phase: 'request',
+    stage: 'object-storage',
+    method: 'PUT',
+    destinationOrigin,
+    sourceOrigin: window.location.origin,
+    contentType: file.type,
+    photoIndex: context.photoIndex,
+    photoCount: context.photoCount,
+  })
   const uploadController = new AbortController()
   let timedOut = false
   const handleCallerAbort = () => uploadController.abort(signal?.reason)
@@ -121,17 +213,59 @@ export async function uploadPhotoFile(
   }, PHOTO_UPLOAD_TIMEOUT_MS)
 
   try {
-    const response = await fetch(ticket.uploadUrl, {
+    const response = await fetch(uploadUrl, {
       method: 'PUT',
       body: file,
       signal: uploadController.signal,
       credentials: 'omit',
       referrerPolicy: 'no-referrer',
     })
-    if (!response.ok) throw new Error('Photo upload failed.')
+    if (!response.ok) {
+      throw new PhotoUploadError('object-storage', 'http', response.status)
+    }
+    recordPhotoUploadStage(context.operationId, 'PHOTO_UPLOAD storage PUT completed', {
+      phase: 'response',
+      stage: 'object-storage',
+      method: 'PUT',
+      destinationOrigin,
+      status: response.status,
+      durationMs: Math.round(performance.now() - startedAt),
+      photoIndex: context.photoIndex,
+      photoCount: context.photoCount,
+    })
   } catch (error) {
-    if (timedOut) throw new Error('Photo upload timed out.', { cause: error })
-    throw error
+    if (signal?.aborted || isAbortError(error) && !timedOut) throw error
+    const failure =
+      error instanceof PhotoUploadError
+        ? error
+        : new PhotoUploadError(
+            'object-storage',
+            timedOut ? 'timeout' : 'connection-or-cors',
+            undefined,
+            { cause: error }
+          )
+    recordPhotoUploadStage(
+      context.operationId,
+      'PHOTO_UPLOAD storage PUT failed',
+      {
+        phase: 'error',
+        stage: failure.stage,
+        method: 'PUT',
+        destinationOrigin,
+        sourceOrigin: window.location.origin,
+        status: failure.status,
+        reason: failure.reason,
+        corsCandidate:
+          failure.reason === 'connection-or-cors' &&
+          (typeof navigator === 'undefined' || navigator.onLine),
+        durationMs: Math.round(performance.now() - startedAt),
+        contentType: file.type,
+        photoIndex: context.photoIndex,
+        photoCount: context.photoCount,
+      },
+      true
+    )
+    throw failure
   } finally {
     window.clearTimeout(timeoutId)
     signal?.removeEventListener('abort', handleCallerAbort)
@@ -143,11 +277,66 @@ export async function uploadPhotoFiles(
   type: PhotoPurpose,
   signal?: AbortSignal
 ) {
-  const tickets = await requestPhotoUploadUrls(
-    files.map((file) => ({ type, fileName: file.name })),
-    signal
+  const operationId = nextPhotoUploadId()
+  recordPhotoUploadStage(operationId, 'PHOTO_UPLOAD ticket request started', {
+    phase: 'request',
+    stage: 'upload-ticket',
+    method: 'POST',
+    purpose: type,
+    photoCount: files.length,
+  })
+  let tickets: PhotoUploadTicket[]
+  try {
+    tickets = await requestPhotoUploadUrls(
+      files.map((file) => ({ type, fileName: file.name })),
+      signal
+    )
+    recordPhotoUploadStage(operationId, 'PHOTO_UPLOAD ticket request completed', {
+      phase: 'response',
+      stage: 'upload-ticket',
+      purpose: type,
+      photoCount: files.length,
+    })
+  } catch (error) {
+    if (signal?.aborted || isAbortError(error)) throw error
+    const status = safeStatus(error)
+    const errorType = isRecord(error) ? error.type : undefined
+    const failure = new PhotoUploadError(
+      'upload-ticket',
+      status
+        ? 'http'
+        : errorType === 'timeout'
+          ? 'timeout'
+          : error instanceof Error
+            ? 'contract'
+            : 'network',
+      status,
+      { cause: error }
+    )
+    recordPhotoUploadStage(
+      operationId,
+      'PHOTO_UPLOAD ticket request failed',
+      {
+        phase: 'error',
+        stage: failure.stage,
+        method: 'POST',
+        status: failure.status,
+        reason: failure.reason,
+        photoCount: files.length,
+      },
+      true
+    )
+    throw failure
+  }
+  await Promise.all(
+    tickets.map((ticket, index) =>
+      putPhotoFile(ticket, files[index], signal, {
+        operationId,
+        photoIndex: index,
+        photoCount: files.length,
+      })
+    )
   )
-  await Promise.all(tickets.map((ticket, index) => uploadPhotoFile(ticket, files[index], signal)))
   return tickets
 }
 

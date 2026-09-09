@@ -194,6 +194,30 @@ describe('development diagnostics redaction', () => {
     unsubscribe()
   })
 
+  it('redacts photo identifiers and user-authored post fields', () => {
+    expect(
+      sanitizeDiagnosticValue({
+        title: '반려동물과 다녀온 장소',
+        content: '사용자가 작성한 게시글 본문',
+        photos: [
+          {
+            fileName: 'private-trip-name.jpg',
+            photoKey: 'post/user/private-trip-name.jpg',
+          },
+        ],
+      })
+    ).toEqual({
+      title: '[REDACTED]',
+      content: '[REDACTED]',
+      photos: [
+        {
+          fileName: '[REDACTED]',
+          photoKey: '[REDACTED]',
+        },
+      ],
+    })
+  })
+
   it('sanitizes summaries before publishing them to listeners', () => {
     vi.spyOn(console, 'debug').mockImplementation(() => undefined)
     const listener = vi.fn()

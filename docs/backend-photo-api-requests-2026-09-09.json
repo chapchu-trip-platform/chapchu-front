@@ -21,6 +21,12 @@
       "requestedContract": "Publish accepted MIME types, maximum bytes per file/request, and the exact headers the browser must send with the presigned PUT. Return a stable validation error for rejected files."
     },
     {
+      "priority": "blocking",
+      "topic": "Object-storage CORS policy for browser photo uploads",
+      "reason": "The browser reports that the presigned object-storage PUT is blocked. A failed Fetch request does not expose an HTTP response, so the frontend can only classify it as a CORS, DNS, or TLS candidate.",
+      "requestedContract": "Allow the approved local and production frontend origins to preflight and PUT to the presigned upload destination. Document the allowed origins, PUT method, allowed Content-Type header, preflight cache duration, and whether ETag must be exposed. Verify that the OPTIONS response matches the exact requesting Origin without using credentials."
+    },
+    {
       "priority": "high",
       "topic": "Orphan upload cleanup",
       "reason": "A photoKey can remain uploaded when metadata save, profile update, or post creation fails after the S3 PUT succeeds.",

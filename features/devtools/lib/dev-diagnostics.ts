@@ -44,7 +44,10 @@ const SENSITIVE_EXACT_KEYS = new Set([
   'accuracymeters',
   'coordinate',
   'coordinates',
+  'content',
+  'contents',
   'downloadurl',
+  'filename',
   'lat',
   'latitude',
   'lng',
@@ -52,6 +55,8 @@ const SENSITIVE_EXACT_KEYS = new Set([
   'locationconsent',
   'longitude',
   'position',
+  'photokey',
+  'title',
   'uploadurl',
 ])
 

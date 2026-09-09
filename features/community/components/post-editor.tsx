@@ -11,13 +11,80 @@ import { useAuthStore } from '@/features/auth/stores/auth-store'
 import { createPost } from '@/features/community/api/community-api'
 import { uploadPhotoFiles } from '@/features/photos/api/photo-api'
 import { useCommunityAction } from '@/features/community/hooks/use-community-request'
+import { communityErrorMessage } from '@/features/community/lib/community-model'
+import { publishDiagnosticEvent } from '@/features/devtools/lib/dev-diagnostics'
 import { POST_CONTENT_LIMIT, POST_TITLE_LIMIT, usePostDraftStore } from '@/features/community/stores/post-draft-store'
-import { CommunityPhoto, communityTextAreaClass } from './community-shared'
+import { CommunityFeedback, CommunityPhoto, communityTextAreaClass } from './community-shared'
 import { CommunityNoticeProvider, useCommunityNotice } from './community-notice-provider'
 
 export default function PostEditor() {
   const epoch = useAuthStore(state => state.sessionEpoch)
   return <CommunityNoticeProvider key={epoch}><Editor /></CommunityNoticeProvider>
+}
+
+function postPublishErrorMessage(error: unknown) {
+  const failure = error as {
+    cause?: unknown
+    name?: unknown
+    uploadedPhotoCount?: unknown
+    stage?: unknown
+    reason?: unknown
+  }
+  if (failure?.name === 'PostPublishError' && failure.stage === 'post-create') {
+    return `사진 업로드는 완료됐지만 게시글 등록에 실패했어요. 초안과 선택한 사진은 유지했어요. ${communityErrorMessage(failure.cause)}`
+  }
+  if (failure?.name !== 'PhotoUploadError') return communityErrorMessage(error)
+  if (failure.stage === 'upload-ticket') {
+    if (failure.reason === 'contract') {
+      return '사진 업로드 준비 응답을 확인하지 못했어요. 개발 진단 화면에서 응답 계약 기록을 확인해 주세요.'
+    }
+    return '사진 업로드 준비 요청에 실패했어요. 잠시 후 다시 시도해 주세요.'
+  }
+  if (failure.reason === 'timeout') {
+    return '사진 업로드 응답이 늦어 중단했어요. 네트워크 상태를 확인해 주세요.'
+  }
+  if (failure.reason === 'connection-or-cors') {
+    return '사진 저장소 연결이 차단됐어요. 개발 진단 화면에서 CORS 후보 기록을 확인해 주세요.'
+  }
+  return '사진 업로드를 완료하지 못했어요. 개발 진단 화면에서 저장소 응답 상태를 확인해 주세요.'
+}
+
+class PostPublishError extends Error {
+  override readonly name = 'PostPublishError'
+  readonly stage = 'post-create'
+
+  constructor(readonly uploadedPhotoCount: number, options: ErrorOptions) {
+    super('Post creation failed after photo upload.', options)
+  }
+}
+
+function recordPostCreateFailure(error: unknown, uploadedPhotoCount: number) {
+  const failure = error && typeof error === 'object'
+    ? error as { status?: unknown; type?: unknown }
+    : {}
+  const details = {
+    phase: 'error',
+    stage: 'post-create',
+    uploadedPhotoCount,
+    photoUploadCompleted: uploadedPhotoCount > 0,
+    status:
+      typeof failure.status === 'number' && Number.isInteger(failure.status)
+        ? failure.status
+        : undefined,
+    type:
+      typeof failure.type === 'string' &&
+      ['network', 'timeout', 'validation', 'unauthorized', 'forbidden', 'not-found', 'server', 'unknown'].includes(failure.type)
+        ? failure.type
+        : 'unknown',
+  }
+  publishDiagnosticEvent({
+    kind: 'network',
+    summary: 'POST_PUBLISH post creation failed',
+    details,
+  })
+  if (process.env.NODE_ENV !== 'production') {
+    console.error('[post-publish] request failed', details)
+  }
 }
 
 function Editor() {
@@ -43,18 +110,31 @@ function Editor() {
     if (!valid || !authenticated || action.busy) return
     void action.run(
       async ({ signal }) => {
-        setPublishStage(selectedPhotos.length > 0 ? '사진 업로드를 준비하고 있어요…' : '게시글을 등록하고 있어요…')
-        const tickets = selectedPhotos.length > 0
-          ? await uploadPhotoFiles(selectedPhotos.map(({ file }) => file), 'POST', signal)
-          : []
-        setPublishStage('게시글을 등록하고 있어요…')
-        await createPost({
-          title: title.trim(),
-          content: content.trim(),
-          ...(tickets.length > 0
-            ? { photos: tickets.map(({ photoKey }) => ({ photoKey })) }
-            : {}),
-        }, signal)
+        try {
+          setPublishStage(selectedPhotos.length > 0 ? '사진을 업로드하고 있어요…' : '게시글을 등록하고 있어요…')
+          const tickets = selectedPhotos.length > 0
+            ? await uploadPhotoFiles(selectedPhotos.map(({ file }) => file), 'POST', signal)
+            : []
+          setPublishStage('게시글을 등록하고 있어요…')
+          try {
+            await createPost({
+              title: title.trim(),
+              content: content.trim(),
+              ...(tickets.length > 0
+                ? { photos: tickets.map(({ photoKey }) => ({ photoKey })) }
+                : {}),
+            }, signal)
+          } catch (error) {
+            recordPostCreateFailure(error, tickets.length)
+            if (tickets.length > 0) {
+              throw new PostPublishError(tickets.length, { cause: error })
+            }
+            throw error
+          }
+        } catch (error) {
+          setPublishStage(null)
+          throw error
+        }
       },
       () => {
         selectedPhotosRef.current.forEach(({ previewUrl }) => URL.revokeObjectURL(previewUrl))
@@ -64,6 +144,8 @@ function Editor() {
         clear()
         router.replace('/community?tab=free')
       },
+      undefined,
+      postPublishErrorMessage,
     )
   }
 
@@ -208,6 +290,7 @@ function Editor() {
         </div>
       </form>}
       <div className="mt-5 space-y-3 rounded-card bg-sage-green-light p-4">
+        <CommunityFeedback error={action.error} />
         <p id="post-publishing-notice" className="text-[13px] leading-relaxed text-deep-brown">{authenticated ? '제목과 내용을 입력하면 자유게시판에 바로 등록할 수 있어요.' : '체험 화면에서는 글을 미리 작성할 수 있지만, 등록하려면 로그인해야 해요.'}</p>
         <p className="text-[12px] leading-relaxed text-warm-gray">작성 내용은 이 탭에서 화면을 이동해도 유지돼요. 새로고침하거나 로그아웃하면 사라져요.</p>
         <div className="flex gap-2">
