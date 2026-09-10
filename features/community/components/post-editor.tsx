@@ -1,20 +1,21 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { ImagePlus, X } from 'lucide-react'
+import { ImagePlus, LockKeyhole, X } from 'lucide-react'
 import TopBar from '@/components/top-bar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
-import { createPost } from '@/features/community/api/community-api'
+import { createPost, fetchMyPosts, fetchPost, updatePost } from '@/features/community/api/community-api'
 import { uploadPhotoFiles, type SuccessfulPhotoUpload } from '@/features/photos/api/photo-api'
-import { useCommunityAction } from '@/features/community/hooks/use-community-request'
+import { useCommunityAction, useCommunityQuery } from '@/features/community/hooks/use-community-request'
 import { communityErrorMessage } from '@/features/community/lib/community-model'
 import { publishDiagnosticEvent } from '@/features/devtools/lib/dev-diagnostics'
 import { POST_CONTENT_LIMIT, POST_TITLE_LIMIT, usePostDraftStore } from '@/features/community/stores/post-draft-store'
-import { CommunityFeedback, CommunityPhoto, communityTextAreaClass } from './community-shared'
+import type { Post } from '@/features/community/types/community'
+import { CommunityFeedback, CommunityPhoto, communityTextAreaClass, QueryFeedback } from './community-shared'
 import { CommunityNoticeProvider, useCommunityNotice } from './community-notice-provider'
 
 const MAX_POST_PHOTO_BYTES = 250 * 1024 * 1024
@@ -26,9 +27,43 @@ type SelectedPhoto = {
   uploadedPhoto: SuccessfulPhotoUpload | null
 }
 
-export default function PostEditor() {
+export default function PostEditor({ editPostId, returnToPrevious = false }: { editPostId?: string; returnToPrevious?: boolean }) {
   const epoch = useAuthStore(state => state.sessionEpoch)
-  return <CommunityNoticeProvider key={epoch}><Editor /></CommunityNoticeProvider>
+  return <CommunityNoticeProvider key={`${epoch}:${editPostId ?? 'new'}`}>
+    {editPostId ? <EditPostLoader postId={editPostId} returnToPrevious={returnToPrevious} /> : <Editor />}
+  </CommunityNoticeProvider>
+}
+
+function EditPostLoader({ postId, returnToPrevious }: { postId: string; returnToPrevious: boolean }) {
+  const router = useRouter()
+  const request = useCallback(async (signal: AbortSignal) => {
+    const [post, myPosts] = await Promise.all([
+      fetchPost(postId, signal),
+      fetchMyPosts(signal),
+    ])
+    return { post, owned: myPosts.some(ownedPost => ownedPost.id === post.id) }
+  }, [postId])
+  const query = useCommunityQuery(request)
+  const returnToPost = () => {
+    if (returnToPrevious) router.back()
+    else router.replace(`/community?post=${encodeURIComponent(postId)}&tab=free`)
+  }
+
+  if (query.data?.owned) return <Editor initialPost={query.data.post} returnToPrevious={returnToPrevious} />
+  return <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-warm-beige">
+    <TopBar title="게시글 수정" showBack onBack={returnToPost} />
+    <div className="flex-1 overflow-y-auto p-4">
+      {query.data && !query.data.owned ? (
+        <div className="space-y-3 rounded-card border border-border bg-card-surface p-4" role="alert">
+          <p className="text-[14px] font-semibold text-deep-brown">본인이 작성한 게시글만 수정할 수 있어요.</p>
+          <p className="text-[12px] leading-relaxed text-warm-gray">게시글 상세 화면으로 돌아가 내용을 확인해 주세요.</p>
+          <Button variant="outline" size="sm" onClick={returnToPost}>게시글 상세로 돌아가기</Button>
+        </div>
+      ) : (
+        <QueryFeedback loading={query.loading} error={query.error} onRetry={query.reload} />
+      )}
+    </div>
+  </div>
 }
 
 function postPublishErrorMessage(error: unknown) {
@@ -96,10 +131,56 @@ function recordPostCreateFailure(error: unknown, uploadedPhotoCount: number) {
   }
 }
 
-function Editor() {
+function ReadOnlyPostPhotos({ post, preview = false }: { post: Post; preview?: boolean }) {
+  const photos = post.photos.length > 0
+    ? [
+        ...post.photos.filter(photo => photo.photoId === post.photoId),
+        ...post.photos.filter(photo => photo.photoId !== post.photoId),
+      ]
+    : post.photoId
+      ? [{ photoId: post.photoId, photoKey: null }]
+      : []
+
+  if (photos.length === 0) {
+    return <p className="mt-3 text-[12px] text-warm-gray">등록된 사진이 없어요.</p>
+  }
+
+  return <div
+    className={preview
+      ? 'mt-3 flex snap-x snap-mandatory gap-2 overflow-x-auto rounded-xl no-scrollbar'
+      : 'mt-3 flex gap-2 overflow-x-auto pb-1 no-scrollbar'}
+    aria-label={`기존 사진 ${photos.length}장`}
+  >
+    {photos.map((photo, index) => <CommunityPhoto
+      key={photo.photoId}
+      url={photo.photoId === post.photoId ? post.photoUrl : null}
+      photoId={photo.photoId}
+      title={`기존 사진 ${index + 1}`}
+      className={preview
+        ? 'h-52 w-full flex-shrink-0 snap-center rounded-xl'
+        : 'h-20 w-20 flex-shrink-0 rounded-xl border border-border'}
+      imageClassName="object-cover"
+    />)}
+  </div>
+}
+
+function Editor({ initialPost, returnToPrevious = false }: { initialPost?: Post; returnToPrevious?: boolean }) {
   const router = useRouter()
+  const editing = Boolean(initialPost)
   const authenticated = useAuthStore(state => state.status === 'authenticated')
-  const { title, content, update, clear } = usePostDraftStore()
+  const createDraft = usePostDraftStore()
+  const [editTitle, setEditTitle] = useState(initialPost?.title ?? '')
+  const [editContent, setEditContent] = useState(initialPost?.content ?? '')
+  const title = editing ? editTitle : createDraft.title
+  const content = editing ? editContent : createDraft.content
+  const updateDraft = (draft: { title?: string; content?: string }) => {
+    if (editing) {
+      if (draft.title !== undefined) setEditTitle(draft.title)
+      if (draft.content !== undefined) setEditContent(draft.content)
+      return
+    }
+    createDraft.update(draft)
+  }
   const [preview, setPreview] = useState(false)
   const [selectedPhotos, setSelectedPhotos] = useState<SelectedPhoto[]>([])
   const [photoError, setPhotoError] = useState<string | null>(null)
@@ -113,12 +194,38 @@ function Editor() {
   const photoInputRef = useRef<HTMLInputElement>(null)
   const selectedPhotosRef = useRef(selectedPhotos)
   const hasDraft = Boolean(title || content || selectedPhotos.length)
+  const hasChanges = editing
+    ? title !== initialPost?.title || content !== initialPost?.content
+    : hasDraft
   const valid = Boolean(title.trim() && title.length <= POST_TITLE_LIMIT && content.trim() && content.length <= POST_CONTENT_LIMIT)
   const uploadedPhotoCount = selectedPhotos.filter(({ uploadStatus }) => uploadStatus === 'success').length
   const totalPhotoBytes = selectedPhotos.reduce((total, { file }) => total + file.size, 0)
+  const returnFromEdit = () => {
+    if (!initialPost) return
+    if (returnToPrevious) router.back()
+    else router.replace(`/community?post=${encodeURIComponent(initialPost.id)}&tab=free`)
+  }
 
   function publish() {
     if (!valid || !authenticated || action.busy) return
+    if (editing && initialPost) {
+      void action.run(
+        async ({ signal }) => {
+          setPublishStage('게시글을 수정하고 있어요…')
+          return updatePost(initialPost.id, {
+            title: title.trim(),
+            content: content.trim(),
+          }, signal)
+        },
+        () => {
+          setPublishStage(null)
+          returnFromEdit()
+        },
+        undefined,
+        communityErrorMessage,
+      )
+      return
+    }
     void action.run(
       async ({ signal }) => {
         try {
@@ -215,7 +322,7 @@ function Editor() {
         selectedPhotosRef.current = []
         setSelectedPhotos([])
         setPublishStage(null)
-        clear()
+        createDraft.clear()
         router.replace('/community?tab=free')
       },
       undefined,
@@ -271,14 +378,14 @@ function Editor() {
   }, [])
 
   useEffect(() => {
-    if (!hasDraft) return
+    if (!hasChanges) return
     const warnBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault()
       event.returnValue = ''
     }
     window.addEventListener('beforeunload', warnBeforeUnload)
     return () => window.removeEventListener('beforeunload', warnBeforeUnload)
-  }, [hasDraft])
+  }, [hasChanges])
 
   useEffect(() => {
     if (preview) previewRef.current?.focus()
@@ -294,9 +401,10 @@ function Editor() {
       <p className="rounded-full bg-card-surface px-4 py-2 text-[13px] font-medium text-deep-brown shadow-md">{selectedPhotos.length > 0 && publishStage?.includes('업로드') ? `${publishStage}: ${uploadedPhotoCount}/${selectedPhotos.length}장 완료` : publishStage ?? '게시글을 등록하고 있어요…'}</p>
     </div>}
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" inert={action.busy ? true : undefined}>
-      <TopBar title={preview ? '글 미리보기' : '자유게시판 글쓰기'} showBack backDisabled={action.busy} onBack={() => {
+      <TopBar title={preview ? (editing ? '수정 미리보기' : '글 미리보기') : (editing ? '게시글 수정' : '자유게시판 글쓰기')} showBack backDisabled={action.busy} onBack={() => {
       if (action.busy) return
       if (preview) setPreview(false)
+      else if (editing && initialPost) returnFromEdit()
       else router.replace('/community?tab=free')
     }} rightAction={
       <Button size="sm" variant="ghost" className="text-sage-green" disabled={!valid || action.busy} onClick={() => setPreview(!preview)}>{preview ? '편집' : '미리보기'}</Button>
@@ -305,7 +413,9 @@ function Editor() {
       {preview ? <div ref={previewRef} tabIndex={-1} aria-label="게시글 미리보기" className="space-y-4 rounded-card border border-border bg-card-surface p-4 outline-none">
         <span className="rounded-full bg-sage-green-light px-2 py-1 text-[11px] font-semibold text-sage-green">자유게시판 · 미리보기</span>
         <h1 className="break-words text-[20px] font-bold leading-snug text-deep-brown">{title.trim()}</h1>
-        {selectedPhotos.length > 0 ? (
+        {editing && initialPost ? (
+          <ReadOnlyPostPhotos post={initialPost} preview />
+        ) : selectedPhotos.length > 0 ? (
           <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto rounded-xl no-scrollbar" aria-label={`첨부 사진 ${selectedPhotos.length}장`}>
             {selectedPhotos.map(({ file, previewUrl }, index) => (
               <div key={`${file.name}-${file.lastModified}-${index}`} className="relative h-52 w-full flex-shrink-0 snap-center overflow-hidden rounded-xl bg-sage-green-light">
@@ -318,24 +428,36 @@ function Editor() {
           <CommunityPhoto url={null} title="사진 없는 게시글" className="h-52 rounded-xl" />
         )}
         <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed text-deep-brown">{content.trim()}</p>
-        <p className="text-[12px] text-warm-gray">아직 게시되지 않은 글이에요.</p>
+        <p className="text-[12px] text-warm-gray">{editing ? '수정 내용을 저장하기 전 미리보기예요.' : '아직 게시되지 않은 글이에요.'}</p>
       </div> : <form id="post-draft-form" className="space-y-5" onSubmit={event => {
         event.preventDefault()
         publish()
       }}>
         <div className="space-y-2">
           <div className="flex items-center gap-1.5"><label htmlFor="post-title" className="text-[13px] font-semibold text-deep-brown">제목</label><span aria-hidden="true" className="text-[11px] font-medium text-soft-orange">필수</span></div>
-          <Input ref={titleRef} id="post-title" value={title} maxLength={POST_TITLE_LIMIT} required disabled={action.busy} placeholder="어떤 이야기를 나누고 싶으세요?" onChange={event => update({ title: event.target.value })} aria-describedby="post-title-count" />
+          <Input ref={titleRef} id="post-title" value={title} maxLength={POST_TITLE_LIMIT} required disabled={action.busy} placeholder="어떤 이야기를 나누고 싶으세요?" onChange={event => updateDraft({ title: event.target.value })} aria-describedby="post-title-count" />
           <p id="post-title-count" className="text-right text-[11px] text-warm-gray">{title.length} / {POST_TITLE_LIMIT}</p>
           {title.length > POST_TITLE_LIMIT && <p role="alert">기존 제목을 {POST_TITLE_LIMIT}자 이내로 줄여 주세요. 작성 내용은 유지돼요.</p>}
         </div>
         <div className="space-y-2">
           <div className="flex items-center gap-1.5"><label htmlFor="post-content" className="text-[13px] font-semibold text-deep-brown">내용</label><span aria-hidden="true" className="text-[11px] font-medium text-soft-orange">필수</span></div>
-          <textarea id="post-content" value={content} maxLength={POST_CONTENT_LIMIT} required disabled={action.busy} placeholder="반려동물과의 일상이나 궁금한 이야기를 자유롭게 적어 주세요." onChange={event => update({ content: event.target.value })} aria-describedby="post-content-count" className={`${communityTextAreaClass} min-h-64`} />
+          <textarea id="post-content" value={content} maxLength={POST_CONTENT_LIMIT} required disabled={action.busy} placeholder="반려동물과의 일상이나 궁금한 이야기를 자유롭게 적어 주세요." onChange={event => updateDraft({ content: event.target.value })} aria-describedby="post-content-count" className={`${communityTextAreaClass} min-h-64`} />
           <p id="post-content-count" className="text-right text-[11px] text-warm-gray">{content.length.toLocaleString()} / {POST_CONTENT_LIMIT.toLocaleString()}</p>
           {content.length > POST_CONTENT_LIMIT && <p role="alert">기존 내용을 임시 제한인 {POST_CONTENT_LIMIT}자 이내로 줄여 주세요. 작성 내용은 유지돼요.</p>}
         </div>
-        <div className="rounded-card border border-dashed border-border bg-card-surface p-4">
+        {editing && initialPost ? (
+          <div className="rounded-card border border-border bg-card-surface p-4" aria-label="기존 게시글 사진">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="flex items-center gap-2 text-[13px] font-medium text-deep-brown"><ImagePlus className="h-4 w-4 text-sage-green" />기존 사진</p>
+                <p className="mt-1 text-[11px] text-warm-gray">{initialPost.photos.length || (initialPost.photoId ? 1 : 0)}장 · 읽기 전용</p>
+              </div>
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[11px] font-medium text-warm-gray"><LockKeyhole className="h-3 w-3" aria-hidden="true" />수정 불가</span>
+            </div>
+            <ReadOnlyPostPhotos post={initialPost} />
+            <p className="mt-3 text-[12px] leading-relaxed text-warm-gray">사진 수정 API가 준비되지 않아 현재 사진은 확인만 할 수 있어요. 이번 수정에서는 제목과 내용만 저장돼요.</p>
+          </div>
+        ) : <div className="rounded-card border border-dashed border-border bg-card-surface p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="flex items-center gap-2 text-[13px] font-medium text-deep-brown"><ImagePlus className="h-4 w-4 text-sage-green" />사진 첨부</p>
@@ -382,15 +504,19 @@ function Editor() {
           )}
           <p className="mt-2 text-[11px] text-warm-gray">{(totalPhotoBytes / 1024 / 1024).toFixed(1)}MB / 250MB</p>
           <p className="mt-2 text-[12px] leading-relaxed text-warm-gray">첫 번째 사진이 목록의 대표 사진으로 표시돼요.</p>
-        </div>
+        </div>}
       </form>}
       <div className="mt-5 space-y-3 rounded-card bg-sage-green-light p-4">
         <CommunityFeedback error={action.error} />
-        <p id="post-publishing-notice" className="text-[13px] leading-relaxed text-deep-brown">{authenticated ? '제목과 내용을 입력하면 자유게시판에 바로 등록할 수 있어요.' : '체험 화면에서는 글을 미리 작성할 수 있지만, 등록하려면 로그인해야 해요.'}</p>
-        <p className="text-[12px] leading-relaxed text-warm-gray">작성 내용은 이 탭에서 화면을 이동해도 유지돼요. 새로고침하거나 로그아웃하면 사라져요.</p>
+        <p id="post-publishing-notice" className="text-[13px] leading-relaxed text-deep-brown">{editing ? '제목과 내용만 수정할 수 있어요. 기존 사진은 변경되지 않아요.' : authenticated ? '제목과 내용을 입력하면 자유게시판에 바로 등록할 수 있어요.' : '체험 화면에서는 글을 미리 작성할 수 있지만, 등록하려면 로그인해야 해요.'}</p>
+        <p className="text-[12px] leading-relaxed text-warm-gray">{editing ? '저장하면 게시글 상세 화면으로 돌아가 수정 결과를 확인할 수 있어요.' : '작성 내용은 이 탭에서 화면을 이동해도 유지돼요. 새로고침하거나 로그아웃하면 사라져요.'}</p>
         <div className="flex gap-2">
-          <Button type="button" variant="outline" className="flex-1" disabled={!hasDraft || action.busy} onClick={saveDraft}>임시 저장</Button>
-          <Button type="button" className="flex-1" disabled={!valid || !authenticated || action.busy} aria-describedby="post-publishing-notice" onClick={publish}>{action.busy ? '등록 중…' : authenticated ? '게시글 등록' : '로그인 후 등록'}</Button>
+          {editing && initialPost ? (
+            <Button type="button" variant="outline" className="flex-1" disabled={action.busy} onClick={returnFromEdit}>수정 취소</Button>
+          ) : (
+            <Button type="button" variant="outline" className="flex-1" disabled={!hasDraft || action.busy} onClick={saveDraft}>임시 저장</Button>
+          )}
+          <Button type="button" className="flex-1" disabled={!valid || !authenticated || action.busy || (editing && !hasChanges)} aria-describedby="post-publishing-notice" onClick={publish}>{action.busy ? (editing ? '수정 중…' : '등록 중…') : editing ? '수정 저장' : authenticated ? '게시글 등록' : '로그인 후 등록'}</Button>
         </div>
       </div>
     </div>

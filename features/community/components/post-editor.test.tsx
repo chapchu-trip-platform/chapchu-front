@@ -3,8 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
 import { usePostDraftStore } from '@/features/community/stores/post-draft-store'
-import { createPost } from '@/features/community/api/community-api'
+import { createPost, fetchMyPosts, fetchPhotoDownload, fetchPost, updatePost } from '@/features/community/api/community-api'
 import { uploadPhotoFiles } from '@/features/photos/api/photo-api'
+import { postFixture } from '@/test/fixtures/community'
 import { mockRouter } from '@/test/mocks/next-navigation'
 import PostEditor from './post-editor'
 
@@ -22,11 +23,95 @@ beforeEach(() => {
   useAuthStore.setState({ status: 'authenticated', sessionEpoch: 0 })
   usePostDraftStore.getState().clear()
   vi.mocked(createPost).mockResolvedValue(undefined)
+  vi.mocked(fetchPost).mockResolvedValue(postFixture)
+  vi.mocked(fetchMyPosts).mockResolvedValue([postFixture])
+  vi.mocked(updatePost).mockResolvedValue(postFixture)
   vi.mocked(uploadPhotoFiles).mockResolvedValue([])
 })
 afterEach(cleanup)
 
 describe('free-board post editor', () => {
+  it('loads an existing post into the writing layout without overwriting a new-post draft', async () => {
+    usePostDraftStore.getState().update({ title: '새 글 초안', content: '별도로 보존할 내용' })
+    const existingPost = {
+      ...postFixture,
+      photoId: 'photo-1',
+      photoUrl: 'https://example.com/photo-1.jpg',
+      photos: [
+        { photoId: 'photo-1', photoKey: 'post/user/one.jpg' },
+        { photoId: 'photo-2', photoKey: 'post/user/two.jpg' },
+      ],
+    }
+    vi.mocked(fetchPost).mockResolvedValue(existingPost)
+    vi.mocked(fetchPhotoDownload).mockResolvedValue({
+      id: 'photo-2',
+      downloadUrl: 'https://example.com/photo-2.jpg',
+      takenAt: null,
+    })
+
+    render(<PostEditor editPostId="post-1" />)
+
+    expect(await screen.findByLabelText('제목')).toHaveValue(postFixture.title)
+    expect(screen.getByLabelText('내용')).toHaveValue(postFixture.content)
+    expect(fetchPost).toHaveBeenCalledWith('post-1', expect.any(AbortSignal))
+    expect(fetchMyPosts).toHaveBeenCalledWith(expect.any(AbortSignal))
+    expect(screen.getByLabelText('기존 게시글 사진')).toHaveTextContent('2장 · 읽기 전용')
+    expect(screen.queryByLabelText('게시글 사진 선택')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /사진 삭제/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '수정 저장' })).toBeDisabled()
+    expect(usePostDraftStore.getState()).toMatchObject({
+      title: '새 글 초안',
+      content: '별도로 보존할 내용',
+    })
+  })
+
+  it('does not render the edit form when a direct edit URL targets another user post', async () => {
+    vi.mocked(fetchMyPosts).mockResolvedValue([])
+
+    render(<PostEditor editPostId="post-1" />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('본인이 작성한 게시글만 수정할 수 있어요.')
+    expect(screen.queryByLabelText('제목')).not.toBeInTheDocument()
+    expect(updatePost).not.toHaveBeenCalled()
+  })
+
+  it('returns through browser history when editing started from the detail screen', async () => {
+    const user = userEvent.setup()
+    render(<PostEditor editPostId="post-1" returnToPrevious />)
+
+    await user.click(await screen.findByRole('button', { name: '수정 취소' }))
+
+    expect(mockRouter.back).toHaveBeenCalledOnce()
+    expect(mockRouter.replace).not.toHaveBeenCalled()
+  })
+
+  it('keeps edited text after a failed update and retries without sending photo data', async () => {
+    vi.mocked(updatePost)
+      .mockRejectedValueOnce({ type: 'network' })
+      .mockResolvedValueOnce({ ...postFixture, title: '수정한 제목' })
+    const user = userEvent.setup()
+    render(<PostEditor editPostId="post-1" />)
+    const titleInput = await screen.findByLabelText('제목')
+    await user.clear(titleInput)
+    await user.type(titleInput, '수정한 제목')
+
+    await user.click(screen.getByRole('button', { name: '수정 저장' }))
+
+    expect(await screen.findByRole('dialog')).toHaveTextContent('인터넷 연결')
+    await user.click(screen.getByRole('button', { name: '닫기' }))
+    expect(screen.getByLabelText('제목')).toHaveValue('수정한 제목')
+    await user.click(screen.getByRole('button', { name: '수정 저장' }))
+
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/community?post=post-1&tab=free'))
+    expect(updatePost).toHaveBeenLastCalledWith(
+      'post-1',
+      { title: '수정한 제목', content: postFixture.content },
+      expect.any(AbortSignal),
+    )
+    expect(Object.keys(vi.mocked(updatePost).mock.calls[1][1])).toEqual(['title', 'content'])
+    expect(uploadPhotoFiles).not.toHaveBeenCalled()
+  })
+
   it('keeps an older overlong draft but blocks preview until its title fits 100 characters', () => {
     usePostDraftStore.getState().update({ title: '가'.repeat(101), content: '보존' })
     render(<PostEditor />)

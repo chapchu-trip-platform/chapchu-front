@@ -41,8 +41,8 @@
     {
       "priority": "normal",
       "topic": "Photo deletion and post photo editing",
-      "reason": "Deletion and replacement behavior is not documented.",
-      "requestedContract": "Document how profile and post photos are detached/deleted, including authorization, idempotency, and whether object storage deletion is immediate or deferred."
+      "reason": "Deletion, replacement, reordering, and representative-photo behavior is not documented. The frontend therefore shows existing photos as read-only and sends only title/content during post editing.",
+      "requestedContract": "Confirm that omitting photos from the post PATCH preserves every current attachment. Document how post photos are added, detached, deleted, reordered, and selected as representative, including authorization, idempotency, maximum count, and whether object-storage deletion is immediate or deferred."
     }
   ]
 }

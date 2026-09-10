@@ -1,14 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bookmark, ChevronLeft, Flag, MessageCircle, MoreHorizontal, ThumbsUp } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Bookmark, ChevronLeft, Flag, MessageCircle, MoreHorizontal, PenLine, ThumbsUp } from 'lucide-react'
 import { motion } from 'motion/react'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
-import { Input } from '@/components/ui/input'
-import { deletePost, fetchMyPosts, fetchPost, reportPost, setPostBookmark, updatePost } from '@/features/community/api/community-api'
+import { deletePost, fetchMyPosts, fetchPost, reportPost, setPostBookmark } from '@/features/community/api/community-api'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
-import { POST_TITLE_LIMIT } from '@/features/community/stores/post-draft-store'
 import { useCommunityAction, useCommunityQuery } from '@/features/community/hooks/use-community-request'
 import { usePrefersReducedMotion } from '@/features/community/hooks/use-prefers-reduced-motion'
 import { formatCommunityDate, postReactionErrorMessage } from '@/features/community/lib/community-model'
@@ -38,14 +37,13 @@ export function PostDetail({ postId, onBack }: { postId: string; onBack: () => v
 }
 
 function LoadedPost({ initialPost, onBack }: { initialPost: Post; onBack: () => void }) {
+  const router = useRouter()
   const prefersReducedMotion = usePrefersReducedMotion()
   const [post, setPost] = useState(initialPost)
   const myPosts = useCommunityQuery(fetchMyPosts)
   const recommendation = usePostRecommendationStore(state => state.byPost[initialPost.id]?.value)
   const recommendationPending = usePostRecommendationStore(state => state.byPost[initialPost.id]?.pending ?? false)
-  const [panel, setPanel] = useState<'menu' | 'report' | 'edit' | 'delete' | null>(null)
-  const [title, setTitle] = useState(post.title)
-  const [content, setContent] = useState(post.content)
+  const [panel, setPanel] = useState<'menu' | 'report' | 'delete' | null>(null)
   const [reportDetail, setReportDetail] = useState('')
   const panelRef = useRef<HTMLDivElement>(null)
   const reducedMotionRef = useRef(prefersReducedMotion)
@@ -88,6 +86,7 @@ function LoadedPost({ initialPost, onBack }: { initialPost: Post; onBack: () => 
     <div className="z-40 flex h-14 flex-shrink-0 items-center justify-between border-b border-border bg-card-surface px-4">
       <IconButton onClick={onBack} aria-label="뒤로가기"><ChevronLeft className="h-5 w-5 text-deep-brown" /></IconButton>
       <div className="flex gap-1">
+        {owned && <Button variant="ghost" size="sm" className="gap-1.5 px-2 text-sage-green" disabled={busy} onClick={() => router.push(`/community/write?edit=${encodeURIComponent(post.id)}&from=detail`)}><PenLine className="h-4 w-4" />수정하기</Button>}
         <IconButton aria-label="더보기" aria-expanded={panel === 'menu'} onClick={() => setPanel(panel === 'menu' ? null : 'menu')} disabled={busy}><MoreHorizontal className="h-5 w-5" /></IconButton>
       </div>
     </div>
@@ -100,7 +99,7 @@ function LoadedPost({ initialPost, onBack }: { initialPost: Post; onBack: () => 
           <Button variant="ghost" size="sm" onClick={() => setPanel('report')}>광고·스팸 신고</Button>
           {myPosts.loading && <p className="text-[12px] text-warm-gray">내 게시글인지 확인 중이에요…</p>}
           {myPosts.error && <Button variant="outline" size="sm" onClick={myPosts.reload}>내 게시글 다시 확인</Button>}
-          {owned && <><Button variant="ghost" size="sm" onClick={() => setPanel('edit')}>게시글 수정</Button><Button variant="ghost" size="sm" onClick={() => setPanel('delete')}>게시글 삭제</Button></>}
+          {owned && <Button variant="ghost" size="sm" onClick={() => setPanel('delete')}>게시글 삭제</Button>}
         </motion.div>}
         {panel === 'report' && <motion.div key="report" ref={panelRef} tabIndex={-1} aria-label="게시글 작업" {...panelMotion} transition={reveal} className="overflow-hidden rounded-card border border-border bg-card-surface p-3 outline-none"><form className="space-y-3" onSubmit={event => {
           event.preventDefault()
@@ -110,19 +109,6 @@ function LoadedPost({ initialPost, onBack }: { initialPost: Post; onBack: () => 
           <p className="text-[12px] text-warm-gray">광고나 스팸에 해당하는 게시글을 신고해 주세요. 다른 사유의 신고는 준비 중이에요.</p>
           <textarea aria-label="신고 상세 내용" placeholder="상세 내용 (선택)" value={reportDetail} maxLength={2000} disabled={busy} onChange={event => setReportDetail(event.target.value)} className={communityTextAreaClass} />
           <div className="flex gap-2"><Button type="submit" size="sm" disabled={busy}>신고 접수</Button><Button variant="ghost" size="sm" disabled={busy} onClick={() => setPanel(null)}>취소</Button></div>
-        </form></motion.div>}
-        {panel === 'edit' && owned && <motion.div key="edit" ref={panelRef} tabIndex={-1} aria-label="게시글 작업" {...panelMotion} transition={reveal} className="overflow-hidden rounded-card border border-border bg-card-surface p-3 outline-none"><form className="space-y-3" onSubmit={event => {
-          event.preventDefault()
-          if (!title.trim() || title.length > POST_TITLE_LIMIT || !content.trim()) return
-          void action.run(() => updatePost(post.id, { title: title.trim(), content: content.trim() }), updated => {
-            setPost(previous => ({ ...previous, title: updated.title, content: updated.content })); setTitle(updated.title); setContent(updated.content); setPanel(null)
-          }, '게시글을 수정했어요.')
-        }}>
-          <h2 className="text-[14px] font-semibold">게시글 수정</h2>
-          <Input aria-label="게시글 제목" value={title} maxLength={POST_TITLE_LIMIT} disabled={busy} onChange={event => setTitle(event.target.value)} />
-          {title.length > POST_TITLE_LIMIT && <p role="alert">제목을 {POST_TITLE_LIMIT}자 이내로 줄여 주세요.</p>}
-          <textarea aria-label="게시글 내용" value={content} maxLength={20_000} disabled={busy} onChange={event => setContent(event.target.value)} className={communityTextAreaClass} />
-          <div className="flex gap-2"><Button type="submit" size="sm" disabled={busy || !title.trim() || title.length > POST_TITLE_LIMIT || !content.trim()}>수정 저장</Button><Button variant="ghost" size="sm" disabled={busy} onClick={() => setPanel(null)}>취소</Button></div>
         </form></motion.div>}
         {panel === 'delete' && owned && <motion.div key="delete" ref={panelRef} tabIndex={-1} aria-label="게시글 작업" {...panelMotion} transition={reveal} className="overflow-hidden space-y-3 rounded-card border border-border bg-card-surface p-3 outline-none">
           <p className="text-[13px]">게시글을 삭제할까요? 삭제 후에는 되돌릴 수 없어요.</p>

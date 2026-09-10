@@ -40,9 +40,9 @@ export async function fetchPhotoDownload(photoId: string, signal?: AbortSignal) 
   return photo
 }
 
-export async function updatePost(postId: string, input: Pick<PostInput, 'title' | 'content'>) {
+export async function updatePost(postId: string, input: Pick<PostInput, 'title' | 'content'>, signal?: AbortSignal) {
   if (input.title.length > 100) throw new Error('Post title exceeds 100 characters.')
-  const { data } = await apiClient.patch<unknown>(endpoints.post(postId), input)
+  const { data } = await apiClient.patch<unknown>(endpoints.post(postId), input, { signal })
   return parsePost(data)
 }
 
