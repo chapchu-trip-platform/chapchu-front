@@ -100,7 +100,12 @@ describe('free-board post editor', () => {
     await user.type(screen.getByLabelText('제목'), '사진 글')
     await user.type(screen.getByLabelText('내용'), '사진을 공유해요')
     await user.click(screen.getByRole('button', { name: '게시글 등록' }))
-    await waitFor(() => expect(uploadPhotoFiles).toHaveBeenCalledWith([file], 'POST', expect.any(AbortSignal)))
+    await waitFor(() => expect(uploadPhotoFiles).toHaveBeenCalledWith(
+      [file],
+      'POST',
+      expect.any(AbortSignal),
+      expect.any(Function),
+    ))
     expect(createPost).toHaveBeenCalledWith({
       title: '사진 글',
       content: '사진을 공유해요',
@@ -131,6 +136,128 @@ describe('free-board post editor', () => {
     expect(screen.getByLabelText('제목')).toHaveValue('CORS 추적')
     expect(screen.getByLabelText('내용')).toHaveValue('초안을 유지해요')
     expect(createPost).not.toHaveBeenCalled()
+  })
+
+  it('shows completed-photo upload progress before post creation finishes', async () => {
+    const pending = deferred<void>()
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:preview') })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+    vi.mocked(uploadPhotoFiles).mockImplementationOnce(async (_files, _type, _signal, onProgress) => {
+      onProgress?.({ photoIndex: 0, photoCount: 1, status: 'uploading' })
+      onProgress?.({ photoIndex: 0, photoCount: 1, status: 'success' })
+      return [{ uploadUrl: 'https://upload.example/photo', photoKey: 'post/user/photo.jpg', fileName: 'photo.jpg' }]
+    })
+    vi.mocked(createPost).mockReturnValueOnce(pending.promise)
+    const user = userEvent.setup()
+    render(<PostEditor />)
+    await user.upload(screen.getByLabelText('게시글 사진 선택'), new File(['photo'], 'photo.jpg', { type: 'image/jpeg' }))
+    await user.type(screen.getByLabelText('제목'), '진행률 확인')
+    await user.type(screen.getByLabelText('내용'), '업로드 상태를 확인해요')
+
+    await user.click(screen.getByRole('button', { name: '게시글 등록' }))
+
+    expect(await screen.findByText('완료')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('게시글을 등록하고 있어요')
+    await act(async () => pending.resolve())
+  })
+
+  it('offers retry after a photo upload fails and republishes the preserved draft', async () => {
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:preview') })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+    vi.mocked(uploadPhotoFiles)
+      .mockRejectedValueOnce({
+        name: 'PhotoUploadError',
+        stage: 'object-storage',
+        reason: 'connection-or-cors',
+        photoIndex: 0,
+      })
+      .mockResolvedValueOnce([
+        { uploadUrl: 'https://upload.example/photo', photoKey: 'post/user/photo.jpg', fileName: 'photo.jpg' },
+      ])
+    const user = userEvent.setup()
+    render(<PostEditor />)
+    await user.upload(screen.getByLabelText('게시글 사진 선택'), new File(['photo'], 'photo.jpg', { type: 'image/jpeg' }))
+    await user.type(screen.getByLabelText('제목'), '재시도 제목')
+    await user.type(screen.getByLabelText('내용'), '실패해도 초안을 유지해요')
+    await user.click(screen.getByRole('button', { name: '게시글 등록' }))
+    await user.click(await screen.findByRole('button', { name: '닫기' }))
+
+    await user.click(screen.getByRole('button', { name: '사진 업로드 다시 시도' }))
+
+    await waitFor(() => expect(uploadPhotoFiles).toHaveBeenCalledTimes(2))
+    expect(createPost).toHaveBeenCalledWith({
+      title: '재시도 제목',
+      content: '실패해도 초안을 유지해요',
+      photos: [{ photoKey: 'post/user/photo.jpg' }],
+    }, expect.any(AbortSignal))
+  })
+
+  it('retries only failed photos and preserves successful upload tickets in order', async () => {
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:preview') })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+    const firstUpload = { photoKey: 'post/user/one.jpg', fileName: 'one.jpg' }
+    const secondTicket = { uploadUrl: 'https://upload.example/two', photoKey: 'post/user/two.jpg', fileName: 'two.jpg' }
+    vi.mocked(uploadPhotoFiles)
+      .mockRejectedValueOnce({
+        name: 'PhotoUploadError',
+        stage: 'object-storage',
+        reason: 'connection-or-cors',
+        photoIndex: 1,
+        successfulUploads: [firstUpload, null],
+        failedPhotoIndexes: [1],
+      })
+      .mockResolvedValueOnce([secondTicket])
+    const firstFile = new File(['one'], 'one.jpg', { type: 'image/jpeg' })
+    const secondFile = new File(['two'], 'two.jpg', { type: 'image/jpeg' })
+    const user = userEvent.setup()
+    render(<PostEditor />)
+    await user.upload(screen.getByLabelText('게시글 사진 선택'), [firstFile, secondFile])
+    await user.type(screen.getByLabelText('제목'), '부분 재시도')
+    await user.type(screen.getByLabelText('내용'), '성공한 사진은 다시 올리지 않아요')
+    await user.click(screen.getByRole('button', { name: '게시글 등록' }))
+
+    await user.click(await screen.findByRole('button', { name: '닫기' }))
+    expect(screen.getByText('완료')).toBeInTheDocument()
+    expect(screen.getByText('실패')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '사진 업로드 다시 시도' }))
+
+    await waitFor(() => expect(uploadPhotoFiles).toHaveBeenCalledTimes(2))
+    expect(vi.mocked(uploadPhotoFiles).mock.calls[1][0]).toEqual([secondFile])
+    expect(createPost).toHaveBeenCalledWith({
+      title: '부분 재시도',
+      content: '성공한 사진은 다시 올리지 않아요',
+      photos: [
+        { photoKey: 'post/user/one.jpg' },
+        { photoKey: 'post/user/two.jpg' },
+      ],
+    }, expect.any(AbortSignal))
+  })
+
+  it('rejects photo selections over the 250MB per-post limit', () => {
+    render(<PostEditor />)
+    const largePhoto = new File(['photo'], 'large.jpg', { type: 'image/jpeg' })
+    Object.defineProperty(largePhoto, 'size', { configurable: true, value: 250 * 1024 * 1024 + 1 })
+
+    fireEvent.change(screen.getByLabelText('게시글 사진 선택'), { target: { files: [largePhoto] } })
+
+    expect(screen.getByRole('alert')).toHaveTextContent('250MB')
+    expect(screen.getByText('0 / 10장')).toBeInTheDocument()
+    expect(uploadPhotoFiles).not.toHaveBeenCalled()
+  })
+
+  it('rejects a group of photos whose combined size exceeds 250MB', () => {
+    render(<PostEditor />)
+    const firstPhoto = new File(['one'], 'one.jpg', { type: 'image/jpeg' })
+    const secondPhoto = new File(['two'], 'two.jpg', { type: 'image/jpeg' })
+    Object.defineProperty(firstPhoto, 'size', { configurable: true, value: 150 * 1024 * 1024 })
+    Object.defineProperty(secondPhoto, 'size', { configurable: true, value: 150 * 1024 * 1024 })
+
+    fireEvent.change(screen.getByLabelText('게시글 사진 선택'), {
+      target: { files: [firstPhoto, secondPhoto] },
+    })
+
+    expect(screen.getByRole('alert')).toHaveTextContent('전체 첨부 합계')
+    expect(screen.getByText('0 / 10장')).toBeInTheDocument()
   })
 
   it('separates post creation failure after photos were uploaded', async () => {

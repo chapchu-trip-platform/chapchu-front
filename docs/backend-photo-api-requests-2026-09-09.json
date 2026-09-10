@@ -16,9 +16,15 @@
     },
     {
       "priority": "high",
+      "topic": "Community post list photo count",
+      "reason": "The list response exposes only one thumbnail, so the frontend cannot distinguish a single-photo post from a multi-photo post or display an accurate +N badge.",
+      "requestedContract": "Add a non-negative photoCount to every post-list summary. Keep thumbnail as the representative photo, guarantee that the same representative photo is identifiable in post detail, and define photoCount as the total number of visible photos attached to the post."
+    },
+    {
+      "priority": "high",
       "topic": "Upload validation and signed PUT headers",
-      "reason": "Allowed image MIME types, maximum file size, and whether Content-Type participates in the presigned signature are not documented.",
-      "requestedContract": "Publish accepted MIME types, maximum bytes per file/request, and the exact headers the browser must send with the presigned PUT. Return a stable validation error for rejected files."
+      "reason": "Allowed image MIME types, maximum file size, and whether Content-Type participates in the presigned signature are not documented. The frontend currently applies a provisional 250MB limit to both each file and the combined photos in one post.",
+      "requestedContract": "Publish accepted MIME types, maximum bytes per file/request, whether the 250MB frontend limit matches the server and object-storage limits, and the exact headers the browser must send with the presigned PUT. Return a stable validation error for rejected files."
     },
     {
       "priority": "blocking",

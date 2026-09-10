@@ -68,6 +68,7 @@
   "missingContracts": [
     "No owned-stamp list or stamp-image endpoint is documented.",
     "The documented owner-only GET /photos/{photoId} authorization conflicts with post list/detail guidance that asks clients to resolve other authors' post photo IDs through that endpoint.",
+    "Post list summaries do not include a total photo count, so an accurate multi-photo +N badge cannot be rendered.",
     "Allowed upload MIME types and maximum file size are not documented.",
     "Required or signed Content-Type behavior for the S3 PUT is not documented.",
     "Cleanup behavior for uploaded photo keys when a later request fails is not documented.",

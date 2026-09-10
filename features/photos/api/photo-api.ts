@@ -13,7 +13,9 @@ import {
 } from '@/features/photos/types/photo'
 
 const MAX_POST_PHOTOS = 10
-const PHOTO_UPLOAD_TIMEOUT_MS = 30_000
+const MIN_PHOTO_UPLOAD_TIMEOUT_MS = 30_000
+const MAX_PHOTO_UPLOAD_TIMEOUT_MS = 9 * 60_000
+const ASSUMED_MIN_UPLOAD_BYTES_PER_SECOND = 512 * 1024
 let photoUploadSequence = 0
 
 export type PhotoUploadFailureStage = 'upload-ticket' | 'object-storage'
@@ -24,6 +26,11 @@ export type PhotoUploadFailureReason =
   | 'network'
   | 'timeout'
 
+export interface SuccessfulPhotoUpload {
+  photoKey: string
+  fileName: string
+}
+
 export class PhotoUploadError extends Error {
   override readonly name = 'PhotoUploadError'
 
@@ -31,7 +38,10 @@ export class PhotoUploadError extends Error {
     readonly stage: PhotoUploadFailureStage,
     readonly reason: PhotoUploadFailureReason,
     readonly status?: number,
-    options?: ErrorOptions
+    options?: ErrorOptions,
+    readonly photoIndex?: number,
+    readonly successfulUploads?: Array<SuccessfulPhotoUpload | null>,
+    readonly failedPhotoIndexes?: number[]
   ) {
     super(
       stage === 'upload-ticket'
@@ -170,20 +180,49 @@ export async function requestPhotoUploadUrls(
 export async function uploadPhotoFile(
   ticket: PhotoUploadTicket,
   file: File,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onStatusChange?: (event: PhotoUploadStatusEvent) => void
 ) {
   return putPhotoFile(ticket, file, signal, {
     operationId: nextPhotoUploadId(),
     photoIndex: 0,
     photoCount: 1,
-  })
+  }, onStatusChange)
+}
+
+export interface PhotoUploadStatusEvent {
+  photoIndex: number
+  photoCount: number
+  status: 'uploading' | 'success'
+}
+
+export interface SuccessfulPhotoUpload {
+  photoKey: string
+  fileName: string
+}
+
+function notifyUploadStatus(
+  listener: ((event: PhotoUploadStatusEvent) => void) | undefined,
+  event: PhotoUploadStatusEvent
+) {
+  try {
+    listener?.(event)
+  } catch {
+    // UI status reporting must never change the outcome of the storage request.
+  }
+}
+
+function photoUploadTimeoutMs(fileSize: number) {
+  const estimatedMs = Math.ceil(fileSize / ASSUMED_MIN_UPLOAD_BYTES_PER_SECOND * 1_000) + 15_000
+  return Math.min(MAX_PHOTO_UPLOAD_TIMEOUT_MS, Math.max(MIN_PHOTO_UPLOAD_TIMEOUT_MS, estimatedMs))
 }
 
 async function putPhotoFile(
   ticket: PhotoUploadTicket,
   file: File,
   signal: AbortSignal | undefined,
-  context: { operationId: string; photoIndex: number; photoCount: number }
+  context: { operationId: string; photoIndex: number; photoCount: number },
+  onStatusChange?: (event: PhotoUploadStatusEvent) => void
 ) {
   const uploadUrl = safeHttpsUrl(ticket.uploadUrl)
   if (!uploadUrl) throw new Error('Photo upload URL was invalid.')
@@ -192,6 +231,11 @@ async function putPhotoFile(
   }
   const startedAt = performance.now()
   const destinationOrigin = new URL(uploadUrl).origin
+  notifyUploadStatus(onStatusChange, {
+    photoIndex: context.photoIndex,
+    photoCount: context.photoCount,
+    status: 'uploading',
+  })
   recordPhotoUploadStage(context.operationId, 'PHOTO_UPLOAD storage PUT started', {
     phase: 'request',
     stage: 'object-storage',
@@ -210,7 +254,7 @@ async function putPhotoFile(
   const timeoutId = window.setTimeout(() => {
     timedOut = true
     uploadController.abort()
-  }, PHOTO_UPLOAD_TIMEOUT_MS)
+  }, photoUploadTimeoutMs(file.size))
 
   try {
     const response = await fetch(uploadUrl, {
@@ -219,10 +263,22 @@ async function putPhotoFile(
       signal: uploadController.signal,
       credentials: 'omit',
       referrerPolicy: 'no-referrer',
+      redirect: 'error',
     })
     if (!response.ok) {
-      throw new PhotoUploadError('object-storage', 'http', response.status)
+      throw new PhotoUploadError(
+        'object-storage',
+        'http',
+        response.status,
+        undefined,
+        context.photoIndex
+      )
     }
+    notifyUploadStatus(onStatusChange, {
+      photoIndex: context.photoIndex,
+      photoCount: context.photoCount,
+      status: 'success',
+    })
     recordPhotoUploadStage(context.operationId, 'PHOTO_UPLOAD storage PUT completed', {
       phase: 'response',
       stage: 'object-storage',
@@ -237,12 +293,21 @@ async function putPhotoFile(
     if (signal?.aborted || isAbortError(error) && !timedOut) throw error
     const failure =
       error instanceof PhotoUploadError
-        ? error
+        ? error.photoIndex === undefined
+          ? new PhotoUploadError(
+              error.stage,
+              error.reason,
+              error.status,
+              { cause: error },
+              context.photoIndex
+            )
+          : error
         : new PhotoUploadError(
             'object-storage',
             timedOut ? 'timeout' : 'connection-or-cors',
             undefined,
-            { cause: error }
+            { cause: error },
+            context.photoIndex
           )
     recordPhotoUploadStage(
       context.operationId,
@@ -275,7 +340,8 @@ async function putPhotoFile(
 export async function uploadPhotoFiles(
   files: File[],
   type: PhotoPurpose,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onStatusChange?: (event: PhotoUploadStatusEvent) => void
 ) {
   const operationId = nextPhotoUploadId()
   recordPhotoUploadStage(operationId, 'PHOTO_UPLOAD ticket request started', {
@@ -328,15 +394,38 @@ export async function uploadPhotoFiles(
     )
     throw failure
   }
-  await Promise.all(
+  const uploads = await Promise.allSettled(
     tickets.map((ticket, index) =>
       putPhotoFile(ticket, files[index], signal, {
         operationId,
         photoIndex: index,
         photoCount: files.length,
-      })
+      }, onStatusChange)
     )
   )
+  if (signal?.aborted) {
+    throw signal.reason ?? new DOMException('Aborted', 'AbortError')
+  }
+  const failedPhotoIndexes = uploads.flatMap((result, index) => result.status === 'rejected' ? [index] : [])
+  if (failedPhotoIndexes.length > 0) {
+    const firstIndex = failedPhotoIndexes[0]
+    const firstResult = uploads[firstIndex]
+    const firstReason = firstResult.status === 'rejected' ? firstResult.reason : undefined
+    const firstFailure = firstReason instanceof PhotoUploadError
+      ? firstReason
+      : new PhotoUploadError('object-storage', 'contract', undefined, { cause: firstReason }, firstIndex)
+    throw new PhotoUploadError(
+      firstFailure.stage,
+      firstFailure.reason,
+      firstFailure.status,
+      { cause: firstFailure },
+      firstFailure.photoIndex ?? firstIndex,
+      uploads.map((result, index) => result.status === 'fulfilled'
+        ? { photoKey: tickets[index].photoKey, fileName: tickets[index].fileName }
+        : null),
+      failedPhotoIndexes
+    )
+  }
   return tickets
 }
 

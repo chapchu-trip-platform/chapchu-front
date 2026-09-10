@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as api from '@/features/community/api/community-api'
@@ -285,7 +285,11 @@ describe('live community board', () => {
     render(<CommunityBoard initialPostId="post-1" />)
 
     const gallery = await screen.findByRole('region', { name: '게시글 사진 2장' })
+    expect(gallery).not.toHaveClass('mx-4', 'rounded-card', 'border')
     expect(await screen.findByRole('img', { name: `${postFixture.title} 사진 1` })).toHaveAttribute('src', 'https://example.com/photo-1.jpg')
+    expect(screen.getByRole('img', { name: `${postFixture.title} 사진 1` })).toHaveClass('object-contain')
+    expect(gallery.querySelector('img[aria-hidden="true"]')).toHaveClass('blur-2xl', 'object-cover')
+    expect(screen.getByRole('button', { name: '이전 사진' })).toHaveClass('opacity-45', 'hover:opacity-100')
     expect(screen.getByText('1 / 2')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '이전 사진' }))
@@ -300,6 +304,67 @@ describe('live community board', () => {
     expect(await screen.findByRole('img', { name: `${postFixture.title} 사진 2` })).toBeInTheDocument()
     await user.keyboard('{ArrowRight}')
     expect(await screen.findByRole('img', { name: `${postFixture.title} 사진 1` })).toBeInTheDocument()
+  })
+
+  it('opens the current photo in a full-screen viewer with navigation and zoom controls', async () => {
+    const historyBack = vi.spyOn(window.history, 'back').mockImplementation(() => undefined)
+    vi.mocked(api.fetchPost).mockResolvedValue({
+      ...postFixture,
+      photoId: 'photo-1',
+      photos: [
+        { photoId: 'photo-1', photoKey: 'post/user/one.jpg' },
+        { photoId: 'photo-2', photoKey: 'post/user/two.jpg' },
+      ],
+    })
+    vi.mocked(api.fetchPhotoDownload).mockImplementation(async (photoId) => ({
+      id: photoId,
+      downloadUrl: `https://example.com/${photoId}.jpg`,
+      takenAt: null,
+    }))
+    const user = userEvent.setup()
+    render(<CommunityBoard initialPostId="post-1" />)
+
+    await user.click(await screen.findByRole('button', { name: `${postFixture.title} 사진 1 전체 화면 보기` }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('1 / 2')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: '사진 축소' })).toBeDisabled()
+
+    await user.click(within(dialog).getByRole('button', { name: '사진 확대' }))
+    expect(within(dialog).getByText('150%')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: '전체 화면 다음 사진' }))
+    expect(within(dialog).getByText('2 / 2')).toBeInTheDocument()
+    expect(within(dialog).getByText('100%')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: '전체 화면 닫기' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(historyBack).toHaveBeenCalledOnce()
+
+    // Browser Back closes only the viewer and keeps the detail screen in place.
+    await user.click(screen.getByRole('button', { name: `${postFixture.title} 사진 2 전체 화면 보기` }))
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    act(() => window.dispatchEvent(new PopStateEvent('popstate')))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    historyBack.mockRestore()
+  })
+
+  it('shows the list representative photo first even if detail photos arrive in another order', async () => {
+    vi.mocked(api.fetchPost).mockResolvedValue({
+      ...postFixture,
+      photoId: 'photo-2',
+      photoUrl: 'https://example.com/photo-2.jpg',
+      photos: [
+        { photoId: 'photo-1', photoKey: 'post/user/one.jpg' },
+        { photoId: 'photo-2', photoKey: 'post/user/two.jpg' },
+      ],
+    })
+    vi.mocked(api.fetchPhotoDownload).mockImplementation(async (photoId) => ({
+      id: photoId,
+      downloadUrl: `https://example.com/${photoId}.jpg`,
+      takenAt: null,
+    }))
+
+    render(<CommunityBoard initialPostId="post-1" />)
+
+    expect(await screen.findByRole('img', { name: `${postFixture.title} 사진 1` })).toHaveAttribute('src', 'https://example.com/photo-2.jpg')
   })
 
   it('loads popular/latest sorting and routes real IDs to detail', async () => {

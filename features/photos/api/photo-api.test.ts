@@ -47,9 +47,80 @@ describe('photo API', () => {
         body: file,
         credentials: 'omit',
         referrerPolicy: 'no-referrer',
+        redirect: 'error',
       })
     )
     expect(tickets[0].photoKey).toBe('post/user/photo.jpg')
+  })
+
+  it('reports per-photo upload start and completion without exposing signed request data', async () => {
+    apiClient.defaults.adapter = async (config) => response(config, [{
+      uploadUrl: 'https://bucket.example/upload?signature=test',
+      photoKey: 'post/user/photo.jpg',
+      fileName: 'photo.jpg',
+    }], 201)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
+    const progress = vi.fn()
+
+    await uploadPhotoFiles(
+      [new File(['photo'], 'photo.jpg', { type: 'image/jpeg' })],
+      'POST',
+      undefined,
+      progress,
+    )
+
+    expect(progress.mock.calls.map(([event]) => event)).toEqual([
+      { photoIndex: 0, photoCount: 1, status: 'uploading' },
+      { photoIndex: 0, photoCount: 1, status: 'success' },
+    ])
+  })
+
+  it('does not turn a UI status-listener exception into an upload failure', async () => {
+    apiClient.defaults.adapter = async (config) => response(config, [{
+      uploadUrl: 'https://bucket.example/upload?signature=test',
+      photoKey: 'post/user/photo.jpg',
+      fileName: 'photo.jpg',
+    }], 201)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
+
+    await expect(uploadPhotoFiles(
+      [new File(['photo'], 'photo.jpg', { type: 'image/jpeg' })],
+      'POST',
+      undefined,
+      () => { throw new Error('UI listener failed') },
+    )).resolves.toHaveLength(1)
+  })
+
+  it('waits for all photo uploads and reports tickets that already succeeded', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    apiClient.defaults.adapter = async (config) => response(config, [
+      {
+        uploadUrl: 'https://bucket.example/upload-one?signature=test',
+        photoKey: 'post/user/one.jpg',
+        fileName: 'one.jpg',
+      },
+      {
+        uploadUrl: 'https://bucket.example/upload-two?signature=test',
+        photoKey: 'post/user/two.jpg',
+        fileName: 'two.jpg',
+      },
+    ], 201)
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch')))
+    const files = [
+      new File(['one'], 'one.jpg', { type: 'image/jpeg' }),
+      new File(['two'], 'two.jpg', { type: 'image/jpeg' }),
+    ]
+
+    const failure = await uploadPhotoFiles(files, 'POST').catch(error => error)
+    expect(failure).toMatchObject({
+      name: 'PhotoUploadError',
+      photoIndex: 1,
+      successfulUploads: [{ photoKey: 'post/user/one.jpg', fileName: 'one.jpg' }, null],
+      failedPhotoIndexes: [1],
+    })
+    expect(JSON.stringify(failure.successfulUploads)).not.toContain('signature')
   })
 
   it('saves uploaded profile metadata and resolves the documented download URL', async () => {
@@ -145,6 +216,34 @@ describe('photo API', () => {
     )
   })
 
+  it('allows a 250MB upload longer than the small-file timeout', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    vi.useFakeTimers()
+    let aborted = false
+    vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          aborted = true
+          reject(new DOMException('Aborted', 'AbortError'))
+        })
+      })
+    ))
+    const file = new File(['photo'], 'large.jpg', { type: 'image/jpeg' })
+    Object.defineProperty(file, 'size', { configurable: true, value: 250 * 1024 * 1024 })
+    const uploadExpectation = expect(uploadPhotoFile({
+      uploadUrl: 'https://bucket.example/upload?signature=test',
+      photoKey: 'post/user/large.jpg',
+      fileName: 'large.jpg',
+    }, file)).rejects.toThrow('Photo upload timed out.')
+
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(aborted).toBe(false)
+    await vi.advanceTimersByTimeAsync(9 * 60_000)
+
+    await uploadExpectation
+    expect(aborted).toBe(true)
+  })
+
   it('tracks a likely CORS failure without logging the signed URL or file name', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch signed-secret')))
@@ -158,6 +257,7 @@ describe('photo API', () => {
       name: 'PhotoUploadError',
       stage: 'object-storage',
       reason: 'connection-or-cors',
+      photoIndex: 0,
     })
 
     const logged = JSON.stringify(log.mock.calls)
