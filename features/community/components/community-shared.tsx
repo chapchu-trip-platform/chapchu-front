@@ -2,9 +2,11 @@
 
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
-import { PawPrint, Route } from 'lucide-react'
+import { ChevronLeft, ChevronRight, PawPrint, Route } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import { Button } from '@/components/ui/button'
 import { fetchPhotoDownload } from '@/features/community/api/community-api'
+import { usePrefersReducedMotion } from '@/features/community/hooks/use-prefers-reduced-motion'
 import type { Post, Review } from '@/features/community/types/community'
 
 interface CommunityPhotoProps {
@@ -20,6 +22,10 @@ export function CommunityPhoto(props: CommunityPhotoProps) {
 }
 
 export function CommunityPhotoGallery({ post }: { post: Post }) {
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [direction, setDirection] = useState<1 | -1>(1)
+  const prefersReducedMotion = usePrefersReducedMotion()
+
   if (post.photos.length === 0) {
     return (
       <CommunityPhoto
@@ -32,24 +38,95 @@ export function CommunityPhotoGallery({ post }: { post: Post }) {
     )
   }
 
+  if (post.photos.length === 1) {
+    const photo = post.photos[0]
+    return (
+      <CommunityPhoto
+        url={photo.photoId === post.photoId ? post.photoUrl : null}
+        photoId={photo.photoId}
+        title={`${post.title} 사진 1`}
+        className="h-52"
+      />
+    )
+  }
+
+  const move = (nextDirection: 1 | -1) => {
+    setDirection(nextDirection)
+    setActiveIndex((current) =>
+      (current + nextDirection + post.photos.length) % post.photos.length
+    )
+  }
+  const activePhoto = post.photos[activeIndex]
+  const photoMotion = prefersReducedMotion
+    ? {
+        initial: false as const,
+        animate: { opacity: 1, x: 0, scale: 1 },
+        exit: { opacity: 1, x: 0, scale: 1 },
+        transition: { duration: 0 },
+      }
+    : {
+        initial: { opacity: 0, x: direction * 44, scale: 0.985 },
+        animate: { opacity: 1, x: 0, scale: 1 },
+        exit: { opacity: 0, x: direction * -44, scale: 0.985 },
+        transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] as const },
+      }
+
   return (
-    <div className="relative" role="region" aria-label={`게시글 사진 ${post.photos.length}장`}>
-      <div className="flex snap-x snap-mandatory overflow-x-auto no-scrollbar">
-        {post.photos.map((photo, index) => (
+    <div
+      className="relative mx-4 mt-4 rounded-card border border-border bg-card-surface p-2 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-sage-green/50"
+      role="region"
+      aria-label={`게시글 사진 ${post.photos.length}장`}
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === 'ArrowLeft') {
+          event.preventDefault()
+          move(-1)
+        }
+        if (event.key === 'ArrowRight') {
+          event.preventDefault()
+          move(1)
+        }
+      }}
+    >
+      <div className="relative h-56 overflow-hidden rounded-[calc(var(--radius-card)-0.35rem)] bg-sage-green-light">
+        <AnimatePresence initial={false} mode="popLayout" custom={direction}>
+          <motion.div
+            key={activePhoto.photoId}
+            className="absolute inset-0"
+            {...photoMotion}
+          >
           <CommunityPhoto
-            key={photo.photoId}
-            url={photo.photoId === post.photoId ? post.photoUrl : null}
-            photoId={photo.photoId}
-            title={`${post.title} 사진 ${index + 1}`}
-            className="h-52 w-full flex-shrink-0 snap-center"
+              url={activePhoto.photoId === post.photoId ? post.photoUrl : null}
+              photoId={activePhoto.photoId}
+              title={`${post.title} 사진 ${activeIndex + 1}`}
+              className="h-full w-full"
           />
-        ))}
-      </div>
-      {post.photos.length > 1 && (
-        <span className="absolute bottom-3 right-3 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-semibold text-white">
-          사진 {post.photos.length}장
+          </motion.div>
+        </AnimatePresence>
+        <button
+          type="button"
+          aria-label="이전 사진"
+          onClick={() => move(-1)}
+          className="absolute left-2 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/60 bg-card-surface/90 text-deep-brown shadow-md backdrop-blur-sm transition-colors hover:bg-card-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-green"
+        >
+          <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          aria-label="다음 사진"
+          onClick={() => move(1)}
+          className="absolute right-2 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/60 bg-card-surface/90 text-deep-brown shadow-md backdrop-blur-sm transition-colors hover:bg-card-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-green"
+        >
+          <ChevronRight className="h-5 w-5" aria-hidden="true" />
+        </button>
+        <span
+          className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-white"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {activeIndex + 1} / {post.photos.length}
         </span>
-      )}
+      </div>
     </div>
   )
 }

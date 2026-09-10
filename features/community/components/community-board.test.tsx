@@ -266,7 +266,7 @@ describe('live community board', () => {
     expect(signal?.aborted).toBe(true)
   })
 
-  it('resolves and displays every photo from the post detail collection', async () => {
+  it('cycles post detail photos in both directions with wraparound', async () => {
     vi.mocked(api.fetchPost).mockResolvedValue({
       ...postFixture,
       photoId: 'photo-1',
@@ -281,12 +281,25 @@ describe('live community board', () => {
       takenAt: null,
     }))
 
+    const user = userEvent.setup()
     render(<CommunityBoard initialPostId="post-1" />)
 
-    expect(await screen.findByRole('region', { name: '게시글 사진 2장' })).toBeInTheDocument()
+    const gallery = await screen.findByRole('region', { name: '게시글 사진 2장' })
     expect(await screen.findByRole('img', { name: `${postFixture.title} 사진 1` })).toHaveAttribute('src', 'https://example.com/photo-1.jpg')
+    expect(screen.getByText('1 / 2')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '이전 사진' }))
     expect(await screen.findByRole('img', { name: `${postFixture.title} 사진 2` })).toHaveAttribute('src', 'https://example.com/photo-2.jpg')
-    expect(screen.getByText('사진 2장')).toBeInTheDocument()
+    expect(screen.getByText('2 / 2')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '다음 사진' }))
+    expect(await screen.findByRole('img', { name: `${postFixture.title} 사진 1` })).toBeInTheDocument()
+
+    gallery.focus()
+    await user.keyboard('{ArrowRight}')
+    expect(await screen.findByRole('img', { name: `${postFixture.title} 사진 2` })).toBeInTheDocument()
+    await user.keyboard('{ArrowRight}')
+    expect(await screen.findByRole('img', { name: `${postFixture.title} 사진 1` })).toBeInTheDocument()
   })
 
   it('loads popular/latest sorting and routes real IDs to detail', async () => {
