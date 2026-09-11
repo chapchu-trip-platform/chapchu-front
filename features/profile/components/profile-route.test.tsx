@@ -22,7 +22,7 @@ import {
   updateProfilePhoto,
   withdrawAccount,
 } from '@/features/profile/api/profile-api'
-import { savePhotos, uploadPhotoFiles } from '@/features/photos/api/photo-api'
+import { fetchPhotoDownload, savePhotos, uploadPhotoFiles } from '@/features/photos/api/photo-api'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
 import { usePetStore } from '@/features/profile/stores/pet-store'
 import { mockRouter, resetNextNavigationMocks } from '@/test/mocks/next-navigation'
@@ -62,6 +62,7 @@ vi.mock('@/features/profile/api/profile-api', () => ({
 }))
 
 vi.mock('@/features/photos/api/photo-api', () => ({
+  fetchPhotoDownload: vi.fn(),
   savePhotos: vi.fn(),
   uploadPhotoFiles: vi.fn(),
 }))
@@ -92,6 +93,11 @@ beforeEach(() => {
   vi.mocked(fetchProfilePhoto).mockResolvedValue({ photoId: null, downloadUrl: null })
   vi.mocked(fetchPetOptions).mockResolvedValue(mockProfilePetOptions)
   vi.mocked(fetchMyPosts).mockResolvedValue(mockProfilePosts)
+  vi.mocked(fetchPhotoDownload).mockResolvedValue({
+    id: 'post-photo-id',
+    downloadUrl: 'https://example.com/post-photo.jpg',
+    takenAt: null,
+  })
   vi.mocked(fetchBookmarks).mockResolvedValue([])
   vi.mocked(fetchWishlist).mockResolvedValue([])
   vi.mocked(fetchMyReviews).mockResolvedValue([])
@@ -280,6 +286,20 @@ describe('ProfileRoute', () => {
     expect(screen.getByRole('link', { name: mockProfilePosts[0].title })).toHaveAttribute(
       'href', `/community?post=${encodeURIComponent(mockProfilePosts[0].id)}`
     )
+  })
+
+  it('loads a written post representative photo from its photo id', async () => {
+    const user = userEvent.setup()
+    const post = { ...mockProfilePosts[0], photoId: 'post-photo-id', photoUrl: null }
+    vi.mocked(fetchMyPosts).mockResolvedValue([post])
+    render(<ProfileRoute />)
+
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: /작성한 글.*내 작성글 보기/ }))
+
+    const image = await screen.findByRole('img', { name: `${post.title} 대표 사진` })
+    expect(image).toHaveAttribute('src', 'https://example.com/post-photo.jpg')
+    expect(fetchPhotoDownload).toHaveBeenCalledWith('post-photo-id', expect.any(AbortSignal))
   })
 
   it('renders every pet in the pet management list', async () => {

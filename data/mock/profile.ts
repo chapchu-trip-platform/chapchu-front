@@ -84,6 +84,7 @@ export const mockProfilePosts: ProfilePost[] = Array.from(
   { length: PROFILE_MOCK_COUNTS.posts },
   (_, index) => ({
     id: `post-${String(index + 1).padStart(2, '0')}`,
+    photoId: null,
     title: index === 0 ? '초코와 여행 기록' : `${petNames[index % petNames.length]}와 ${postSubjects[index % postSubjects.length]} ${index + 1}`,
     content: `${index + 1}번째 반려견 동반 여행에서 찾은 장소와 준비물을 기록했어요. 산책 동선과 쉬어가기 좋은 지점도 함께 소개합니다.`,
     viewCount: 64 + index * 17,
@@ -116,6 +117,7 @@ export const mockProfileBookmarks: ProfilePost[] = Array.from(
   { length: PROFILE_MOCK_COUNTS.bookmarks },
   (_, index) => ({
     id: `bookmark-${String(index + 1).padStart(2, '0')}`,
+    photoId: null,
     title: `${postSubjects[index % postSubjects.length]} 준비 체크리스트 ${index + 1}`,
     content: '이동장, 물그릇, 긴 리드줄과 야외용 방석을 미리 준비해요.',
     viewCount: 120 + index * 13,
