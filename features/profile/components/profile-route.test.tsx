@@ -11,6 +11,7 @@ import {
   fetchMyReviews,
   fetchPetOptions,
   fetchPets,
+  fetchProfilePhoto,
   fetchProfileSummary,
   fetchWishlist,
   getProfileErrorMessage,
@@ -18,8 +19,10 @@ import {
   removeWishlistPlace,
   updateNickname,
   updatePet,
+  updateProfilePhoto,
   withdrawAccount,
 } from '@/features/profile/api/profile-api'
+import { savePhotos, uploadPhotoFiles } from '@/features/photos/api/photo-api'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
 import { usePetStore } from '@/features/profile/stores/pet-store'
 import { mockRouter, resetNextNavigationMocks } from '@/test/mocks/next-navigation'
@@ -46,6 +49,7 @@ vi.mock('@/features/profile/api/profile-api', () => ({
   fetchMyReviews: vi.fn(),
   fetchPetOptions: vi.fn(),
   fetchPets: vi.fn(),
+  fetchProfilePhoto: vi.fn(),
   fetchProfileSummary: vi.fn(),
   fetchWishlist: vi.fn(),
   getProfileErrorMessage: vi.fn(),
@@ -53,7 +57,13 @@ vi.mock('@/features/profile/api/profile-api', () => ({
   removeWishlistPlace: vi.fn(),
   updateNickname: vi.fn(),
   updatePet: vi.fn(),
+  updateProfilePhoto: vi.fn(),
   withdrawAccount: vi.fn(),
+}))
+
+vi.mock('@/features/photos/api/photo-api', () => ({
+  savePhotos: vi.fn(),
+  uploadPhotoFiles: vi.fn(),
 }))
 
 const pet = mockProfilePets[0]
@@ -79,6 +89,7 @@ function createDeferred<T>() {
 beforeEach(() => {
   vi.mocked(fetchProfileSummary).mockResolvedValue({ ...mockProfileSummary, petCount: 1 })
   vi.mocked(fetchPets).mockResolvedValue([pet])
+  vi.mocked(fetchProfilePhoto).mockResolvedValue({ photoId: null, downloadUrl: null })
   vi.mocked(fetchPetOptions).mockResolvedValue(mockProfilePetOptions)
   vi.mocked(fetchMyPosts).mockResolvedValue(mockProfilePosts)
   vi.mocked(fetchBookmarks).mockResolvedValue([])
@@ -90,6 +101,22 @@ beforeEach(() => {
   vi.mocked(updateNickname).mockResolvedValue('새닉네임')
   vi.mocked(createPet).mockResolvedValue({ ...pet, id: 'new-pet-id', petName: '보리' })
   vi.mocked(updatePet).mockResolvedValue(pet)
+  vi.mocked(updateProfilePhoto).mockResolvedValue({
+    photoId: 'photo-1',
+    downloadUrl: 'https://example.com/profile.jpg',
+  })
+  vi.mocked(uploadPhotoFiles).mockResolvedValue([{
+    uploadUrl: 'https://upload.example/profile',
+    photoKey: 'profile/user/profile.jpg',
+    fileName: 'profile.jpg',
+  }])
+  vi.mocked(savePhotos).mockResolvedValue([{
+    id: 'photo-1',
+    coursePlaceId: null,
+    photoKey: 'profile/user/profile.jpg',
+    takenAt: null,
+    createdAt: null,
+  }])
   vi.mocked(deletePet).mockResolvedValue()
   vi.mocked(removeBookmark).mockResolvedValue()
   vi.mocked(removeWishlistPlace).mockResolvedValue()
@@ -161,6 +188,28 @@ describe('ProfileRoute', () => {
     expect(screen.getAllByText('초코').length).toBeGreaterThan(0)
     expect(fetchProfileSummary).toHaveBeenCalledOnce()
     expect(fetchPets).toHaveBeenCalledOnce()
+    expect(fetchProfilePhoto).toHaveBeenCalledOnce()
+  })
+
+  it('uses the supplied default profile and uploads a replacement through the photo flow', async () => {
+    const user = userEvent.setup()
+    render(<ProfileRoute />)
+
+    const editButton = await screen.findByRole('button', { name: '프로필 사진 수정' })
+    expect(screen.getByRole('img', { name: '프로필' })).toHaveAttribute('src', '/images/default-profile.svg')
+    await user.click(editButton)
+    expect(screen.getByRole('dialog', { name: '프로필 사진 수정' })).toBeInTheDocument()
+    const file = new File(['profile'], 'profile.jpg', { type: 'image/jpeg' })
+    await user.upload(screen.getByLabelText('새 프로필 사진 선택'), file)
+
+    await waitFor(() => expect(uploadPhotoFiles).toHaveBeenCalledWith([file], 'PROFILE', expect.any(AbortSignal)))
+    expect(savePhotos).toHaveBeenCalledWith(
+      [{ photoKey: 'profile/user/profile.jpg' }],
+      expect.any(AbortSignal)
+    )
+    expect(updateProfilePhoto).toHaveBeenCalledWith('photo-1', expect.any(AbortSignal))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '프로필 사진 수정' })).not.toBeInTheDocument())
+    expect(screen.getByRole('img', { name: '프로필' })).toHaveAttribute('src', 'https://example.com/profile.jpg')
   })
 
   it('shows three pets in the summary and combines the remaining count', async () => {

@@ -44,9 +44,9 @@ describe('community API requests', () => {
     const input = { title: '제목', content: '내용' }
     const signal = new AbortController().signal
     await expect(api.createPost(input, signal)).resolves.toBeUndefined()
-    await api.updatePost('post-1', { title: '수정', content: '본문' })
+    await api.updatePost('post-1', { title: '수정', content: '본문' }, signal)
     expect(apiClient.post).toHaveBeenCalledWith('/posts', input, { signal })
-    expect(apiClient.patch).toHaveBeenCalledWith('/posts/post-1', { title: '수정', content: '본문' })
+    expect(apiClient.patch).toHaveBeenCalledWith('/posts/post-1', { title: '수정', content: '본문' }, { signal })
     await api.deletePost('post-1')
     expect(apiClient.delete).toHaveBeenCalledWith('/posts/post-1')
   })

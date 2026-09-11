@@ -1,17 +1,21 @@
 'use client'
 
 import Image from 'next/image'
-import { useEffect, useState } from 'react'
-import { PawPrint, Route } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Dialog } from '@base-ui/react/dialog'
+import { ChevronLeft, ChevronRight, LoaderCircle, PawPrint, RotateCcw, Route, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import { Button } from '@/components/ui/button'
 import { fetchPhotoDownload } from '@/features/community/api/community-api'
-import type { Review } from '@/features/community/types/community'
+import { usePrefersReducedMotion } from '@/features/community/hooks/use-prefers-reduced-motion'
+import type { Post, Review } from '@/features/community/types/community'
 
 interface CommunityPhotoProps {
   url: string | null
   photoId?: string | null
   title: string
   className: string
+  imageClassName?: string
   temporaryFallback?: boolean
 }
 
@@ -19,7 +23,314 @@ export function CommunityPhoto(props: CommunityPhotoProps) {
   return <Photo key={`${props.url ?? ''}:${props.photoId ?? ''}`} {...props} />
 }
 
-function Photo({ url, photoId, title, className, temporaryFallback = false }: CommunityPhotoProps) {
+export function CommunityPhotoGallery({ post }: { post: Post }) {
+  if (post.photos.length === 0) {
+    return (
+      <CommunityPhoto
+        url={post.photoUrl}
+        photoId={post.photoId}
+        title={post.title}
+        className="h-52"
+        temporaryFallback
+      />
+    )
+  }
+  return <PostPhotoGallery key={post.id} post={post} />
+}
+
+function PostPhotoGallery({ post }: { post: Post }) {
+  const photos = useMemo(() => {
+    if (!post.photoId) return post.photos
+    return [...post.photos].sort((first, second) => {
+      if (first.photoId === post.photoId) return -1
+      if (second.photoId === post.photoId) return 1
+      return 0
+    })
+  }, [post.photoId, post.photos])
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [direction, setDirection] = useState<1 | -1>(1)
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const [zoom, setZoom] = useState(1)
+  const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>(() => {
+    if (!post.photoId || !post.photoUrl) return {}
+    return { [post.photoId]: post.photoUrl }
+  })
+  const [photoErrors, setPhotoErrors] = useState<Record<string, boolean>>({})
+  const downloadsRef = useRef(new Map<string, AbortController>())
+  const viewerHistoryRef = useRef(false)
+  const draggedRef = useRef(false)
+  const prefersReducedMotion = usePrefersReducedMotion()
+
+  const photoCount = photos.length
+  const activePhoto = photos[activeIndex]
+  const activeUrl = resolvedUrls[activePhoto.photoId] ?? null
+  const activeError = Boolean(photoErrors[activePhoto.photoId])
+
+  const loadPhoto = useCallback((index: number, retry = false) => {
+    const photo = photos[index]
+    if (!photo) return
+    if (!retry && (resolvedUrls[photo.photoId] || downloadsRef.current.has(photo.photoId))) return
+    downloadsRef.current.get(photo.photoId)?.abort()
+    const controller = new AbortController()
+    downloadsRef.current.set(photo.photoId, controller)
+    setPhotoErrors(current => ({ ...current, [photo.photoId]: false }))
+    void fetchPhotoDownload(photo.photoId, controller.signal)
+      .then(result => {
+        if (!controller.signal.aborted) {
+          setResolvedUrls(current => ({ ...current, [photo.photoId]: result.downloadUrl }))
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setPhotoErrors(current => ({ ...current, [photo.photoId]: true }))
+        }
+      })
+      .finally(() => {
+        if (downloadsRef.current.get(photo.photoId) === controller) {
+          downloadsRef.current.delete(photo.photoId)
+        }
+      })
+  }, [photos, resolvedUrls])
+
+  useEffect(() => {
+    const adjacentIndexes = new Set([
+      activeIndex,
+      (activeIndex - 1 + photoCount) % photoCount,
+      (activeIndex + 1) % photoCount,
+    ])
+    adjacentIndexes.forEach(index => loadPhoto(index))
+  }, [activeIndex, loadPhoto, photoCount])
+
+  useEffect(() => () => {
+    downloadsRef.current.forEach(controller => controller.abort())
+    downloadsRef.current.clear()
+  }, [])
+
+  const move = useCallback((nextDirection: 1 | -1) => {
+    setDirection(nextDirection)
+    setActiveIndex((current) =>
+      (current + nextDirection + photoCount) % photoCount
+    )
+    setZoom(1)
+  }, [photoCount])
+
+  const openViewer = () => {
+    if (!activeUrl || activeError) return
+    viewerHistoryRef.current = true
+    window.history.pushState({ ...window.history.state, chapchuPhotoViewer: true }, '', window.location.href)
+    setViewerOpen(true)
+  }
+
+  const closeViewer = useCallback(() => {
+    if (viewerHistoryRef.current) {
+      viewerHistoryRef.current = false
+      setViewerOpen(false)
+      window.history.back()
+      return
+    }
+    setViewerOpen(false)
+  }, [])
+
+  useEffect(() => {
+    if (!viewerOpen) return
+    const handlePopState = () => {
+      viewerHistoryRef.current = false
+      setViewerOpen(false)
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [viewerOpen])
+
+  const photoMotion = prefersReducedMotion
+    ? {
+        initial: false as const,
+        animate: { opacity: 1, x: 0, scale: 1 },
+        exit: { opacity: 1, x: 0, scale: 1 },
+        transition: { duration: 0 },
+      }
+    : {
+        initial: { opacity: 0, x: direction * 44, scale: 0.985 },
+        animate: { opacity: 1, x: 0, scale: 1 },
+        exit: { opacity: 0, x: direction * -44, scale: 0.985 },
+        transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] as const },
+      }
+
+  return (
+    <div
+      className="relative outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sage-green/50"
+      role="region"
+      aria-label={`게시글 사진 ${photoCount}장`}
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === 'ArrowLeft' && photoCount > 1) {
+          event.preventDefault()
+          move(-1)
+        }
+        if (event.key === 'ArrowRight' && photoCount > 1) {
+          event.preventDefault()
+          move(1)
+        }
+      }}
+    >
+      <div className="relative h-52 overflow-hidden bg-sage-green-light">
+        <AnimatePresence initial={false} mode="popLayout" custom={direction}>
+          <motion.div
+            key={activePhoto.photoId}
+            className="absolute inset-0"
+            drag={photoCount > 1 ? 'x' : false}
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.18}
+            onDragStart={() => { draggedRef.current = true }}
+            onDragEnd={(_event, info) => {
+              if (Math.abs(info.offset.x) > 48 || Math.abs(info.velocity.x) > 450) {
+                move(info.offset.x < 0 ? 1 : -1)
+              }
+              window.setTimeout(() => { draggedRef.current = false }, 0)
+            }}
+            {...photoMotion}
+          >
+            <GalleryPhoto
+              url={activeUrl}
+              failed={activeError}
+              title={`${post.title} 사진 ${activeIndex + 1}`}
+              onOpen={() => { if (!draggedRef.current) openViewer() }}
+              onRetry={() => loadPhoto(activeIndex, true)}
+              onImageError={() => setPhotoErrors(current => ({ ...current, [activePhoto.photoId]: true }))}
+            />
+          </motion.div>
+        </AnimatePresence>
+        {photoCount > 1 && <>
+          <GalleryArrow label="이전 사진" direction="left" onClick={() => move(-1)} />
+          <GalleryArrow label="다음 사진" direction="right" onClick={() => move(1)} />
+        </>}
+        {photoCount > 1 && <span
+          className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/40 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-white backdrop-blur-sm"
+          aria-hidden="true"
+        >
+          {activeIndex + 1} / {photoCount}
+        </span>}
+        <span className="sr-only" aria-live="polite" aria-atomic="true">총 {photoCount}장 중 {activeIndex + 1}번째 사진</span>
+      </div>
+      <PhotoViewerDialog
+        open={viewerOpen}
+        title={post.title}
+        url={activeUrl}
+        activeIndex={activeIndex}
+        photoCount={photoCount}
+        zoom={zoom}
+        reducedMotion={prefersReducedMotion}
+        onOpenChange={open => { if (!open) closeViewer() }}
+        onMove={move}
+        onZoom={setZoom}
+        onImageError={() => {
+          setPhotoErrors(current => ({ ...current, [activePhoto.photoId]: true }))
+          closeViewer()
+        }}
+      />
+    </div>
+  )
+}
+
+function GalleryArrow({ label, direction, onClick }: { label: string; direction: 'left' | 'right'; onClick: () => void }) {
+  const Icon = direction === 'left' ? ChevronLeft : ChevronRight
+  return <button
+    type="button"
+    aria-label={label}
+    onClick={onClick}
+    className={`absolute top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/25 text-white opacity-45 shadow-sm backdrop-blur-sm transition-all duration-200 hover:bg-black/45 hover:opacity-100 focus-visible:bg-black/45 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 active:scale-95 active:opacity-100 ${direction === 'left' ? 'left-2' : 'right-2'}`}
+  >
+    <Icon className="h-5 w-5" aria-hidden="true" />
+  </button>
+}
+
+function GalleryPhoto({ url, failed, title, onOpen, onRetry, onImageError }: {
+  url: string | null
+  failed: boolean
+  title: string
+  onOpen: () => void
+  onRetry: () => void
+  onImageError: () => void
+}) {
+  if (failed) {
+    return <div className="flex h-full flex-col items-center justify-center gap-3 bg-sage-green-light text-sage-green" role="alert">
+      <PawPrint className="h-9 w-9" aria-hidden="true" />
+      <span className="text-[12px]">사진을 불러오지 못했어요</span>
+      <Button type="button" variant="outline" size="sm" onClick={onRetry}>사진 다시 불러오기</Button>
+    </div>
+  }
+  if (!url) {
+    return <div className="flex h-full items-center justify-center bg-sage-green-light" role="status" aria-label="사진 불러오는 중">
+      <LoaderCircle className="h-7 w-7 animate-spin text-sage-green motion-reduce:animate-none" aria-hidden="true" />
+    </div>
+  }
+  return <button type="button" className="relative h-full w-full cursor-zoom-in bg-[#35312d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/80" aria-label={`${title} 전체 화면 보기`} onClick={onOpen}>
+    <Image src={url} alt="" aria-hidden="true" fill unoptimized sizes="430px" referrerPolicy="no-referrer" className="scale-110 object-cover blur-2xl brightness-[0.62] saturate-75" />
+    <span className="absolute inset-0 bg-deep-brown/15" aria-hidden="true" />
+    <Image src={url} alt={title} fill unoptimized sizes="430px" referrerPolicy="no-referrer" className="z-10 object-contain" onError={onImageError} />
+  </button>
+}
+
+function PhotoViewerDialog({ open, title, url, activeIndex, photoCount, zoom, reducedMotion, onOpenChange, onMove, onZoom, onImageError }: {
+  open: boolean
+  title: string
+  url: string | null
+  activeIndex: number
+  photoCount: number
+  zoom: number
+  reducedMotion: boolean
+  onOpenChange: (open: boolean) => void
+  onMove: (direction: 1 | -1) => void
+  onZoom: (zoom: number) => void
+  onImageError: () => void
+}) {
+  return <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <Dialog.Portal>
+      <Dialog.Backdrop className="fixed inset-0 z-[90] bg-black/90 backdrop-blur-sm" />
+      <Dialog.Popup
+        className="fixed inset-0 z-[91] flex touch-none flex-col bg-[#151413] text-white outline-none"
+        onKeyDown={event => {
+          if (event.key === 'ArrowLeft' && photoCount > 1) { event.preventDefault(); event.stopPropagation(); onMove(-1) }
+          if (event.key === 'ArrowRight' && photoCount > 1) { event.preventDefault(); event.stopPropagation(); onMove(1) }
+        }}
+      >
+        <Dialog.Title className="sr-only">{title} 사진 전체 화면</Dialog.Title>
+        <Dialog.Description className="sr-only" aria-live="polite" aria-atomic="true">총 {photoCount}장 중 {activeIndex + 1}번째 사진</Dialog.Description>
+        <div className="relative z-20 flex h-16 shrink-0 items-center justify-between px-3">
+          <span className="rounded-full bg-black/45 px-3 py-1.5 text-[12px] font-semibold tabular-nums">{activeIndex + 1} / {photoCount}</span>
+          <Dialog.Close className="flex h-11 w-11 items-center justify-center rounded-full bg-black/45 transition-colors hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white" aria-label="전체 화면 닫기">
+            <X className="h-6 w-6" aria-hidden="true" />
+          </Dialog.Close>
+        </div>
+        <div className="relative min-h-0 flex-1 overflow-hidden bg-[#262320]">
+          {url && <motion.div
+            key={`${activeIndex}:${url}`}
+            className="absolute inset-0"
+            initial={reducedMotion ? false : { opacity: 0.6, scale: 0.98 }}
+            animate={{ opacity: 1, scale: zoom }}
+            transition={{ duration: reducedMotion ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
+            drag={zoom > 1}
+            dragConstraints={{ left: -240, right: 240, top: -240, bottom: 240 }}
+            dragElastic={0.08}
+          >
+            <Image src={url} alt={`${title} 사진 ${activeIndex + 1}`} fill unoptimized sizes="100vw" referrerPolicy="no-referrer" className="select-none object-contain" onError={onImageError} priority />
+          </motion.div>}
+          {photoCount > 1 && <>
+            <GalleryArrow label="전체 화면 이전 사진" direction="left" onClick={() => onMove(-1)} />
+            <GalleryArrow label="전체 화면 다음 사진" direction="right" onClick={() => onMove(1)} />
+          </>}
+        </div>
+        <div className="z-20 flex h-20 shrink-0 items-center justify-center gap-2 px-4">
+          <button type="button" className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-35" aria-label="사진 축소" disabled={zoom <= 1} onClick={() => onZoom(Math.max(1, Number((zoom - 0.5).toFixed(1))))}><ZoomOut className="h-5 w-5" aria-hidden="true" /></button>
+          <span className="w-14 text-center text-[12px] tabular-nums" aria-live="polite">{Math.round(zoom * 100)}%</span>
+          <button type="button" className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-35" aria-label="사진 확대" disabled={zoom >= 3} onClick={() => onZoom(Math.min(3, Number((zoom + 0.5).toFixed(1))))}><ZoomIn className="h-5 w-5" aria-hidden="true" /></button>
+          <button type="button" className="ml-2 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-35" aria-label="확대 초기화" disabled={zoom === 1} onClick={() => onZoom(1)}><RotateCcw className="h-5 w-5" aria-hidden="true" /></button>
+        </div>
+      </Dialog.Popup>
+    </Dialog.Portal>
+  </Dialog.Root>
+}
+
+function Photo({ url, photoId, title, className, imageClassName = 'object-cover', temporaryFallback = false }: CommunityPhotoProps) {
   const [resolvedUrl, setResolvedUrl] = useState(url)
   const [failed, setFailed] = useState(false)
   const [fallbackFailed, setFallbackFailed] = useState(false)
@@ -34,7 +345,7 @@ function Photo({ url, photoId, title, className, temporaryFallback = false }: Co
   return (
     <div className={`relative overflow-hidden bg-sage-green-light ${className}`}>
       {resolvedUrl && !failed ? (
-        <Image src={resolvedUrl} alt={title} fill unoptimized sizes="430px" referrerPolicy="no-referrer" className="object-cover" onError={() => setFailed(true)} />
+        <Image src={resolvedUrl} alt={title} fill unoptimized sizes="430px" referrerPolicy="no-referrer" className={imageClassName} onError={() => setFailed(true)} />
       ) : temporaryFallback && !fallbackFailed ? (
         <>
           <Image src="/images/post-cover.png" alt="임시 사진: 반려견과 함께하는 해변 산책" fill sizes="430px" className="object-cover" onError={() => setFallbackFailed(true)} />

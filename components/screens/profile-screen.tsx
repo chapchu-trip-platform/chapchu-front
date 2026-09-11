@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   Archive,
   Bookmark,
+  Camera,
   Check,
   Edit3,
   FileText,
@@ -19,6 +20,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import TopBar from '@/components/top-bar'
+import { PhotoImage } from '@/components/common/photo-image'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
@@ -32,6 +34,7 @@ import type {
   PetOptions,
   ProfileLoadStatus,
   ProfilePet,
+  ProfilePhoto,
   ProfileSummary,
 } from '@/features/profile/types/profile'
 import type { PetSize } from '@/features/auth/types/signup'
@@ -39,6 +42,7 @@ import type { SettingsTab } from '@/components/screens/profile-settings-screens'
 
 interface ProfileScreenProps {
   summary: ProfileSummary | null
+  profilePhoto: ProfilePhoto | null
   pets: ProfilePet[]
   status: ProfileLoadStatus
   errorMessage: string | null
@@ -49,6 +53,7 @@ interface ProfileScreenProps {
   onCreatePet: (input: PetMutationInput) => Promise<ProfilePet>
   onUpdatePet: (petId: string, input: PetMutationInput) => Promise<ProfilePet>
   onDeletePet: (petId: string) => Promise<void>
+  onUpdateProfilePhoto: (file: File | null) => Promise<ProfilePhoto>
   onWithdraw: () => Promise<void>
 }
 
@@ -676,8 +681,98 @@ function MemoryAlbumSubScreen({ onBack }: { onBack: () => void }) {
   )
 }
 
+function ProfilePhotoEditor({
+  currentPhoto,
+  onClose,
+  onSave,
+}: {
+  currentPhoto: ProfilePhoto | null
+  onClose: () => void
+  onSave: (file: File | null) => Promise<ProfilePhoto>
+}) {
+  const [isSaving, setIsSaving] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useModalFocus(onClose, isSaving)
+  const prefersReducedMotion = useReducedMotion()
+
+  const save = async (file: File | null) => {
+    if (isSaving) return
+    if (file && !file.type.startsWith('image/')) {
+      setErrorMessage('이미지 파일만 선택할 수 있어요.')
+      return
+    }
+    setIsSaving(true)
+    setErrorMessage(null)
+    try {
+      await onSave(file)
+      onClose()
+    } catch (error) {
+      setErrorMessage(getProfileErrorMessage(error))
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <m.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
+      className="absolute inset-0 z-[70] flex items-end justify-center"
+    >
+      <m.div className="absolute inset-0 bg-black/40" aria-hidden="true" onClick={() => !isSaving && onClose()} />
+      <m.div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="profile-photo-editor-title"
+        tabIndex={-1}
+        initial={prefersReducedMotion ? false : { y: '100%' }}
+        animate={{ y: 0 }}
+        exit={prefersReducedMotion ? { opacity: 0 } : { y: '100%' }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.34, ease: PROFILE_MOTION_EASE }}
+        className="relative w-full rounded-t-[24px] bg-card-surface p-5 pb-10"
+      >
+        <h3 id="profile-photo-editor-title" className="text-[17px] font-bold text-deep-brown">프로필 사진 수정</h3>
+        <p className="mt-1 text-[12px] text-warm-gray">새 사진을 선택하거나 기본 프로필로 돌아갈 수 있어요.</p>
+        <PhotoImage
+          src={currentPhoto?.photoId ? currentPhoto.downloadUrl : '/images/default-profile.svg'}
+          alt="현재 프로필 사진"
+          className="mx-auto mt-5 h-24 w-24 rounded-full border-2 border-sage-green/30"
+          fallbackSrc="/images/default-profile.svg"
+          fallbackAlt="기본 프로필"
+          sizes="96px"
+        />
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          className="sr-only"
+          aria-label="새 프로필 사진 선택"
+          disabled={isSaving}
+          onChange={(event) => {
+            const file = event.target.files?.[0] ?? null
+            event.target.value = ''
+            if (file) void save(file)
+          }}
+        />
+        {errorMessage && <p className="mt-4 text-[12px] text-danger" role="alert">{errorMessage}</p>}
+        <div className="mt-5 space-y-2">
+          <Button fullWidth disabled={isSaving} onClick={() => inputRef.current?.click()}>
+            <Camera className="h-4 w-4" />{isSaving ? '저장 중…' : '사진 선택'}
+          </Button>
+          <Button fullWidth variant="outline" disabled={isSaving || !currentPhoto?.photoId} onClick={() => void save(null)}>기본 프로필로 변경</Button>
+          <Button fullWidth variant="ghost" disabled={isSaving} onClick={onClose}>닫기</Button>
+        </div>
+      </m.div>
+    </m.div>
+  )
+}
+
 export default function ProfileScreen({
   summary,
+  profilePhoto,
   pets,
   status,
   errorMessage,
@@ -688,10 +783,12 @@ export default function ProfileScreen({
   onCreatePet,
   onUpdatePet,
   onDeletePet,
+  onUpdateProfilePhoto,
   onWithdraw,
 }: ProfileScreenProps) {
   const [subScreen, setSubScreen] = useState<SubScreen>(null)
   const [showWithdraw, setShowWithdraw] = useState(false)
+  const [showProfilePhotoEditor, setShowProfilePhotoEditor] = useState(false)
   const prefersReducedMotion = useReducedMotion()
   const visiblePets = pets.slice(0, 3)
   const totalPetCount = pets.length
@@ -760,9 +857,28 @@ export default function ProfileScreen({
           className="mx-4 mt-4 rounded-card border border-border bg-card-surface p-4 shadow-sm"
         >
           <div className="flex items-center gap-4">
-            <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-full border-2 border-sage-green/30">
-              <Image src="/images/dog-hero.png" alt="프로필" fill className="object-cover" loading="eager" />
-            </div>
+            <button
+              type="button"
+              aria-label="프로필 사진 수정"
+              disabled={status !== 'success'}
+              onClick={() => setShowProfilePhotoEditor(true)}
+              className="relative h-16 w-16 flex-shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-green focus-visible:ring-offset-2 disabled:cursor-default"
+            >
+              <PhotoImage
+                src={profilePhoto?.photoId ? profilePhoto.downloadUrl : '/images/default-profile.svg'}
+                alt="프로필"
+                className="h-16 w-16 rounded-full border-2 border-sage-green/30"
+                fallbackSrc="/images/default-profile.svg"
+                fallbackAlt="기본 프로필"
+                sizes="64px"
+                priority
+              />
+              {status === 'success' && (
+                <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full border-2 border-card-surface bg-sage-green text-white">
+                  <Camera className="h-3 w-3" aria-hidden="true" />
+                </span>
+              )}
+            </button>
             <div className="relative min-h-24 flex-1">
               <AnimatePresence initial={false}>
                 {status === 'loading' ? (
@@ -919,6 +1035,13 @@ export default function ProfileScreen({
         </m.div>
       </div>
       <AnimatePresence initial={false}>
+        {showProfilePhotoEditor && (
+          <ProfilePhotoEditor
+            currentPhoto={profilePhoto}
+            onClose={() => setShowProfilePhotoEditor(false)}
+            onSave={onUpdateProfilePhoto}
+          />
+        )}
         {showWithdraw && <WithdrawModal onClose={() => setShowWithdraw(false)} onConfirm={onWithdraw} />}
       </AnimatePresence>
     </ProfilePane>

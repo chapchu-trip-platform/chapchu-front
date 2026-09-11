@@ -583,3 +583,20 @@ order. Temporary probe files are absent from the final build and working changes
   backend still requires server-side idempotency to guarantee de-duplication.
 - Development demo sessions may draft and preview but cannot call the authenticated
   publication API.
+
+### Full-screen free-board editing (2026-09-10)
+
+- An owned post exposes a direct edit action in the detail header. Report and delete
+  remain in the existing overflow workflow so the detail content order is unchanged.
+- The edit route reuses the free-board writing layout and loads its initial title,
+  content and photos from the post-detail request. Before rendering the form, it also
+  confirms that the post appears in the authenticated user's post collection, including
+  when the edit URL is opened directly. It keeps edit state separate from the memory-only
+  new-post draft.
+- Existing photos are rendered as read-only data. The edit screen has no photo input,
+  delete, reorder or representative-photo event while the backend photo-edit contract is
+  unavailable.
+- The update request contains only `{ title, content }`. It never includes the displayed
+  photo IDs, keys or URLs, so omitted photos must remain attached under PATCH semantics.
+- Failed updates retain the edited text for an explicit retry. Successful updates return
+  to the same post detail, and the in-flight request is aborted if the screen unmounts.

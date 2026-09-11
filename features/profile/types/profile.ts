@@ -8,6 +8,11 @@ export interface ProfileSummary {
   petCount: number
 }
 
+export interface ProfilePhoto {
+  photoId: string | null
+  downloadUrl: string | null
+}
+
 export interface ProfilePet {
   id: string
   petName: string

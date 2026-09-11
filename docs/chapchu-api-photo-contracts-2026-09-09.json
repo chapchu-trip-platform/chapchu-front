@@ -1,0 +1,77 @@
+{
+  "source": "https://api.chapchu.site/docs/index.html",
+  "cachedAt": "2026-09-09T15:36:05+09:00",
+  "scope": [
+    "nearby places",
+    "community post photos",
+    "photo upload and download",
+    "profile photo",
+    "owned stamps"
+  ],
+  "contracts": {
+    "nearbyPlaces": {
+      "method": "GET",
+      "path": "/places/nearby",
+      "query": ["lat", "lng", "radiusMeters"],
+      "configuredRadiusMeters": 1500,
+      "response": "array of place summaries including externalPlaceId, placeName, placeImageUrl, address, coordinates, rating, reviewNum, petPolicy and wishlisted"
+    },
+    "photoUploadUrl": {
+      "method": "POST",
+      "path": "/photos/upload-url",
+      "request": "{ files: [{ type: PROFILE | POST | REVIEW, fileName }] }",
+      "response": "[{ uploadUrl, photoKey, fileName }]",
+      "notes": "uploadUrl is a presigned S3 PUT URL valid for 10 minutes; response order matches request order"
+    },
+    "photoSave": {
+      "method": "POST",
+      "path": "/photos",
+      "request": "{ photos: [{ photoKey, takenAt?, coursePlaceId? }] }",
+      "response": "[{ id, coursePlaceId, photoKey, takenAt, createdAt }]"
+    },
+    "photoDownload": {
+      "method": "GET",
+      "path": "/photos/{photoId}",
+      "response": "{ id, downloadUrl, takenAt }",
+      "notes": "owner-only; downloadUrl is valid for 10 minutes"
+    },
+    "postList": {
+      "method": "GET",
+      "path": "/posts",
+      "responsePhoto": "posts[].thumbnail is null or { photoId, photoKey }; resolve photoId through photoDownload"
+    },
+    "postDetail": {
+      "method": "GET",
+      "path": "/posts/{postId}",
+      "responsePhoto": "photoId/photoUrl are nullable representative fields; photos[] contains { photoId, photoKey }; resolve each photoId through photoDownload"
+    },
+    "postCreate": {
+      "method": "POST",
+      "path": "/posts",
+      "requestPhoto": "photos?: [{ photoKey, takenAt? }]",
+      "maximumPhotos": 10,
+      "response": "201 with no response body",
+      "notes": "POST photos do not use POST /photos; the post endpoint creates and associates them from uploaded photoKey values"
+    },
+    "currentUser": {
+      "method": "GET",
+      "path": "/users/me",
+      "responsePhoto": "profilePhoto is always present; photoId is null for default and downloadUrl is a 10-minute presigned URL"
+    },
+    "profilePhotoUpdate": {
+      "method": "PATCH",
+      "path": "/users/me/photo",
+      "request": "{ photoId: string | null }",
+      "notes": "PROFILE upload -> S3 PUT -> POST /photos -> PATCH this endpoint; null restores the default"
+    }
+  },
+  "missingContracts": [
+    "No owned-stamp list or stamp-image endpoint is documented.",
+    "The documented owner-only GET /photos/{photoId} authorization conflicts with post list/detail guidance that asks clients to resolve other authors' post photo IDs through that endpoint.",
+    "Post list summaries do not include a total photo count, so an accurate multi-photo +N badge cannot be rendered.",
+    "Allowed upload MIME types and maximum file size are not documented.",
+    "Required or signed Content-Type behavior for the S3 PUT is not documented.",
+    "Cleanup behavior for uploaded photo keys when a later request fails is not documented.",
+    "Photo deletion and post-photo edit contracts are not documented."
+  ]
+}
