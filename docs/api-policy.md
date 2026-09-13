@@ -305,6 +305,10 @@ My Page uses authenticated API calls for the summary, pets, written posts, bookm
 wishlist, reviews, nickname changes, and account withdrawal. Breed, activity, and nickname
 availability lookups remain public according to the published onboarding contract.
 
+Written-post cards preserve the documented representative `photoId`. When `photoUrl` is
+null, the card resolves that owned photo through the photo read API and limits a failed or
+expired signed URL to the image fallback without failing the written-post collection.
+
 The profile API adapter validates response shapes before updating UI state. My Page summary
 and pets load in parallel, while collection sub-screens load on demand. Wishlist entries are
 returned as place IDs, so the frontend preserves those authoritative IDs for removal and

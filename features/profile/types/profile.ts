@@ -38,6 +38,7 @@ export interface PetMutationInput {
 
 export interface ProfilePost {
   id: string
+  photoId: string | null
   title: string
   content: string
   viewCount: number

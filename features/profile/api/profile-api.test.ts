@@ -61,7 +61,7 @@ const petResponse = {
 const postResponse = {
   id: 'post-id',
   petId: 'pet-id',
-  photoId: null,
+  photoId: 'post-photo-id',
   courseId: null,
   title: ' 여행 기록 ',
   content: ' 즐거운 여행 ',
@@ -354,7 +354,9 @@ describe('Profile API', () => {
       return response(config, [postResponse])
     }
 
-    await expect(fetchMyPosts()).resolves.toHaveLength(1)
+    await expect(fetchMyPosts()).resolves.toEqual([
+      expect.objectContaining({ id: 'post-id', photoId: 'post-photo-id' }),
+    ])
     await expect(fetchBookmarks()).resolves.toHaveLength(1)
     await expect(fetchMyReviews()).resolves.toEqual([
       expect.objectContaining({ id: 'review-id', weather: 'SUNNY' }),

@@ -172,6 +172,7 @@ function parsePost(value: unknown): ProfilePost {
   if (
     !isObject(value) ||
     !isIdentifier(value.id, 100) ||
+    !(value.photoId === null || isIdentifier(value.photoId, 200)) ||
     !isString(value.title, 500) ||
     value.title.trim().length === 0 ||
     !isString(value.content) ||
@@ -188,13 +189,14 @@ function parsePost(value: unknown): ProfilePost {
 
   return {
     id: value.id,
+    photoId: value.photoId,
     title: value.title.trim(),
     content: value.content.trim(),
     viewCount: value.viewCount,
     recommendationCount: value.recommendationCount,
     commentCount: value.commentCount,
     nickname: value.nickname.trim(),
-    photoUrl: value.photoUrl,
+    photoUrl: safePhotoUrl(value.photoUrl),
     createdAt: value.createdAt,
   }
 }

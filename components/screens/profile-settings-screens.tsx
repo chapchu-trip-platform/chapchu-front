@@ -1,11 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import { Bookmark, Heart, Star } from 'lucide-react'
 import { AnimatePresence, m, useReducedMotion } from 'motion/react'
 import TopBar from '@/components/top-bar'
+import { PhotoImage } from '@/components/common/photo-image'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
@@ -232,9 +232,14 @@ export default function ProfileSettings({
                 <AnimatePresence initial={false}>
                 {posts.map((post) => (
                   <m.article layout={!prefersReducedMotion} key={post.id} initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -18 }} transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: PROFILE_MOTION_EASE }} className="flex gap-3 rounded-card border border-border bg-card-surface p-3">
-                    <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-card">
-                      <Image src="/images/place-beach.png" alt="" fill className="object-cover" />
-                    </div>
+                    <PhotoImage
+                      src={post.photoUrl}
+                      photoId={post.photoId}
+                      alt={`${post.title} 대표 사진`}
+                      className="h-20 w-20 flex-shrink-0 rounded-card"
+                      sizes="80px"
+                      emptyLabel="사진 없음"
+                    />
                     <div className="min-w-0 flex-1">
                       <Link href={`/community?post=${encodeURIComponent(post.id)}`} className="line-clamp-1 rounded-sm text-[13px] font-semibold text-deep-brown focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-green">{post.title}</Link>
                       <p className="mt-1 line-clamp-2 text-[12px] text-warm-gray">{post.content}</p>
