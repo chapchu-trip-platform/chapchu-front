@@ -1,18 +1,16 @@
 'use client'
 
 import Image from 'next/image'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
-import { ChevronLeft, ChevronRight, LoaderCircle, PawPrint, RotateCcw, Route, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { ChevronLeft, ChevronRight, PawPrint, RotateCcw, Route, X, ZoomIn, ZoomOut } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Button } from '@/components/ui/button'
-import { fetchPhotoDownload } from '@/features/community/api/community-api'
 import { usePrefersReducedMotion } from '@/features/community/hooks/use-prefers-reduced-motion'
 import type { Post, Review } from '@/features/community/types/community'
 
 interface CommunityPhotoProps {
   url: string | null
-  photoId?: string | null
   title: string
   className: string
   imageClassName?: string
@@ -20,91 +18,42 @@ interface CommunityPhotoProps {
 }
 
 export function CommunityPhoto(props: CommunityPhotoProps) {
-  return <Photo key={`${props.url ?? ''}:${props.photoId ?? ''}`} {...props} />
+  return <Photo key={props.url ?? ''} {...props} />
 }
 
-export function CommunityPhotoGallery({ post }: { post: Post }) {
+export function CommunityPhotoGallery({ post, onReload }: { post: Post; onReload?: () => void }) {
   if (post.photos.length === 0) {
     return (
       <CommunityPhoto
         url={post.photoUrl}
-        photoId={post.photoId}
         title={post.title}
         className="h-52"
         temporaryFallback
       />
     )
   }
-  return <PostPhotoGallery key={post.id} post={post} />
+  return <PostPhotoGallery
+    key={`${post.id}:${post.photos.map(photo => `${photo.photoId}:${photo.downloadUrl ?? ''}`).join('|')}`}
+    post={post}
+    onReload={onReload}
+  />
 }
 
-function PostPhotoGallery({ post }: { post: Post }) {
-  const photos = useMemo(() => {
-    if (!post.photoId) return post.photos
-    return [...post.photos].sort((first, second) => {
-      if (first.photoId === post.photoId) return -1
-      if (second.photoId === post.photoId) return 1
-      return 0
-    })
-  }, [post.photoId, post.photos])
+function PostPhotoGallery({ post, onReload }: { post: Post; onReload?: () => void }) {
+  const photos = post.photos
   const [activeIndex, setActiveIndex] = useState(0)
   const [direction, setDirection] = useState<1 | -1>(1)
   const [viewerOpen, setViewerOpen] = useState(false)
   const [zoom, setZoom] = useState(1)
-  const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>(() => {
-    if (!post.photoId || !post.photoUrl) return {}
-    return { [post.photoId]: post.photoUrl }
-  })
   const [photoErrors, setPhotoErrors] = useState<Record<string, boolean>>({})
-  const downloadsRef = useRef(new Map<string, AbortController>())
   const viewerHistoryRef = useRef(false)
   const draggedRef = useRef(false)
   const prefersReducedMotion = usePrefersReducedMotion()
 
   const photoCount = photos.length
   const activePhoto = photos[activeIndex]
-  const activeUrl = resolvedUrls[activePhoto.photoId] ?? null
-  const activeError = Boolean(photoErrors[activePhoto.photoId])
-
-  const loadPhoto = useCallback((index: number, retry = false) => {
-    const photo = photos[index]
-    if (!photo) return
-    if (!retry && (resolvedUrls[photo.photoId] || downloadsRef.current.has(photo.photoId))) return
-    downloadsRef.current.get(photo.photoId)?.abort()
-    const controller = new AbortController()
-    downloadsRef.current.set(photo.photoId, controller)
-    setPhotoErrors(current => ({ ...current, [photo.photoId]: false }))
-    void fetchPhotoDownload(photo.photoId, controller.signal)
-      .then(result => {
-        if (!controller.signal.aborted) {
-          setResolvedUrls(current => ({ ...current, [photo.photoId]: result.downloadUrl }))
-        }
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setPhotoErrors(current => ({ ...current, [photo.photoId]: true }))
-        }
-      })
-      .finally(() => {
-        if (downloadsRef.current.get(photo.photoId) === controller) {
-          downloadsRef.current.delete(photo.photoId)
-        }
-      })
-  }, [photos, resolvedUrls])
-
-  useEffect(() => {
-    const adjacentIndexes = new Set([
-      activeIndex,
-      (activeIndex - 1 + photoCount) % photoCount,
-      (activeIndex + 1) % photoCount,
-    ])
-    adjacentIndexes.forEach(index => loadPhoto(index))
-  }, [activeIndex, loadPhoto, photoCount])
-
-  useEffect(() => () => {
-    downloadsRef.current.forEach(controller => controller.abort())
-    downloadsRef.current.clear()
-  }, [])
+  const activeUrl = activePhoto.downloadUrl ?? (activePhoto.photoId === post.photoId ? post.photoUrl : null)
+  const activeError = !activeUrl || Boolean(photoErrors[activePhoto.photoId])
 
   const move = useCallback((nextDirection: 1 | -1) => {
     setDirection(nextDirection)
@@ -194,7 +143,10 @@ function PostPhotoGallery({ post }: { post: Post }) {
               failed={activeError}
               title={`${post.title} 사진 ${activeIndex + 1}`}
               onOpen={() => { if (!draggedRef.current) openViewer() }}
-              onRetry={() => loadPhoto(activeIndex, true)}
+              onRetry={onReload ? () => {
+                setPhotoErrors(current => ({ ...current, [activePhoto.photoId]: false }))
+                onReload()
+              } : undefined}
               onImageError={() => setPhotoErrors(current => ({ ...current, [activePhoto.photoId]: true }))}
             />
           </motion.div>
@@ -248,21 +200,17 @@ function GalleryPhoto({ url, failed, title, onOpen, onRetry, onImageError }: {
   failed: boolean
   title: string
   onOpen: () => void
-  onRetry: () => void
+  onRetry?: () => void
   onImageError: () => void
 }) {
   if (failed) {
     return <div className="flex h-full flex-col items-center justify-center gap-3 bg-sage-green-light text-sage-green" role="alert">
       <PawPrint className="h-9 w-9" aria-hidden="true" />
       <span className="text-[12px]">사진을 불러오지 못했어요</span>
-      <Button type="button" variant="outline" size="sm" onClick={onRetry}>사진 다시 불러오기</Button>
+      {onRetry && <Button type="button" variant="outline" size="sm" onClick={onRetry}>사진 다시 불러오기</Button>}
     </div>
   }
-  if (!url) {
-    return <div className="flex h-full items-center justify-center bg-sage-green-light" role="status" aria-label="사진 불러오는 중">
-      <LoaderCircle className="h-7 w-7 animate-spin text-sage-green motion-reduce:animate-none" aria-hidden="true" />
-    </div>
-  }
+  if (!url) return null
   return <button type="button" className="relative h-full w-full cursor-zoom-in bg-[#35312d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/80" aria-label={`${title} 전체 화면 보기`} onClick={onOpen}>
     <Image src={url} alt="" aria-hidden="true" fill unoptimized sizes="430px" referrerPolicy="no-referrer" className="scale-110 object-cover blur-2xl brightness-[0.62] saturate-75" />
     <span className="absolute inset-0 bg-deep-brown/15" aria-hidden="true" />
@@ -330,22 +278,13 @@ function PhotoViewerDialog({ open, title, url, activeIndex, photoCount, zoom, re
   </Dialog.Root>
 }
 
-function Photo({ url, photoId, title, className, imageClassName = 'object-cover', temporaryFallback = false }: CommunityPhotoProps) {
-  const [resolvedUrl, setResolvedUrl] = useState(url)
+function Photo({ url, title, className, imageClassName = 'object-cover', temporaryFallback = false }: CommunityPhotoProps) {
   const [failed, setFailed] = useState(false)
   const [fallbackFailed, setFallbackFailed] = useState(false)
-  useEffect(() => {
-    if (url || !photoId) return
-    const controller = new AbortController()
-    void fetchPhotoDownload(photoId, controller.signal)
-      .then(photo => { if (!controller.signal.aborted) setResolvedUrl(photo.downloadUrl) })
-      .catch(() => { /* Keep the visual fallback when the photo is unavailable. */ })
-    return () => controller.abort()
-  }, [photoId, url])
   return (
     <div className={`relative overflow-hidden bg-sage-green-light ${className}`}>
-      {resolvedUrl && !failed ? (
-        <Image src={resolvedUrl} alt={title} fill unoptimized sizes="430px" referrerPolicy="no-referrer" className={imageClassName} onError={() => setFailed(true)} />
+      {url && !failed ? (
+        <Image src={url} alt={title} fill unoptimized sizes="430px" referrerPolicy="no-referrer" className={imageClassName} onError={() => setFailed(true)} />
       ) : temporaryFallback && !fallbackFailed ? (
         <>
           <Image src="/images/post-cover.png" alt="임시 사진: 반려견과 함께하는 해변 산책" fill sizes="430px" className="object-cover" onError={() => setFallbackFailed(true)} />

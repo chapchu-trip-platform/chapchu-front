@@ -77,7 +77,7 @@ beforeEach(() => {
       recommendationCount: 10,
       commentCount: 3,
       createdAt: null,
-      photoId: null,
+      photoUrl: null,
     },
   ])
   vi.mocked(fetchNearbyPlaces).mockReset().mockResolvedValue([])
@@ -339,7 +339,7 @@ describe('HomeRoute data and location flow', () => {
           recommendationCount: 1,
           commentCount: 2,
           createdAt: null,
-          photoId: null,
+          photoUrl: null,
         },
       ])
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(weatherResponse()))

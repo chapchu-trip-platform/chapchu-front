@@ -55,7 +55,7 @@ export const Default: Story = {
         recommendationCount: 48,
         commentCount: 12,
         createdAt: '2026-08-26T05:00:00Z',
-        photoId: null,
+        photoUrl: null,
       },
     ],
     hotPostsStatus: 'success',

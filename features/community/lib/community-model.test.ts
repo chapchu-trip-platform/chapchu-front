@@ -52,7 +52,7 @@ describe('community contract adapters', () => {
     expect(parsePostPage({ posts: [summary], nextCursor: null })).toEqual({
       posts: [{
         id: 'summary-1', photoId: null, title: '요약 게시글', nickname: '작성자', recommendationCount: 3,
-        commentCount: 2, photoUrl: null, createdAt: '2026-09-08T12:00:00Z',
+        authorProfilePhotoUrl: null, commentCount: 2, photoUrl: null, createdAt: '2026-09-08T12:00:00Z',
       }],
       nextCursor: null,
     })
@@ -67,6 +67,29 @@ describe('community contract adapters', () => {
     expect(parsePostSummary({ ...summary, thumbnail: { photoId: 'photo-1', photoKey: 'https://untrusted.example/photo.jpg' } }).photoUrl).toBeNull()
     expect(() => parsePostSummary({ ...summary, thumbnail: { photoId: '', photoKey: null } })).toThrow()
   })
+  it('maps documented post and author URLs while rejecting unsafe author URLs locally', () => {
+    const summary = {
+      id: 'summary-1', title: '사진 글', nickname: '작성자', recommendationCount: 0, commentCount: 0,
+      authorProfilePhotoUrl: 'https://example.com/avatar.jpg',
+      thumbnail: { photoId: 'photo-1', photoKey: 'post/member/photo.jpg', downloadUrl: 'https://example.com/post.jpg' },
+      createdAt: null,
+    }
+    expect(parsePostSummary(summary)).toMatchObject({
+      authorProfilePhotoUrl: 'https://example.com/avatar.jpg',
+      photoUrl: 'https://example.com/post.jpg',
+    })
+    expect(parsePostSummary({ ...summary, authorProfilePhotoUrl: 'http://example.com/avatar.jpg' }).authorProfilePhotoUrl).toBeNull()
+    expect(parsePost({
+      ...postFixture,
+      authorProfilePhotoUrl: 'https://example.com/avatar.jpg',
+      photoId: 'photo-1',
+      photoUrl: 'https://example.com/post.jpg',
+      photos: [{ photoId: 'photo-1', photoKey: 'post/member/photo.jpg', downloadUrl: 'https://example.com/post.jpg' }],
+    })).toMatchObject({
+      authorProfilePhotoUrl: 'https://example.com/avatar.jpg',
+      photos: [{ downloadUrl: 'https://example.com/post.jpg' }],
+    })
+  })
   it('treats an incomplete deployed thumbnail as unavailable without rejecting its post', () => {
     const summary = {
       id: 'summary-1', title: '기존 글', nickname: '작성자', recommendationCount: 0, commentCount: 0,
@@ -74,11 +97,11 @@ describe('community contract adapters', () => {
     }
     expect(parsePostSummary(summary)).toMatchObject({ photoId: null, photoUrl: null })
     expect(parsePost({ ...postFixture, photoId: 'photo-1', photos: [{ photoId: 'photo-1', photoKey: null }] }).photos).toEqual([
-      { photoId: 'photo-1', photoKey: null },
+      { photoId: 'photo-1', photoKey: null, downloadUrl: null },
     ])
   })
   it('validates the documented post photo collection before mapping it', () => {
-    const photo = { photoId: 'photo-1', photoKey: 'post/member/photo.jpg' }
+    const photo = { photoId: 'photo-1', photoKey: 'post/member/photo.jpg', downloadUrl: null }
     expect(parsePost({ ...postFixture, photoId: photo.photoId, photos: [photo] }).photos).toEqual([photo])
     expect(parsePost({ ...postFixture, photos: Array.from({ length: 10 }, (_, index) => ({
       photoId: `photo-${index}`, photoKey: `post/member/${index}.jpg`,

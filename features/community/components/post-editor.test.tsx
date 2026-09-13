@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
 import { usePostDraftStore } from '@/features/community/stores/post-draft-store'
-import { createPost, fetchMyPosts, fetchPhotoDownload, fetchPost, updatePost } from '@/features/community/api/community-api'
+import { createPost, fetchMyPosts, fetchPost, updatePost } from '@/features/community/api/community-api'
 import { uploadPhotoFiles } from '@/features/photos/api/photo-api'
 import { postFixture } from '@/test/fixtures/community'
 import { mockRouter } from '@/test/mocks/next-navigation'
@@ -38,16 +38,11 @@ describe('free-board post editor', () => {
       photoId: 'photo-1',
       photoUrl: 'https://example.com/photo-1.jpg',
       photos: [
-        { photoId: 'photo-1', photoKey: 'post/user/one.jpg' },
-        { photoId: 'photo-2', photoKey: 'post/user/two.jpg' },
+        { photoId: 'photo-1', photoKey: 'post/user/one.jpg', downloadUrl: 'https://example.com/photo-1.jpg' },
+        { photoId: 'photo-2', photoKey: 'post/user/two.jpg', downloadUrl: 'https://example.com/photo-2.jpg' },
       ],
     }
     vi.mocked(fetchPost).mockResolvedValue(existingPost)
-    vi.mocked(fetchPhotoDownload).mockResolvedValue({
-      id: 'photo-2',
-      downloadUrl: 'https://example.com/photo-2.jpg',
-      takenAt: null,
-    })
 
     render(<PostEditor editPostId="post-1" />)
 
@@ -55,9 +50,9 @@ describe('free-board post editor', () => {
     expect(screen.getByLabelText('내용')).toHaveValue(postFixture.content)
     expect(fetchPost).toHaveBeenCalledWith('post-1', expect.any(AbortSignal))
     expect(fetchMyPosts).toHaveBeenCalledWith(expect.any(AbortSignal))
-    expect(screen.getByLabelText('기존 게시글 사진')).toHaveTextContent('2장 · 읽기 전용')
-    expect(screen.queryByLabelText('게시글 사진 선택')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /사진 삭제/ })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('게시글 사진 편집')).toHaveTextContent('2 / 10장')
+    expect(screen.getByLabelText('게시글 사진 선택')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /삭제/ })).toHaveLength(2)
     expect(screen.getByRole('button', { name: '수정 저장' })).toBeDisabled()
     expect(usePostDraftStore.getState()).toMatchObject({
       title: '새 글 초안',
@@ -110,6 +105,102 @@ describe('free-board post editor', () => {
     )
     expect(Object.keys(vi.mocked(updatePost).mock.calls[1][1])).toEqual(['title', 'content'])
     expect(uploadPhotoFiles).not.toHaveBeenCalled()
+  })
+
+  it('verifies an uncertain update before asking the user to retry', async () => {
+    const updatedPost = { ...postFixture, title: '서버에 반영된 제목' }
+    vi.mocked(fetchPost).mockResolvedValueOnce(postFixture).mockResolvedValueOnce(updatedPost)
+    vi.mocked(updatePost).mockRejectedValueOnce({ type: 'timeout' })
+    const user = userEvent.setup()
+    render(<PostEditor editPostId="post-1" />)
+    const titleInput = await screen.findByLabelText('제목')
+    await user.clear(titleInput)
+    await user.type(titleInput, updatedPost.title)
+
+    await user.click(screen.getByRole('button', { name: '수정 저장' }))
+
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/community?post=post-1&tab=free'))
+    expect(updatePost).toHaveBeenCalledOnce()
+    expect(fetchPost).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('uploads only new photos and sends the complete edited order', async () => {
+    const existingPost = {
+      ...postFixture,
+      photoId: 'photo-1',
+      photoUrl: 'https://example.com/photo-1.jpg',
+      photos: [
+        { photoId: 'photo-1', photoKey: 'post/user/one.jpg', downloadUrl: 'https://example.com/photo-1.jpg' },
+        { photoId: 'photo-2', photoKey: 'post/user/two.jpg', downloadUrl: 'https://example.com/photo-2.jpg' },
+      ],
+    }
+    vi.mocked(fetchPost).mockResolvedValue(existingPost)
+    vi.mocked(fetchMyPosts).mockResolvedValue([existingPost])
+    vi.mocked(uploadPhotoFiles).mockResolvedValue([
+      { uploadUrl: 'https://upload.example/new', photoKey: 'post/user/new.jpg', fileName: 'new.jpg' },
+    ])
+    const user = userEvent.setup()
+    const createObjectUrl = vi.fn(() => 'blob:new-preview')
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectUrl })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+    render(<PostEditor editPostId="post-1" />)
+
+    await user.click((await screen.findAllByRole('button', { name: /삭제/ }))[0])
+    const file = new File(['new'], 'new.jpg', { type: 'image/jpeg' })
+    await user.upload(screen.getByLabelText('게시글 사진 선택'), file)
+    await user.click(screen.getByRole('button', { name: 'new.jpg 왼쪽으로 이동' }))
+    await user.click(screen.getByRole('button', { name: '수정 저장' }))
+
+    await waitFor(() => expect(updatePost).toHaveBeenCalledWith('post-1', {
+      title: postFixture.title,
+      content: postFixture.content,
+      photos: [{ photoKey: 'post/user/new.jpg' }, { photoKey: 'post/user/two.jpg' }],
+    }, expect.any(AbortSignal)))
+    expect(uploadPhotoFiles).toHaveBeenCalledWith([file], 'POST', expect.any(AbortSignal), expect.any(Function))
+  })
+
+  it('sends an empty photo array when every existing photo is removed', async () => {
+    const existingPost = {
+      ...postFixture,
+      photoId: 'photo-1',
+      photoUrl: 'https://example.com/photo-1.jpg',
+      photos: [
+        { photoId: 'photo-1', photoKey: 'post/user/one.jpg', downloadUrl: 'https://example.com/photo-1.jpg' },
+        { photoId: 'photo-2', photoKey: 'post/user/two.jpg', downloadUrl: 'https://example.com/photo-2.jpg' },
+      ],
+    }
+    vi.mocked(fetchPost).mockResolvedValue(existingPost)
+    vi.mocked(fetchMyPosts).mockResolvedValue([existingPost])
+    const user = userEvent.setup()
+    render(<PostEditor editPostId="post-1" />)
+
+    await user.click((await screen.findAllByRole('button', { name: /삭제/ }))[0])
+    await user.click(screen.getByRole('button', { name: /삭제/ }))
+    await user.click(screen.getByRole('button', { name: '수정 저장' }))
+
+    await waitFor(() => expect(updatePost).toHaveBeenCalledWith('post-1', {
+      title: postFixture.title,
+      content: postFixture.content,
+      photos: [],
+    }, expect.any(AbortSignal)))
+    expect(uploadPhotoFiles).not.toHaveBeenCalled()
+  })
+
+  it('keeps photo editing locked when an existing photo has no reusable key', async () => {
+    const incompletePost = {
+      ...postFixture,
+      photoId: 'photo-1',
+      photoUrl: 'https://example.com/photo-1.jpg',
+      photos: [{ photoId: 'photo-1', photoKey: null, downloadUrl: 'https://example.com/photo-1.jpg' }],
+    }
+    vi.mocked(fetchPost).mockResolvedValue(incompletePost)
+    vi.mocked(fetchMyPosts).mockResolvedValue([incompletePost])
+    render(<PostEditor editPostId="post-1" />)
+
+    expect(await screen.findByText('기존 사진 정보를 확인할 수 없어 사진 수정이 잠겨 있어요.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '사진 선택' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: /삭제/ })).not.toBeInTheDocument()
   })
 
   it('keeps an older overlong draft but blocks preview until its title fits 100 characters', () => {

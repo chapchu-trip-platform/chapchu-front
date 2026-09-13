@@ -559,13 +559,13 @@ order. Temporary probe files are absent from the final build and working changes
 - The deployed post-list response now uses a summary DTO containing title, author,
   reaction/comment counts, `thumbnail` and creation time. The list adapter validates this
   shape independently from the full detail response.
-- A thumbnail `photoKey` is treated as an opaque storage key, not a public image URL.
-  When `thumbnail.photoId` exists, the board requests its short-lived HTTPS download URL
-  through the documented photo read API. A missing, rejected or malformed photo response
-  keeps the temporary image without failing the surrounding post list.
-- Deployed legacy seed posts currently return `photoKey: null` and their photo reads return
-  404. These incomplete thumbnails are treated as unavailable and are not requested; this
-  compatibility path can be removed after backend seed data conforms to the string contract.
+- A thumbnail `photoKey` remains opaque storage metadata, never a public image URL. The board
+  renders the response's short-lived `thumbnail.downloadUrl` directly and does not make a
+  separate photo-read request. Missing, rejected or malformed URLs keep the visual fallback
+  without failing the surrounding post list.
+- Deployed legacy seed posts may still return incomplete thumbnail metadata. These thumbnails
+  are treated as unavailable without rejecting their post; this compatibility path can be
+  removed after backend seed data conforms to the documented response contract.
 - Full post detail, edit, authored-post and bookmark responses validate the documented
   `photos[]` collection separately from the representative `photoUrl`.
 - The refreshed `POST /posts` documentation makes `petId`, `courseId` and `photos`
@@ -597,10 +597,13 @@ order. Temporary probe files are absent from the final build and working changes
   confirms that the post appears in the authenticated user's post collection, including
   when the edit URL is opened directly. It keeps edit state separate from the memory-only
   new-post draft.
-- Existing photos are rendered as read-only data. The edit screen has no photo input,
-  delete, reorder or representative-photo event while the backend photo-edit contract is
-  unavailable.
-- The update request contains only `{ title, content }`. It never includes the displayed
-  photo IDs, keys or URLs, so omitted photos must remain attached under PATCH semantics.
+- Existing and newly selected photos share one ordered edit list. Users can add, remove and
+  reorder photos, and the first item is presented as the representative photo. If any existing
+  attachment lacks a reusable `photoKey`, photo editing is locked so a text-only update cannot
+  accidentally detach it.
+- When photos are unchanged, the update request omits `photos` and preserves the attachments.
+  When they change, the client uploads only new files and sends the full ordered `photoKey`
+  list; removing every photo sends `photos: []`. Successful uploads are retained across a
+  failed PATCH retry so they are not uploaded twice.
 - Failed updates retain the edited text for an explicit retry. Successful updates return
   to the same post detail, and the in-flight request is aborted if the screen unmounts.

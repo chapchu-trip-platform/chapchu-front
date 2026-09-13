@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { ImagePlus, LockKeyhole, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ImagePlus, LockKeyhole, X } from 'lucide-react'
 import TopBar from '@/components/top-bar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,12 +20,24 @@ import { CommunityNoticeProvider, useCommunityNotice } from './community-notice-
 
 const MAX_POST_PHOTO_BYTES = 250 * 1024 * 1024
 
-type SelectedPhoto = {
+type NewSelectedPhoto = {
+  kind: 'new'
   file: File
   previewUrl: string
   uploadStatus: 'idle' | 'uploading' | 'success' | 'error'
   uploadedPhoto: SuccessfulPhotoUpload | null
 }
+
+type ExistingSelectedPhoto = {
+  kind: 'existing'
+  photoId: string
+  photoKey: string | null
+  downloadUrl: string | null
+}
+
+type SelectedPhoto = ExistingSelectedPhoto | NewSelectedPhoto
+
+const isNewPhoto = (photo: SelectedPhoto): photo is NewSelectedPhoto => photo.kind === 'new'
 
 export default function PostEditor({ editPostId, returnToPrevious = false }: { editPostId?: string; returnToPrevious?: boolean }) {
   const epoch = useAuthStore(state => state.sessionEpoch)
@@ -131,6 +143,20 @@ function recordPostCreateFailure(error: unknown, uploadedPhotoCount: number) {
   }
 }
 
+function isUncertainMutationFailure(error: unknown) {
+  if (!error || typeof error !== 'object') return false
+  const type = (error as { type?: unknown }).type
+  return type === 'network' || type === 'timeout'
+}
+
+function postMatchesUpdate(post: Post, title: string, content: string, photos?: Array<{ photoKey: string }>) {
+  if (post.title !== title || post.content !== content) return false
+  if (!photos) return true
+  return post.photos.length === photos.length && post.photos.every((photo, index) =>
+    photo.photoKey === photos[index]?.photoKey
+  )
+}
+
 function ReadOnlyPostPhotos({ post, preview = false }: { post: Post; preview?: boolean }) {
   const photos = post.photos.length > 0
     ? [
@@ -138,7 +164,7 @@ function ReadOnlyPostPhotos({ post, preview = false }: { post: Post; preview?: b
         ...post.photos.filter(photo => photo.photoId !== post.photoId),
       ]
     : post.photoId
-      ? [{ photoId: post.photoId, photoKey: null }]
+      ? [{ photoId: post.photoId, photoKey: null, downloadUrl: post.photoUrl }]
       : []
 
   if (photos.length === 0) {
@@ -153,8 +179,7 @@ function ReadOnlyPostPhotos({ post, preview = false }: { post: Post; preview?: b
   >
     {photos.map((photo, index) => <CommunityPhoto
       key={photo.photoId}
-      url={photo.photoId === post.photoId ? post.photoUrl : null}
-      photoId={photo.photoId}
+      url={photo.downloadUrl ?? (photo.photoId === post.photoId ? post.photoUrl : null)}
       title={`기존 사진 ${index + 1}`}
       className={preview
         ? 'h-52 w-full flex-shrink-0 snap-center rounded-xl'
@@ -182,7 +207,9 @@ function Editor({ initialPost, returnToPrevious = false }: { initialPost?: Post;
     createDraft.update(draft)
   }
   const [preview, setPreview] = useState(false)
-  const [selectedPhotos, setSelectedPhotos] = useState<SelectedPhoto[]>([])
+  const [selectedPhotos, setSelectedPhotos] = useState<SelectedPhoto[]>(() =>
+    initialPost?.photos.map(photo => ({ kind: 'existing', ...photo })) ?? []
+  )
   const [photoError, setPhotoError] = useState<string | null>(null)
   const [publishStage, setPublishStage] = useState<string | null>(null)
   const action = useCommunityAction()
@@ -193,132 +220,179 @@ function Editor({ initialPost, returnToPrevious = false }: { initialPost?: Post;
   const pendingRef = useRef<HTMLDivElement>(null)
   const photoInputRef = useRef<HTMLInputElement>(null)
   const selectedPhotosRef = useRef(selectedPhotos)
+  const photoEditingAvailable = !initialPost || (
+    (!initialPost.photoId || initialPost.photos.length > 0) &&
+    initialPost.photos.every(photo => Boolean(photo.photoKey))
+  )
+  const photosChanged = Boolean(initialPost) && (
+    selectedPhotos.length !== initialPost?.photos.length ||
+    selectedPhotos.some((photo, index) =>
+      photo.kind === 'new' || photo.photoId !== initialPost?.photos[index]?.photoId
+    )
+  )
   const hasDraft = Boolean(title || content || selectedPhotos.length)
   const hasChanges = editing
-    ? title !== initialPost?.title || content !== initialPost?.content
+    ? title !== initialPost?.title || content !== initialPost?.content || photosChanged
     : hasDraft
   const valid = Boolean(title.trim() && title.length <= POST_TITLE_LIMIT && content.trim() && content.length <= POST_CONTENT_LIMIT)
-  const uploadedPhotoCount = selectedPhotos.filter(({ uploadStatus }) => uploadStatus === 'success').length
-  const totalPhotoBytes = selectedPhotos.reduce((total, { file }) => total + file.size, 0)
+  const newPhotos = selectedPhotos.filter(isNewPhoto)
+  const uploadedPhotoCount = newPhotos.filter(({ uploadStatus }) => uploadStatus === 'success').length
+  const totalPhotoBytes = newPhotos.reduce((total, { file }) => total + file.size, 0)
   const returnFromEdit = () => {
     if (!initialPost) return
     if (returnToPrevious) router.back()
     else router.replace(`/community?post=${encodeURIComponent(initialPost.id)}&tab=free`)
   }
 
+  async function preparePhotoInputs(signal: AbortSignal, isCurrent: () => boolean) {
+    const uploadsByIndex = new Map<number, SuccessfulPhotoUpload>()
+    selectedPhotos.forEach((photo, index) => {
+      if (photo.kind === 'new' && photo.uploadedPhoto) uploadsByIndex.set(index, photo.uploadedPhoto)
+    })
+    const pendingPhotos = selectedPhotos
+      .map((photo, originalIndex) => ({ photo, originalIndex }))
+      .filter((entry): entry is { photo: NewSelectedPhoto; originalIndex: number } =>
+        entry.photo.kind === 'new' && entry.photo.uploadedPhoto === null
+      )
+
+    try {
+      const uploadedTickets = pendingPhotos.length > 0
+        ? await uploadPhotoFiles(
+            pendingPhotos.map(({ photo }) => photo.file),
+            'POST',
+            signal,
+            ({ photoIndex, status }) => {
+              if (!isCurrent()) return
+              const originalIndex = pendingPhotos[photoIndex]?.originalIndex
+              if (originalIndex === undefined) return
+              setSelectedPhotos(current => current.map((photo, index) =>
+                index === originalIndex && photo.kind === 'new'
+                  ? { ...photo, uploadStatus: status }
+                  : photo
+              ))
+            }
+          )
+        : []
+      uploadedTickets.forEach((ticket, index) => {
+        uploadsByIndex.set(pendingPhotos[index].originalIndex, {
+          photoKey: ticket.photoKey,
+          fileName: ticket.fileName,
+        })
+      })
+      if (uploadedTickets.length > 0 && isCurrent()) {
+        setSelectedPhotos(current => current.map((photo, index) => {
+          const uploadedPhoto = uploadsByIndex.get(index)
+          return photo.kind === 'new' && uploadedPhoto
+            ? { ...photo, uploadStatus: 'success', uploadedPhoto }
+            : photo
+        }))
+      }
+    } catch (error) {
+      const uploadFailure = error && typeof error === 'object'
+        ? error as { failedPhotoIndexes?: unknown; successfulUploads?: unknown }
+        : {}
+      const successfulUploads = Array.isArray(uploadFailure.successfulUploads)
+        ? uploadFailure.successfulUploads as Array<SuccessfulPhotoUpload | null>
+        : []
+      const failedPhotoIndexes = Array.isArray(uploadFailure.failedPhotoIndexes)
+        ? new Set(uploadFailure.failedPhotoIndexes.filter(index => typeof index === 'number'))
+        : new Set(pendingPhotos.map((_, index) => index))
+      if (isCurrent()) {
+        setSelectedPhotos(current => current.map((photo, originalIndex) => {
+          if (photo.kind !== 'new') return photo
+          const localIndex = pendingPhotos.findIndex(entry => entry.originalIndex === originalIndex)
+          if (localIndex < 0) return photo
+          const successfulUpload = successfulUploads[localIndex]
+          if (successfulUpload) {
+            return { ...photo, uploadStatus: 'success', uploadedPhoto: successfulUpload }
+          }
+          return failedPhotoIndexes.has(localIndex)
+            ? { ...photo, uploadStatus: 'error' }
+            : photo
+        }))
+      }
+      throw error
+    }
+
+    return selectedPhotos.map((photo, index) => {
+      const photoKey = photo.kind === 'existing' ? photo.photoKey : uploadsByIndex.get(index)?.photoKey
+      if (!photoKey) throw new Error('Photo upload state was incomplete.')
+      return { photoKey }
+    })
+  }
+
+  function releasePreviewUrls() {
+    selectedPhotosRef.current.filter(isNewPhoto).forEach(({ previewUrl }) => URL.revokeObjectURL(previewUrl))
+  }
+
   function publish() {
     if (!valid || !authenticated || action.busy) return
     if (editing && initialPost) {
       void action.run(
-        async ({ signal }) => {
-          setPublishStage('게시글을 수정하고 있어요…')
-          return updatePost(initialPost.id, {
-            title: title.trim(),
-            content: content.trim(),
-          }, signal)
+        async ({ signal, isCurrent }) => {
+          try {
+            setPublishStage(photosChanged && newPhotos.length > 0 ? '사진 업로드' : '게시글을 수정하고 있어요…')
+            const photos = photosChanged ? await preparePhotoInputs(signal, isCurrent) : undefined
+            if (isCurrent()) setPublishStage('게시글을 수정하고 있어요…')
+            const nextTitle = title.trim()
+            const nextContent = content.trim()
+            try {
+              return await updatePost(initialPost.id, {
+                title: nextTitle,
+                content: nextContent,
+                ...(photosChanged ? { photos } : {}),
+              }, signal)
+            } catch (error) {
+              if (isUncertainMutationFailure(error)) {
+                try {
+                  const refreshed = await fetchPost(initialPost.id, signal)
+                  if (postMatchesUpdate(refreshed, nextTitle, nextContent, photos)) return refreshed
+                } catch {
+                  // Preserve the original mutation failure when verification is unavailable.
+                }
+              }
+              throw error
+            }
+          } catch (error) {
+            if (isCurrent()) setPublishStage(null)
+            throw error
+          }
         },
         () => {
+          releasePreviewUrls()
+          selectedPhotosRef.current = []
           setPublishStage(null)
           returnFromEdit()
         },
         undefined,
-        communityErrorMessage,
+        postPublishErrorMessage,
       )
       return
     }
     void action.run(
-      async ({ signal }) => {
+      async ({ signal, isCurrent }) => {
         try {
-          setPublishStage(selectedPhotos.length > 0 ? '사진 업로드' : '게시글을 등록하고 있어요…')
-          const uploadByPhoto = selectedPhotos.map(({ uploadedPhoto }) => uploadedPhoto)
-          const pendingPhotos = selectedPhotos
-            .map((photo, originalIndex) => ({ photo, originalIndex }))
-            .filter(({ photo }) => photo.uploadedPhoto === null)
-          try {
-            const uploadedTickets = pendingPhotos.length > 0
-              ? await uploadPhotoFiles(
-                  pendingPhotos.map(({ photo }) => photo.file),
-                  'POST',
-                  signal,
-                  ({ photoIndex, status }) => {
-                    const originalIndex = pendingPhotos[photoIndex]?.originalIndex
-                    if (originalIndex === undefined) return
-                    setSelectedPhotos((current) =>
-                      current.map((photo, index) =>
-                        index === originalIndex ? { ...photo, uploadStatus: status } : photo
-                      )
-                    )
-                  }
-                )
-              : []
-            uploadedTickets.forEach((ticket, index) => {
-              const originalIndex = pendingPhotos[index].originalIndex
-              uploadByPhoto[originalIndex] = {
-                photoKey: ticket.photoKey,
-                fileName: ticket.fileName,
-              }
-            })
-            if (uploadedTickets.length > 0) {
-              setSelectedPhotos(current => current.map((photo, index) => {
-                const uploadedPhoto = uploadByPhoto[index]
-                return uploadedPhoto ? { ...photo, uploadStatus: 'success', uploadedPhoto } : photo
-              }))
-            }
-          } catch (error) {
-            const uploadFailure = error && typeof error === 'object'
-              ? error as {
-                  failedPhotoIndexes?: unknown
-                  successfulUploads?: unknown
-                }
-              : {}
-            const successfulUploads = Array.isArray(uploadFailure.successfulUploads)
-              ? uploadFailure.successfulUploads as Array<SuccessfulPhotoUpload | null>
-              : []
-            const failedPhotoIndexes = Array.isArray(uploadFailure.failedPhotoIndexes)
-              ? new Set(uploadFailure.failedPhotoIndexes.filter(index => typeof index === 'number'))
-              : new Set(pendingPhotos.map((_, index) => index))
-            setSelectedPhotos((current) =>
-              current.map((photo, originalIndex) => {
-                const localIndex = pendingPhotos.findIndex(entry => entry.originalIndex === originalIndex)
-                if (localIndex < 0) return photo
-                const successfulUpload = successfulUploads[localIndex]
-                if (successfulUpload) {
-                  return { ...photo, uploadStatus: 'success', uploadedPhoto: successfulUpload }
-                }
-                return failedPhotoIndexes.has(localIndex)
-                  ? { ...photo, uploadStatus: 'error' }
-                  : photo
-              })
-            )
-            throw error
-          }
-          const uploads = uploadByPhoto.filter((upload): upload is SuccessfulPhotoUpload => upload !== null)
-          if (uploads.length !== selectedPhotos.length) {
-            throw new Error('Photo upload state was incomplete.')
-          }
-          setPublishStage('게시글을 등록하고 있어요…')
+          setPublishStage(newPhotos.length > 0 ? '사진 업로드' : '게시글을 등록하고 있어요…')
+          const uploads = newPhotos.length > 0 ? await preparePhotoInputs(signal, isCurrent) : []
+          if (isCurrent()) setPublishStage('게시글을 등록하고 있어요…')
           try {
             await createPost({
               title: title.trim(),
               content: content.trim(),
-              ...(uploads.length > 0
-                ? { photos: uploads.map(({ photoKey }) => ({ photoKey })) }
-                : {}),
+              ...(uploads.length > 0 ? { photos: uploads } : {}),
             }, signal)
           } catch (error) {
             recordPostCreateFailure(error, uploads.length)
-            if (uploads.length > 0) {
-              throw new PostPublishError(uploads.length, { cause: error })
-            }
+            if (uploads.length > 0) throw new PostPublishError(uploads.length, { cause: error })
             throw error
           }
         } catch (error) {
-          setPublishStage(null)
+          if (isCurrent()) setPublishStage(null)
           throw error
         }
       },
       () => {
-        selectedPhotosRef.current.forEach(({ previewUrl }) => URL.revokeObjectURL(previewUrl))
+        releasePreviewUrls()
         selectedPhotosRef.current = []
         setSelectedPhotos([])
         setPublishStage(null)
@@ -352,6 +426,7 @@ function Editor({ initialPost, returnToPrevious = false }: { initialPost?: Post;
     setSelectedPhotos((current) => [
       ...current,
       ...images.map((file) => ({
+        kind: 'new' as const,
         file,
         previewUrl: URL.createObjectURL(file),
         uploadStatus: 'idle' as const,
@@ -363,8 +438,20 @@ function Editor({ initialPost, returnToPrevious = false }: { initialPost?: Post;
   const removePhoto = (index: number) => {
     setSelectedPhotos((current) => {
       const target = current[index]
-      if (target) URL.revokeObjectURL(target.previewUrl)
+      if (target?.kind === 'new') URL.revokeObjectURL(target.previewUrl)
       return current.filter((_, photoIndex) => photoIndex !== index)
+    })
+    setPhotoError(null)
+  }
+
+  const movePhoto = (index: number, direction: -1 | 1) => {
+    setSelectedPhotos(current => {
+      const destination = index + direction
+      if (destination < 0 || destination >= current.length) return current
+      const next = [...current]
+      const [photo] = next.splice(index, 1)
+      next.splice(destination, 0, photo)
+      return next
     })
     setPhotoError(null)
   }
@@ -374,7 +461,7 @@ function Editor({ initialPost, returnToPrevious = false }: { initialPost?: Post;
   }, [selectedPhotos])
 
   useEffect(() => () => {
-    selectedPhotosRef.current.forEach(({ previewUrl }) => URL.revokeObjectURL(previewUrl))
+    selectedPhotosRef.current.filter(isNewPhoto).forEach(({ previewUrl }) => URL.revokeObjectURL(previewUrl))
   }, [])
 
   useEffect(() => {
@@ -398,7 +485,7 @@ function Editor({ initialPost, returnToPrevious = false }: { initialPost?: Post;
 
   return <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-warm-beige">
     {action.busy && <div ref={pendingRef} tabIndex={-1} className="fixed inset-0 z-[60] flex cursor-wait items-center justify-center bg-black/10 px-4 outline-none" role="status" aria-live="polite">
-      <p className="rounded-full bg-card-surface px-4 py-2 text-[13px] font-medium text-deep-brown shadow-md">{selectedPhotos.length > 0 && publishStage?.includes('업로드') ? `${publishStage}: ${uploadedPhotoCount}/${selectedPhotos.length}장 완료` : publishStage ?? '게시글을 등록하고 있어요…'}</p>
+      <p className="rounded-full bg-card-surface px-4 py-2 text-[13px] font-medium text-deep-brown shadow-md">{newPhotos.length > 0 && publishStage?.includes('업로드') ? `${publishStage}: ${uploadedPhotoCount}/${newPhotos.length}장 완료` : publishStage ?? '게시글을 등록하고 있어요…'}</p>
     </div>}
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" inert={action.busy ? true : undefined}>
       <TopBar title={preview ? (editing ? '수정 미리보기' : '글 미리보기') : (editing ? '게시글 수정' : '자유게시판 글쓰기')} showBack backDisabled={action.busy} onBack={() => {
@@ -413,13 +500,15 @@ function Editor({ initialPost, returnToPrevious = false }: { initialPost?: Post;
       {preview ? <div ref={previewRef} tabIndex={-1} aria-label="게시글 미리보기" className="space-y-4 rounded-card border border-border bg-card-surface p-4 outline-none">
         <span className="rounded-full bg-sage-green-light px-2 py-1 text-[11px] font-semibold text-sage-green">자유게시판 · 미리보기</span>
         <h1 className="break-words text-[20px] font-bold leading-snug text-deep-brown">{title.trim()}</h1>
-        {editing && initialPost ? (
-          <ReadOnlyPostPhotos post={initialPost} preview />
-        ) : selectedPhotos.length > 0 ? (
+        {selectedPhotos.length > 0 ? (
           <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto rounded-xl no-scrollbar" aria-label={`첨부 사진 ${selectedPhotos.length}장`}>
-            {selectedPhotos.map(({ file, previewUrl }, index) => (
-              <div key={`${file.name}-${file.lastModified}-${index}`} className="relative h-52 w-full flex-shrink-0 snap-center overflow-hidden rounded-xl bg-sage-green-light">
-                <Image src={previewUrl} alt={`첨부 사진 ${index + 1}`} fill unoptimized className="object-cover" />
+            {selectedPhotos.map((photo, index) => (
+              <div key={photo.kind === 'existing' ? photo.photoId : `${photo.file.name}-${photo.file.lastModified}-${index}`} className="relative h-52 w-full flex-shrink-0 snap-center overflow-hidden rounded-xl bg-sage-green-light">
+                {photo.kind === 'existing' ? (
+                  <CommunityPhoto url={photo.downloadUrl} title={`첨부 사진 ${index + 1}`} className="h-full" />
+                ) : (
+                  <Image src={photo.previewUrl} alt={`첨부 사진 ${index + 1}`} fill unoptimized className="object-cover" />
+                )}
                 {index === 0 && <span className="absolute left-2 top-2 rounded-full bg-sage-green px-2 py-1 text-[10px] font-semibold text-white">대표 사진</span>}
               </div>
             ))}
@@ -445,25 +534,13 @@ function Editor({ initialPost, returnToPrevious = false }: { initialPost?: Post;
           <p id="post-content-count" className="text-right text-[11px] text-warm-gray">{content.length.toLocaleString()} / {POST_CONTENT_LIMIT.toLocaleString()}</p>
           {content.length > POST_CONTENT_LIMIT && <p role="alert">기존 내용을 임시 제한인 {POST_CONTENT_LIMIT}자 이내로 줄여 주세요. 작성 내용은 유지돼요.</p>}
         </div>
-        {editing && initialPost ? (
-          <div className="rounded-card border border-border bg-card-surface p-4" aria-label="기존 게시글 사진">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="flex items-center gap-2 text-[13px] font-medium text-deep-brown"><ImagePlus className="h-4 w-4 text-sage-green" />기존 사진</p>
-                <p className="mt-1 text-[11px] text-warm-gray">{initialPost.photos.length || (initialPost.photoId ? 1 : 0)}장 · 읽기 전용</p>
-              </div>
-              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[11px] font-medium text-warm-gray"><LockKeyhole className="h-3 w-3" aria-hidden="true" />수정 불가</span>
-            </div>
-            <ReadOnlyPostPhotos post={initialPost} />
-            <p className="mt-3 text-[12px] leading-relaxed text-warm-gray">사진 수정 API가 준비되지 않아 현재 사진은 확인만 할 수 있어요. 이번 수정에서는 제목과 내용만 저장돼요.</p>
-          </div>
-        ) : <div className="rounded-card border border-dashed border-border bg-card-surface p-4">
+        <div className="rounded-card border border-dashed border-border bg-card-surface p-4" aria-label={editing ? '게시글 사진 편집' : '게시글 사진 첨부'}>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="flex items-center gap-2 text-[13px] font-medium text-deep-brown"><ImagePlus className="h-4 w-4 text-sage-green" />사진 첨부</p>
+              <p className="flex items-center gap-2 text-[13px] font-medium text-deep-brown"><ImagePlus className="h-4 w-4 text-sage-green" />{editing ? '사진 수정' : '사진 첨부'}</p>
               <p className="mt-1 text-[11px] text-warm-gray">{selectedPhotos.length} / 10장</p>
             </div>
-            <Button type="button" variant="outline" size="sm" disabled={selectedPhotos.length >= 10 || action.busy} onClick={() => photoInputRef.current?.click()}>사진 선택</Button>
+            <Button type="button" variant="outline" size="sm" disabled={!photoEditingAvailable || selectedPhotos.length >= 10 || action.busy} onClick={() => photoInputRef.current?.click()}>사진 선택</Button>
             <input
               ref={photoInputRef}
               type="file"
@@ -471,44 +548,63 @@ function Editor({ initialPost, returnToPrevious = false }: { initialPost?: Post;
               multiple
               className="sr-only"
               aria-label="게시글 사진 선택"
-              disabled={action.busy}
+              disabled={!photoEditingAvailable || action.busy}
               onChange={(event) => {
                 selectPhotos(event.target.files)
                 event.target.value = ''
               }}
             />
           </div>
-          {selectedPhotos.length > 0 && (
-            <div className="mt-3 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-              {selectedPhotos.map(({ file, previewUrl, uploadStatus }, index) => (
-                <div key={`${file.name}-${file.lastModified}-${index}`} className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl border border-border">
-                  <Image src={previewUrl} alt={`선택한 사진 ${index + 1}`} fill unoptimized className="object-cover" />
-                  {index === 0 && <span className="absolute bottom-1 left-1 rounded-full bg-sage-green px-1.5 py-0.5 text-[9px] font-semibold text-white">대표</span>}
-                  {uploadStatus !== 'idle' && (
-                    <span className="absolute bottom-1 right-1 rounded-full bg-black/65 px-1.5 py-0.5 text-[9px] font-semibold text-white">
-                      {uploadStatus === 'uploading' ? '업로드 중' : uploadStatus === 'success' ? '완료' : '실패'}
-                    </span>
-                  )}
-                  <button type="button" aria-label={`${file.name} 사진 삭제`} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white" onClick={() => removePhoto(index)}>
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
+          {!photoEditingAvailable && initialPost ? (
+            <div className="mt-3 rounded-xl bg-muted p-3">
+              <p className="flex items-center gap-1.5 text-[12px] font-medium text-deep-brown"><LockKeyhole className="h-3.5 w-3.5" aria-hidden="true" />기존 사진 정보를 확인할 수 없어 사진 수정이 잠겨 있어요.</p>
+              <ReadOnlyPostPhotos post={initialPost} />
+              <p className="mt-2 text-[11px] leading-relaxed text-warm-gray">사진을 잃지 않도록 제목과 내용만 저장할 수 있어요.</p>
             </div>
+          ) : selectedPhotos.length > 0 ? (
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1 no-scrollbar" aria-label={`편집 중인 사진 ${selectedPhotos.length}장`}>
+              {selectedPhotos.map((photo, index) => {
+                const label = photo.kind === 'existing' ? `기존 사진 ${index + 1}` : photo.file.name
+                return <div key={photo.kind === 'existing' ? photo.photoId : `${photo.file.name}-${photo.file.lastModified}-${index}`} className="w-24 flex-shrink-0">
+                  <div className="relative h-20 w-24 overflow-hidden rounded-xl border border-border">
+                    {photo.kind === 'existing' ? (
+                      <CommunityPhoto url={photo.downloadUrl} title={label} className="h-full" />
+                    ) : (
+                      <Image src={photo.previewUrl} alt={`선택한 사진 ${index + 1}`} fill unoptimized className="object-cover" />
+                    )}
+                    {index === 0 && <span className="absolute bottom-1 left-1 rounded-full bg-sage-green px-1.5 py-0.5 text-[9px] font-semibold text-white">대표</span>}
+                    {photo.kind === 'new' && photo.uploadStatus !== 'idle' && (
+                      <span className="absolute bottom-1 right-1 rounded-full bg-black/65 px-1.5 py-0.5 text-[9px] font-semibold text-white">
+                        {photo.uploadStatus === 'uploading' ? '업로드 중' : photo.uploadStatus === 'success' ? '완료' : '실패'}
+                      </span>
+                    )}
+                    <button type="button" aria-label={`${label} 삭제`} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white" onClick={() => removePhoto(index)}>
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div className="mt-1 flex justify-center gap-1">
+                    <button type="button" aria-label={`${label} 왼쪽으로 이동`} disabled={index === 0} className="flex h-7 w-7 items-center justify-center rounded-full border border-border text-warm-gray disabled:opacity-30" onClick={() => movePhoto(index, -1)}><ChevronLeft className="h-3.5 w-3.5" /></button>
+                    <button type="button" aria-label={`${label} 오른쪽으로 이동`} disabled={index === selectedPhotos.length - 1} className="flex h-7 w-7 items-center justify-center rounded-full border border-border text-warm-gray disabled:opacity-30" onClick={() => movePhoto(index, 1)}><ChevronRight className="h-3.5 w-3.5" /></button>
+                  </div>
+                </div>
+              })}
+            </div>
+          ) : (
+            <p className="mt-3 rounded-xl bg-sage-green-light p-3 text-center text-[12px] text-warm-gray">첨부된 사진이 없어요.</p>
           )}
           {photoError && <p className="mt-2 text-[12px] text-danger" role="alert">{photoError}</p>}
-          {!action.busy && selectedPhotos.some(({ uploadStatus }) => uploadStatus === 'error') && (
+          {!action.busy && selectedPhotos.some(photo => photo.kind === 'new' && photo.uploadStatus === 'error') && (
             <Button type="button" variant="outline" size="sm" className="mt-3" onClick={publish}>
               사진 업로드 다시 시도
             </Button>
           )}
           <p className="mt-2 text-[11px] text-warm-gray">{(totalPhotoBytes / 1024 / 1024).toFixed(1)}MB / 250MB</p>
           <p className="mt-2 text-[12px] leading-relaxed text-warm-gray">첫 번째 사진이 목록의 대표 사진으로 표시돼요.</p>
-        </div>}
+        </div>
       </form>}
       <div className="mt-5 space-y-3 rounded-card bg-sage-green-light p-4">
         <CommunityFeedback error={action.error} />
-        <p id="post-publishing-notice" className="text-[13px] leading-relaxed text-deep-brown">{editing ? '제목과 내용만 수정할 수 있어요. 기존 사진은 변경되지 않아요.' : authenticated ? '제목과 내용을 입력하면 자유게시판에 바로 등록할 수 있어요.' : '체험 화면에서는 글을 미리 작성할 수 있지만, 등록하려면 로그인해야 해요.'}</p>
+        <p id="post-publishing-notice" className="text-[13px] leading-relaxed text-deep-brown">{editing ? '제목, 내용과 사진을 함께 수정할 수 있어요.' : authenticated ? '제목과 내용을 입력하면 자유게시판에 바로 등록할 수 있어요.' : '체험 화면에서는 글을 미리 작성할 수 있지만, 등록하려면 로그인해야 해요.'}</p>
         <p className="text-[12px] leading-relaxed text-warm-gray">{editing ? '저장하면 게시글 상세 화면으로 돌아가 수정 결과를 확인할 수 있어요.' : '작성 내용은 이 탭에서 화면을 이동해도 유지돼요. 새로고침하거나 로그아웃하면 사라져요.'}</p>
         <div className="flex gap-2">
           {editing && initialPost ? (

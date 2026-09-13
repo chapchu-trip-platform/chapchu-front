@@ -8,6 +8,7 @@ import { motion } from 'motion/react'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { ModalActions } from '@/components/ui/modal-actions'
+import { PhotoImage } from '@/components/common/photo-image'
 import { deletePost, fetchMyPosts, fetchPost, reportPost, setPostBookmark } from '@/features/community/api/community-api'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
 import { useCommunityAction, useCommunityQuery } from '@/features/community/hooks/use-community-request'
@@ -75,6 +76,11 @@ function LoadedPost({ initialPost, onBack }: { initialPost: Post; onBack: () => 
     setPost(previous => ({ ...previous, bookmarked: !bookmarked }))
   }, bookmarked ? '북마크를 취소했어요.' : '북마크에 저장했어요.', error => postReactionErrorMessage(error, bookmarked ? '북마크 취소' : '북마크 등록'))
 
+  const reloadPhotos = () => void action.run(
+    ({ signal }) => fetchPost(post.id, signal),
+    refreshed => setPost(refreshed),
+  )
+
   const reveal = prefersReducedMotion
     ? { duration: 0 }
     : { duration: 0.24, ease: [0.22, 1, 0.36, 1] as const }
@@ -127,13 +133,20 @@ function LoadedPost({ initialPost, onBack }: { initialPost: Post; onBack: () => 
     </Dialog.Root>
     <PostComments postId={post.id} count={post.commentCount} onCountChange={total => setPost(previous => ({ ...previous, commentCount: total }))}>
       <motion.div initial={prefersReducedMotion ? false : { opacity: 0, scale: 1.015 }} animate={{ opacity: 1, scale: 1 }} transition={reveal}>
-        <CommunityPhotoGallery post={post} />
+        <CommunityPhotoGallery post={post} onReload={reloadPhotos} />
       </motion.div>
       <motion.div initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ ...reveal, delay: prefersReducedMotion ? 0 : 0.05 }} className="space-y-3 px-4 pt-4">
         <span className="rounded-full bg-sage-green px-2 py-0.5 text-[11px] font-semibold text-white">자유게시판</span>
         <h1 className="break-words text-balance text-[20px] font-bold leading-snug text-deep-brown">{post.title}</h1>
         <div className="flex items-center gap-2 border-b border-border py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sage-green/20 text-[13px] font-bold text-sage-green">{post.nickname[0] || '여'}</div>
+          <PhotoImage
+            src={post.authorProfilePhotoUrl}
+            alt={`${post.nickname || '작성자'} 프로필 사진`}
+            fallbackSrc="/images/default-profile.svg"
+            fallbackAlt="기본 프로필"
+            className="h-8 w-8 shrink-0 rounded-full"
+            sizes="32px"
+          />
           <div><p className="text-[13px] font-semibold text-deep-brown">{post.nickname || '작성자'}</p><p className="text-[11px] text-warm-gray">{formatCommunityDate(post.createdAt)} · 조회 {post.viewCount.toLocaleString()}</p></div>
         </div>
         <p className="whitespace-pre-wrap break-words border-b border-border py-4 text-[14px] leading-relaxed text-deep-brown">{post.content}</p>

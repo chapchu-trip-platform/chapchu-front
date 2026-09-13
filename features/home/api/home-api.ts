@@ -136,7 +136,7 @@ export async function fetchPopularPosts(signal?: AbortSignal): Promise<HotPost[]
       recommendationCount: post.recommendationCount,
       commentCount: post.commentCount,
       createdAt: post.createdAt,
-      photoId: post.photoId,
+      photoUrl: post.photoUrl,
     }))
     .sort((first, second) => second.recommendationCount - first.recommendationCount)
     .slice(0, 3)

@@ -433,7 +433,7 @@ export default function HomeScreen({
             >
               <div className="relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0">
                 <PhotoImage
-                  photoId={post.photoId}
+                  src={post.photoUrl}
                   alt={`${post.title} 대표 사진`}
                   className="h-full"
                   fallbackSrc="/images/post-cover.png"
