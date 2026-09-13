@@ -49,6 +49,7 @@ bun-debug.log*
 !README.md
 !docs/api-policy.md
 !docs/home-development-plan.md
+!docs/community-post-photo-edit-profile-avatar-plan.md
 
 # testing
 coverage/
