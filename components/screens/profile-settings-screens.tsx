@@ -24,6 +24,7 @@ import type {
   ProfileReview,
   WishlistPlace,
 } from '@/features/profile/types/profile'
+import { markWrittenPostNavigation } from '@/features/profile/lib/written-post-navigation'
 
 export type SettingsTab = 'nickname' | 'posts' | 'wishlist' | 'bookmarks' | 'reviews'
 
@@ -231,25 +232,35 @@ export default function ProfileSettings({
               <div className="space-y-3">
                 <AnimatePresence initial={false}>
                 {posts.map((post) => (
-                  <m.article layout={!prefersReducedMotion} key={post.id} initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -18 }} transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: PROFILE_MOTION_EASE }} className="flex gap-3 rounded-card border border-border bg-card-surface p-3">
-                    <PhotoImage
-                      src={post.photoUrl}
-                      photoId={post.photoId}
-                      alt={`${post.title} 대표 사진`}
-                      className="h-20 w-20 flex-shrink-0 rounded-card"
-                      sizes="80px"
-                      emptyLabel="사진 없음"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <Link href={`/community?post=${encodeURIComponent(post.id)}`} className="line-clamp-1 rounded-sm text-[13px] font-semibold text-deep-brown focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-green">{post.title}</Link>
-                      <p className="mt-1 line-clamp-2 text-[12px] text-warm-gray">{post.content}</p>
-                      <p className="mt-2 text-[11px] text-warm-gray">{formatDate(post.createdAt)}</p>
-                      <div className="mt-2 flex gap-3 text-[11px] text-warm-gray">
-                        <span>조회 {post.viewCount}</span>
-                        <span>추천 {post.recommendationCount}</span>
-                        <span>댓글 {post.commentCount}</span>
+                  <m.article layout={!prefersReducedMotion} key={post.id} initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -18 }} transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: PROFILE_MOTION_EASE }}>
+                    <Link
+                      href={`/community?post=${encodeURIComponent(post.id)}&from=my-posts`}
+                      aria-label={`${post.title} 게시글 보기`}
+                      onClick={(event) => {
+                        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+                        markWrittenPostNavigation(post.id)
+                      }}
+                      className="flex gap-3 rounded-card border border-border bg-card-surface p-3 transition-colors hover:bg-sage-green-light/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-green active:bg-sage-green-light/55"
+                    >
+                      <PhotoImage
+                        src={post.photoUrl}
+                        photoId={post.photoId}
+                        alt={`${post.title} 대표 사진`}
+                        className="h-20 w-20 flex-shrink-0 rounded-card"
+                        sizes="80px"
+                        emptyLabel="사진 없음"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <h3 className="line-clamp-1 text-[13px] font-semibold text-deep-brown">{post.title}</h3>
+                        <p className="mt-1 line-clamp-2 text-[12px] text-warm-gray">{post.content}</p>
+                        <p className="mt-2 text-[11px] text-warm-gray">{formatDate(post.createdAt)}</p>
+                        <div className="mt-2 flex gap-3 text-[11px] text-warm-gray">
+                          <span>조회 {post.viewCount}</span>
+                          <span>추천 {post.recommendationCount}</span>
+                          <span>댓글 {post.commentCount}</span>
+                        </div>
                       </div>
-                    </div>
+                    </Link>
                   </m.article>
                 ))}
                 </AnimatePresence>

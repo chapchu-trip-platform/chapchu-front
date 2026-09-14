@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { PenLine } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -10,29 +10,41 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
 import { usePrefersReducedMotion } from '@/features/community/hooks/use-prefers-reduced-motion'
+import { confirmWrittenPostHistory } from '@/features/profile/lib/written-post-navigation'
 import { PostDetail } from './post-detail'
 import { PostList } from './post-list'
 import { ReviewList } from './review-list'
 
 const tabs = ['HOT', '자유게시판', '여행 리뷰']
 
-interface CommunityBoardProps { initialPostId?: string; initialTab?: 'free' }
+interface CommunityBoardProps { initialPostId?: string; initialTab?: 'free'; returnToPrevious?: boolean }
 
-export default function CommunityBoard({ initialPostId, initialTab }: CommunityBoardProps) {
+export default function CommunityBoard({ initialPostId, initialTab, returnToPrevious }: CommunityBoardProps) {
   const epoch = useAuthStore(state => state.sessionEpoch)
-  return <Board key={epoch} initialPostId={initialPostId} initialTab={initialTab} />
+  return <Board key={epoch} initialPostId={initialPostId} initialTab={initialTab} returnToPrevious={returnToPrevious} />
 }
 
-function Board({ initialPostId, initialTab }: CommunityBoardProps) {
+function Board({ initialPostId, initialTab, returnToPrevious }: CommunityBoardProps) {
   const router = useRouter()
   const prefersReducedMotion = usePrefersReducedMotion()
   const [activeTab, setActiveTab] = useState(initialTab === 'free' ? 1 : 0)
   const openedFromBoard = useRef(false)
+  const openedFromWrittenPosts = useRef(false)
   const transition = prefersReducedMotion
     ? { duration: 0 }
     : { duration: 0.22, ease: [0.22, 1, 0.36, 1] as const }
 
-  if (initialPostId) return <PostDetail key={initialPostId} postId={initialPostId} onBack={() => openedFromBoard.current ? router.back() : router.replace(initialTab === 'free' ? '/community?tab=free' : '/community')} />
+  useEffect(() => {
+    if (initialPostId && returnToPrevious) {
+      openedFromWrittenPosts.current = confirmWrittenPostHistory(initialPostId)
+    }
+  }, [initialPostId, returnToPrevious])
+
+  if (initialPostId) return <PostDetail key={initialPostId} postId={initialPostId} onBack={() => {
+    if (openedFromBoard.current || openedFromWrittenPosts.current) router.back()
+    else if (returnToPrevious) router.replace('/my?section=posts')
+    else router.replace(initialTab === 'free' ? '/community?tab=free' : '/community')
+  }} />
 
   return <motion.div initial={prefersReducedMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={transition} className="flex min-h-0 flex-1 flex-col overflow-hidden">
     <TopBar title="게시판" />
