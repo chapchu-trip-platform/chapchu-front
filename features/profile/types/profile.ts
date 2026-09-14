@@ -8,6 +8,11 @@ export interface ProfileSummary {
   petCount: number
 }
 
+export interface ProfilePhoto {
+  photoId: string | null
+  downloadUrl: string | null
+}
+
 export interface ProfilePet {
   id: string
   petName: string
@@ -33,6 +38,7 @@ export interface PetMutationInput {
 
 export interface ProfilePost {
   id: string
+  photoId: string | null
   title: string
   content: string
   viewCount: number

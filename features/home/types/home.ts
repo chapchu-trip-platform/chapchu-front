@@ -9,12 +9,21 @@ export interface HotPost {
   id: string
   nickname: string
   title: string
-  content: string
-  viewCount: number
   recommendationCount: number
   commentCount: number
   createdAt: string | null
-  hasPhoto: boolean
+  photoUrl: string | null
+}
+
+export interface NearbyPlace {
+  id: string
+  name: string
+  imageUrl: string | null
+  address: string
+  rating: number
+  reviewCount: number
+  distanceMeters: number
+  hasPetPolicy: boolean
 }
 
 export function formatPetCompanion(petNames: string[]) {

@@ -1,11 +1,25 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import userEvent from '@testing-library/user-event'
 import CommunityScreen from '@/features/community/components/community-demo-screen'
+import { mockRouter, resetNextNavigationMocks } from '@/test/mocks/next-navigation'
 
 afterEach(cleanup)
+beforeEach(resetNextNavigationMocks)
 
 describe('CommunityScreen', () => {
+  it('navigates list details through URL history and always returns with browser back', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<CommunityScreen />)
+
+    await user.click(screen.getByRole('button', { name: /제주 올레길 강아지와 4박 5일 코스 완전정복/ }))
+    expect(mockRouter.push).toHaveBeenCalledWith('/community?post=1')
+
+    rerender(<CommunityScreen initialPostId="1" />)
+    await user.click(screen.getByRole('button', { name: '뒤로가기' }))
+    expect(mockRouter.back).toHaveBeenCalledOnce()
+  })
+
   it('shows detailed pet information and every place in a travel review route', () => {
     render(<CommunityScreen initialPostId="1" />)
 

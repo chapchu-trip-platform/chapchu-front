@@ -12,9 +12,16 @@ beforeEach(() => vi.resetAllMocks())
 
 describe('community API requests', () => {
   it('requests paginated posts with opaque cursor and signal', async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ data: { posts: [postFixture], nextCursor: null } })
+    const summary = {
+      id: 'summary-1', title: '목록 제목', nickname: '작성자', recommendationCount: 1, commentCount: 2,
+      thumbnail: null, createdAt: '2026-09-08T12:00:00Z',
+    }
+    vi.mocked(apiClient.get).mockResolvedValue({ data: { posts: [summary], nextCursor: null } })
     const signal = new AbortController().signal
-    await api.fetchPosts('popular', 'date~id+/=', signal)
+    await expect(api.fetchPosts('popular', 'date~id+/=', signal)).resolves.toEqual({
+      posts: [{ id: 'summary-1', photoId: null, title: '목록 제목', nickname: '작성자', authorProfilePhotoUrl: null, recommendationCount: 1, commentCount: 2, photoUrl: null, createdAt: '2026-09-08T12:00:00Z' }],
+      nextCursor: null,
+    })
     expect(apiClient.get).toHaveBeenCalledWith('/posts', { params: { sort: 'popular', size: 20, cursor: 'date~id+/=' }, signal })
     await api.fetchPosts('latest')
     expect(apiClient.get).toHaveBeenLastCalledWith('/posts', { params: { sort: 'latest', size: 20 }, signal: undefined })
@@ -31,17 +38,48 @@ describe('community API requests', () => {
     expect(apiClient.get).toHaveBeenCalledWith('/users/me/posts', { signal: undefined })
     expect(apiClient.get).toHaveBeenCalledWith('/users/me/bookmarks', { signal: undefined })
   })
-  it('creates a free-board post with empty optional references and edits text fields', async () => {
-    vi.mocked(apiClient.post).mockResolvedValue({ data: postFixture })
+  it.each([200, 201])('creates a text-only free-board post from a %i response without parsing a body', async status => {
+    vi.mocked(apiClient.post).mockResolvedValue({ data: undefined, status })
     vi.mocked(apiClient.patch).mockResolvedValue({ data: postFixture })
-    const input = { petId: '', photoId: '', courseId: '', title: '제목', content: '내용' }
+    const input = { title: '제목', content: '내용' }
     const signal = new AbortController().signal
-    await api.createPost(input, signal)
-    await api.updatePost('post-1', { title: '수정', content: '본문' })
+    await expect(api.createPost(input, signal)).resolves.toBeUndefined()
+    await api.updatePost('post-1', { title: '수정', content: '본문' }, signal)
     expect(apiClient.post).toHaveBeenCalledWith('/posts', input, { signal })
-    expect(apiClient.patch).toHaveBeenCalledWith('/posts/post-1', { title: '수정', content: '본문' })
+    expect(apiClient.patch).toHaveBeenCalledWith('/posts/post-1', { title: '수정', content: '본문' }, { signal })
     await api.deletePost('post-1')
     expect(apiClient.delete).toHaveBeenCalledWith('/posts/post-1')
+  })
+  it('preserves the three-state post photo update contract', async () => {
+    vi.mocked(apiClient.patch).mockResolvedValue({ data: postFixture })
+    const signal = new AbortController().signal
+    await api.updatePost('post-1', { title: '유지', content: '본문' }, signal)
+    await api.updatePost('post-1', { title: '전체 삭제', content: '본문', photos: [] }, signal)
+    await api.updatePost('post-1', {
+      title: '교체', content: '본문', photos: [{ photoKey: 'post/user/one.jpg' }, { photoKey: 'post/user/two.jpg' }],
+    }, signal)
+    await api.updatePost('post-1', { title: '명시적 유지', content: '본문', photos: null }, signal)
+    expect(apiClient.patch).toHaveBeenNthCalledWith(1, '/posts/post-1', { title: '유지', content: '본문' }, { signal })
+    expect(apiClient.patch).toHaveBeenNthCalledWith(2, '/posts/post-1', { title: '전체 삭제', content: '본문', photos: [] }, { signal })
+    expect(apiClient.patch).toHaveBeenNthCalledWith(3, '/posts/post-1', {
+      title: '교체', content: '본문', photos: [{ photoKey: 'post/user/one.jpg' }, { photoKey: 'post/user/two.jpg' }],
+    }, { signal })
+    expect(apiClient.patch).toHaveBeenNthCalledWith(4, '/posts/post-1', {
+      title: '명시적 유지', content: '본문', photos: null,
+    }, { signal })
+  })
+  it('rejects duplicate photo keys before updating a post', async () => {
+    await expect(api.updatePost('post-1', {
+      title: '중복 사진',
+      content: '본문',
+      photos: [{ photoKey: 'post/user/same.jpg' }, { photoKey: 'post/user/same.jpg' }],
+    })).rejects.toThrow('Post photo keys must be unique.')
+    expect(apiClient.patch).not.toHaveBeenCalled()
+  })
+  it.each([202, 204])('does not confirm publication from an unexpected %i response', async status => {
+    vi.mocked(apiClient.post).mockResolvedValue({ data: undefined, status })
+
+    await expect(api.createPost({ title: '제목', content: '내용' })).rejects.toThrow('Unexpected post creation status.')
   })
   it('keeps recommendation and bookmark creation/cancellation separate', async () => {
     await api.setPostRecommendation('post-1', true)

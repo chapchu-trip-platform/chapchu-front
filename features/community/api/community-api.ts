@@ -3,7 +3,7 @@
 import { apiClient, publicApiClient } from '@/lib/api/client'
 import { API_ENDPOINTS } from '@/lib/api/endpoints'
 import { parseComment, parseComments, parsePost, parsePostPage, parsePosts, parseReview, parseReviews } from '@/features/community/lib/community-model'
-import type { PostInput, ReviewInput } from '@/features/community/types/community'
+import type { PostInput, ReviewInput, UpdatePostInput } from '@/features/community/types/community'
 
 const endpoints = API_ENDPOINTS.community
 
@@ -29,13 +29,18 @@ export async function fetchMyBookmarks(signal?: AbortSignal) {
 
 export async function createPost(input: PostInput, signal?: AbortSignal) {
   if (input.title.length > 100) throw new Error('Post title exceeds 100 characters.')
-  const { data } = await apiClient.post<unknown>(endpoints.posts, input, { signal })
-  return parsePost(data)
+  const { status } = await apiClient.post<void>(endpoints.posts, input, { signal })
+  if (status !== 200 && status !== 201) throw new Error('Unexpected post creation status.')
 }
 
-export async function updatePost(postId: string, input: Pick<PostInput, 'title' | 'content'>) {
+export async function updatePost(postId: string, input: UpdatePostInput, signal?: AbortSignal) {
   if (input.title.length > 100) throw new Error('Post title exceeds 100 characters.')
-  const { data } = await apiClient.patch<unknown>(endpoints.post(postId), input)
+  if (input.photos && input.photos.length > 10) throw new Error('Post photo count exceeds 10.')
+  if (input.photos?.some(photo => !photo.photoKey.trim())) throw new Error('Post photo key was empty.')
+  if (input.photos && new Set(input.photos.map(photo => photo.photoKey)).size !== input.photos.length) {
+    throw new Error('Post photo keys must be unique.')
+  }
+  const { data } = await apiClient.patch<unknown>(endpoints.post(postId), input, { signal })
   return parsePost(data)
 }
 

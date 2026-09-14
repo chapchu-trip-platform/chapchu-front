@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import HomeScreen from '@/components/screens/home-screen'
-import type { HotPost } from '@/features/home/types/home'
+import type { HotPost, NearbyPlace } from '@/features/home/types/home'
 
 vi.mock('@/features/map/components/tmap-map', () => ({
   default: ({
@@ -40,13 +40,17 @@ const hotPosts: HotPost[] = [
     id: 'post-1',
     nickname: '멍멍이아빠',
     title: '첫추 인기 여행기',
-    content: '반려견과 함께 다녀왔어요.',
-    viewCount: 120,
     recommendationCount: 42,
     commentCount: 7,
     createdAt: null,
-    hasPhoto: false,
+    photoUrl: null,
   },
+]
+
+const nearbyPlaces: NearbyPlace[] = [
+  { id: 'place-1', name: '반려견 공원', imageUrl: null, address: '대구 수성구', rating: 4.5, reviewCount: 12, distanceMeters: 300, hasPetPolicy: true },
+  { id: 'place-2', name: '반려견 카페', imageUrl: null, address: '대구 수성구', rating: 4.2, reviewCount: 8, distanceMeters: 700, hasPetPolicy: true },
+  { id: 'place-3', name: '산책로', imageUrl: null, address: '대구 수성구', rating: 4, reviewCount: 3, distanceMeters: 1_400, hasPetPolicy: false },
 ]
 
 const defaultProps = {
@@ -57,6 +61,9 @@ const defaultProps = {
   locationStatus: 'success' as const,
   petNames: ['루이'],
   petNamesStatus: 'success' as const,
+  nearbyPlaces,
+  nearbyPlacesStatus: 'success' as const,
+  onRetryNearbyPlaces: vi.fn(),
   hotPosts,
   hotPostsStatus: 'success' as const,
   onRetryHotPosts: vi.fn(),
@@ -88,23 +95,21 @@ describe('HomeScreen', () => {
     expect(screen.getByText('루이와 2마리')).toBeInTheDocument()
   })
 
-  it('renders API-backed HOT post fields with a fallback image', () => {
+  it('renders API-backed HOT summary fields with a fallback image', () => {
     render(<HomeScreen {...defaultProps} />)
 
     expect(screen.getByText('첫추 인기 여행기')).toBeInTheDocument()
-    expect(screen.getByText('반려견과 함께 다녀왔어요.')).toBeInTheDocument()
-    expect(screen.getByText('120')).toBeInTheDocument()
     expect(screen.getByText('42')).toBeInTheDocument()
     expect(screen.getByText('멍멍이아빠')).toBeInTheDocument()
     expect(screen.getByLabelText('댓글 7개')).toHaveTextContent('7')
-    expect(screen.getByText('추천 장소 예시')).toBeInTheDocument()
-    expect(screen.getByText('위치 기반 추천 API 연결 전 예시 데이터예요.')).toBeInTheDocument()
+    expect(screen.getByText('주변 추천 장소')).toBeInTheDocument()
+    expect(screen.getByText('현재 위치 반경 1.5km 안의 반려동물 동반 장소예요.')).toBeInTheDocument()
     const hotBadge = screen.getByText('HOT').parentElement
     expect(hotBadge).toHaveClass('items-center', 'justify-center')
     expect(screen.getByText('HOT')).toHaveClass('leading-none')
   })
 
-  it('keeps the example places in a native free-scroll carousel', () => {
+  it('keeps nearby places in a native free-scroll carousel', () => {
     render(<HomeScreen {...defaultProps} />)
 
     const carousel = screen.getByTestId('nearby-place-carousel')
@@ -116,9 +121,9 @@ describe('HomeScreen', () => {
     expect(carousel).not.toHaveClass('scroll-smooth', 'snap-x', 'snap-mandatory')
     expect(carousel).toHaveStyle({ touchAction: 'auto' })
     expect(carousel.querySelectorAll('article')).toHaveLength(3)
-    const distanceBadge = screen.getByText('0.3km').parentElement
+    const distanceBadge = screen.getByText('300m').parentElement
     expect(distanceBadge).toHaveClass('flex', 'items-center', 'justify-center')
-    expect(screen.getByText('0.3km')).toHaveClass('leading-none')
+    expect(screen.getByText('300m')).toHaveClass('leading-none')
   })
 
   it('applies Motion transitions only to the Home content sections', () => {
