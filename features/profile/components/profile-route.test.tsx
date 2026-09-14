@@ -287,7 +287,7 @@ describe('ProfileRoute', () => {
     expect(mockRouter.replace).toHaveBeenCalledWith('/my?section=posts', { scroll: false })
     const postLink = screen.getByRole('link', { name: `${mockProfilePosts[0].title} 게시글 보기` })
     expect(postLink).toHaveAttribute(
-      'href', `/community?post=${encodeURIComponent(mockProfilePosts[0].id)}&from=my-posts`
+      'href', `/community?post=${encodeURIComponent(mockProfilePosts[0].id)}`
     )
     expect(postLink).toContainElement(screen.getByText(mockProfilePosts[0].title))
     expect(postLink).toContainElement(screen.getByText(mockProfilePosts[0].content))
@@ -793,7 +793,7 @@ describe('ProfileRoute', () => {
     const firstLink = await screen.findByRole('link', { name: `${posts[0].title} 게시글 보기` })
     const lastLink = screen.getByRole('link', { name: `${posts[1].title} 게시글 보기` })
     const back = screen.getByRole('button', { name: '뒤로 가기' })
-    expect(firstLink).toHaveAttribute('href', '/community?post=post%2Fwith%3Fquery%26value&from=my-posts')
+    expect(firstLink).toHaveAttribute('href', '/community?post=post%2Fwith%3Fquery%26value')
     expect(back).toHaveFocus()
     await user.tab()
     expect(within(screen.getByRole('dialog', { name: '내정보 설정' }))

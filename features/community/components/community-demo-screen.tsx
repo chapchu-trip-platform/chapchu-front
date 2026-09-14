@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ThumbsUp,
@@ -22,12 +22,10 @@ import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { InteractiveCard } from '@/components/ui/interactive-card'
 import { cn } from '@/lib/utils'
-import { confirmWrittenPostHistory } from '@/features/profile/lib/written-post-navigation'
 
 interface CommunityScreenProps {
   initialPostId?: string
   initialTab?: 'free'
-  returnToPrevious?: boolean
 }
 
 const tabs = ['HOT', '자유게시판', '여행 리뷰']
@@ -229,32 +227,15 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
   )
 }
 
-export default function CommunityScreen({ initialPostId, initialTab, returnToPrevious }: CommunityScreenProps) {
+export default function CommunityScreen({ initialPostId, initialTab }: CommunityScreenProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState(initialTab === 'free' ? 1 : 0)
-  const [selectedPost, setSelectedPost] = useState<typeof posts[0] | null>(() =>
-    posts.find((post) => String(post.id) === initialPostId) ?? null
-  )
-  const openedFromWrittenPosts = useRef(false)
-
-  useEffect(() => {
-    if (initialPostId && returnToPrevious) {
-      openedFromWrittenPosts.current = confirmWrittenPostHistory(initialPostId)
-    }
-  }, [initialPostId, returnToPrevious])
-
+  const selectedPost = posts.find((post) => String(post.id) === initialPostId) ?? null
   if (selectedPost) {
     return (
       <PostDetailView
         post={selectedPost}
-        onBack={() => {
-          setSelectedPost(null)
-          if (initialPostId) {
-            if (openedFromWrittenPosts.current) router.back()
-            else if (returnToPrevious) router.replace('/my?section=posts')
-            else router.replace('/community')
-          }
-        }}
+        onBack={() => router.back()}
       />
     )
   }
@@ -293,7 +274,7 @@ export default function CommunityScreen({ initialPostId, initialTab, returnToPre
           {filteredPosts.map((post, i) => (
             <InteractiveCard
               key={post.id}
-              onClick={() => setSelectedPost(post)}
+              onClick={() => router.push(`/community?post=${encodeURIComponent(post.id)}${activeTab === 1 ? '&tab=free' : ''}`)}
               padding="none"
               className="overflow-hidden"
             >

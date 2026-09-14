@@ -7,7 +7,6 @@ import { usePostRecommendationStore } from '@/features/community/stores/post-rec
 import { commentFixture, postFixture, reviewFixture } from '@/test/fixtures/community'
 import { mockRouter } from '@/test/mocks/next-navigation'
 import type { PostPage } from '@/features/community/types/community'
-import { markWrittenPostNavigation } from '@/features/profile/lib/written-post-navigation'
 import CommunityBoard from './community-board'
 import { CommunityPhoto } from './community-shared'
 
@@ -375,33 +374,13 @@ describe('live community board', () => {
     expect(screen.getByRole('button', { name: '자유게시판' })).toHaveAttribute('aria-pressed', 'true')
     expect(api.fetchPosts).toHaveBeenLastCalledWith('latest', undefined, expect.any(AbortSignal))
   })
-  it('returns a directly opened free-post detail to the free list', async () => {
+  it('returns a directly opened post through browser history', async () => {
     const user = userEvent.setup()
     render(<CommunityBoard initialPostId="post-1" initialTab="free" />)
     await screen.findByRole('heading', { name: postFixture.title })
     await user.click(await screen.findByRole('button', { name: '뒤로가기' }))
-    expect(mockRouter.replace).toHaveBeenCalledWith('/community?tab=free')
-  })
-  it('returns a post opened from My written posts through browser history', async () => {
-    const user = userEvent.setup()
-    markWrittenPostNavigation('post-1')
-    render(<CommunityBoard initialPostId="post-1" returnToPrevious />)
-    await screen.findByRole('heading', { name: postFixture.title })
-
-    await user.click(screen.getByRole('button', { name: '뒤로가기' }))
-
     expect(mockRouter.back).toHaveBeenCalledOnce()
     expect(mockRouter.replace).not.toHaveBeenCalled()
-  })
-  it('safely restores My written posts when the source URL was opened directly', async () => {
-    const user = userEvent.setup()
-    render(<CommunityBoard initialPostId="post-1" returnToPrevious />)
-    await screen.findByRole('heading', { name: postFixture.title })
-
-    await user.click(screen.getByRole('button', { name: '뒤로가기' }))
-
-    expect(mockRouter.back).not.toHaveBeenCalled()
-    expect(mockRouter.replace).toHaveBeenCalledWith('/my?section=posts')
   })
   it('ignores delayed results when changing tabs', async () => {
     const pending = deferred<PostPage>()
@@ -443,7 +422,8 @@ describe('live community board', () => {
     rerender(<CommunityBoard initialPostId="post-2" />)
     expect(await screen.findByRole('heading', { name: '다른 상세' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '뒤로가기' }))
-    expect(mockRouter.replace).toHaveBeenCalledWith('/community')
+    expect(mockRouter.back).toHaveBeenCalledOnce()
+    expect(mockRouter.replace).not.toHaveBeenCalled()
   })
   it('does not fall back to fixture content for deleted detail', async () => {
     vi.mocked(api.fetchPost).mockRejectedValue({ type: 'not-found' })

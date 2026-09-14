@@ -24,7 +24,6 @@ import type {
   ProfileReview,
   WishlistPlace,
 } from '@/features/profile/types/profile'
-import { markWrittenPostNavigation } from '@/features/profile/lib/written-post-navigation'
 
 export type SettingsTab = 'nickname' | 'posts' | 'wishlist' | 'bookmarks' | 'reviews'
 
@@ -234,12 +233,8 @@ export default function ProfileSettings({
                 {posts.map((post) => (
                   <m.article layout={!prefersReducedMotion} key={post.id} initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -18 }} transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: PROFILE_MOTION_EASE }}>
                     <Link
-                      href={`/community?post=${encodeURIComponent(post.id)}&from=my-posts`}
+                      href={`/community?post=${encodeURIComponent(post.id)}`}
                       aria-label={`${post.title} 게시글 보기`}
-                      onClick={(event) => {
-                        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-                        markWrittenPostNavigation(post.id)
-                      }}
                       className="flex gap-3 rounded-card border border-border bg-card-surface p-3 transition-colors hover:bg-sage-green-light/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-green active:bg-sage-green-light/55"
                     >
                       <PhotoImage
