@@ -29,11 +29,11 @@ import type {
   ProfileSummary,
 } from '@/features/profile/types/profile'
 
-export default function ProfileRoute() {
+export default function ProfileRoute({ initialSettingsTab }: { initialSettingsTab?: SettingsTab }) {
   const router = useRouter()
   const prefersReducedMotion = useReducedMotion()
-  const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(null)
-  const [settingsLayerActive, setSettingsLayerActive] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(initialSettingsTab ?? null)
+  const [settingsLayerActive, setSettingsLayerActive] = useState(Boolean(initialSettingsTab))
   const [summary, setSummary] = useState<ProfileSummary | null>(null)
   const [profilePhoto, setProfilePhoto] = useState<ProfilePhoto | null>(null)
   const [status, setStatus] = useState<ProfileLoadStatus>('loading')
@@ -92,14 +92,19 @@ export default function ProfileRoute() {
     }
   }, [requestProfile])
 
-  const closeSettings = useCallback(() => setSettingsTab(null), [])
+  const closeSettings = useCallback(() => {
+    const closingTab = settingsTab
+    setSettingsTab(null)
+    if (closingTab === 'posts') router.replace('/my', { scroll: false })
+  }, [router, settingsTab])
 
   const openSettings = useCallback((tab: SettingsTab) => {
     settingsTriggerRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null
     setSettingsLayerActive(true)
     setSettingsTab(tab)
-  }, [])
+    if (tab === 'posts') router.replace('/my?section=posts', { scroll: false })
+  }, [router])
 
   useEffect(() => {
     if (!settingsLayerActive) return

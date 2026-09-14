@@ -43,7 +43,7 @@ const hotPosts: HotPost[] = [
     recommendationCount: 42,
     commentCount: 7,
     createdAt: null,
-    photoId: null,
+    photoUrl: null,
   },
 ]
 

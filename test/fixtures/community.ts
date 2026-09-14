@@ -2,7 +2,7 @@ import type { Comment, Post, Review } from '@/features/community/types/community
 
 export const postFixture: Post = {
   id: 'post-1', petId: 'pet-1', photoId: null, courseId: 'course-1',
-  title: '반려견과 바다 산책', content: '함께 걸었던 여행 기록', nickname: '여행자',
+  title: '반려견과 바다 산책', content: '함께 걸었던 여행 기록', nickname: '여행자', authorProfilePhotoUrl: null,
   photoUrl: null, photos: [], viewCount: 12, recommendationCount: 3, commentCount: 2, createdAt: '2026-08-30T10:30:00',
   recommended: false, bookmarked: false,
 }

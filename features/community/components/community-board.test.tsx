@@ -25,6 +25,8 @@ function deferred<T>() {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  window.sessionStorage.clear()
+  window.history.replaceState({}, '', '/')
   Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() })
   useAuthStore.setState({ status: 'authenticated', sessionEpoch: 0 })
   usePostRecommendationStore.getState().reset()
@@ -221,18 +223,24 @@ describe('live community board', () => {
     expect(screen.getByRole('img', { name: /임시 사진/ })).toBeInTheDocument()
   })
 
-  it('replaces the temporary list image with the documented photo download URL', async () => {
-    vi.mocked(api.fetchPhotoDownload).mockResolvedValue({
-      id: 'photo-1', downloadUrl: 'https://example.com/resolved.jpg', takenAt: null,
+  it('uses the documented download URL directly without a separate photo request', () => {
+    render(<CommunityPhoto title="목록 사진" url="https://example.com/resolved.jpg" className="h-36" temporaryFallback />)
+    expect(screen.getByRole('img', { name: '목록 사진' })).toHaveAttribute('src', 'https://example.com/resolved.jpg')
+  })
+
+  it('shows author profile photos and falls back to the local default in post detail', async () => {
+    const authorPhotoUrl = 'https://example.com/author.jpg'
+    vi.mocked(api.fetchPosts).mockResolvedValue({
+      posts: [{ ...postFixture, authorProfilePhotoUrl: authorPhotoUrl }],
+      nextCursor: null,
     })
-    const { unmount } = render(
-      <CommunityPhoto title="목록 사진" url={null} photoId="photo-1" className="h-36" temporaryFallback />,
-    )
-    expect(screen.getByRole('img', { name: /임시 사진/ })).toBeInTheDocument()
-    expect(await screen.findByRole('img', { name: '목록 사진' })).toHaveAttribute('src', 'https://example.com/resolved.jpg')
-    const signal = vi.mocked(api.fetchPhotoDownload).mock.calls[0][1]
+    const { unmount } = render(<CommunityBoard />)
+    expect(await screen.findByRole('img', { name: `${postFixture.nickname} 프로필 사진` })).toHaveAttribute('src', authorPhotoUrl)
     unmount()
-    expect(signal?.aborted).toBe(true)
+
+    vi.mocked(api.fetchPost).mockResolvedValue({ ...postFixture, authorProfilePhotoUrl: null })
+    render(<CommunityBoard initialPostId="post-1" />)
+    expect(await screen.findByRole('img', { name: '기본 프로필' })).toHaveAttribute('src', '/images/default-profile.svg')
   })
 
   it('cycles post detail photos in both directions with wraparound', async () => {
@@ -240,15 +248,10 @@ describe('live community board', () => {
       ...postFixture,
       photoId: 'photo-1',
       photos: [
-        { photoId: 'photo-1', photoKey: 'post/user/one.jpg' },
-        { photoId: 'photo-2', photoKey: 'post/user/two.jpg' },
+        { photoId: 'photo-1', photoKey: 'post/user/one.jpg', downloadUrl: 'https://example.com/photo-1.jpg' },
+        { photoId: 'photo-2', photoKey: 'post/user/two.jpg', downloadUrl: 'https://example.com/photo-2.jpg' },
       ],
     })
-    vi.mocked(api.fetchPhotoDownload).mockImplementation(async (photoId) => ({
-      id: photoId,
-      downloadUrl: `https://example.com/${photoId}.jpg`,
-      takenAt: null,
-    }))
 
     const user = userEvent.setup()
     render(<CommunityBoard initialPostId="post-1" />)
@@ -281,15 +284,10 @@ describe('live community board', () => {
       ...postFixture,
       photoId: 'photo-1',
       photos: [
-        { photoId: 'photo-1', photoKey: 'post/user/one.jpg' },
-        { photoId: 'photo-2', photoKey: 'post/user/two.jpg' },
+        { photoId: 'photo-1', photoKey: 'post/user/one.jpg', downloadUrl: 'https://example.com/photo-1.jpg' },
+        { photoId: 'photo-2', photoKey: 'post/user/two.jpg', downloadUrl: 'https://example.com/photo-2.jpg' },
       ],
     })
-    vi.mocked(api.fetchPhotoDownload).mockImplementation(async (photoId) => ({
-      id: photoId,
-      downloadUrl: `https://example.com/${photoId}.jpg`,
-      takenAt: null,
-    }))
     const user = userEvent.setup()
     render(<CommunityBoard initialPostId="post-1" />)
 
@@ -315,25 +313,43 @@ describe('live community board', () => {
     historyBack.mockRestore()
   })
 
-  it('shows the list representative photo first even if detail photos arrive in another order', async () => {
+  it('preserves the photo order returned by the detail API', async () => {
     vi.mocked(api.fetchPost).mockResolvedValue({
       ...postFixture,
       photoId: 'photo-2',
       photoUrl: 'https://example.com/photo-2.jpg',
       photos: [
-        { photoId: 'photo-1', photoKey: 'post/user/one.jpg' },
-        { photoId: 'photo-2', photoKey: 'post/user/two.jpg' },
+        { photoId: 'photo-1', photoKey: 'post/user/one.jpg', downloadUrl: 'https://example.com/photo-1.jpg' },
+        { photoId: 'photo-2', photoKey: 'post/user/two.jpg', downloadUrl: 'https://example.com/photo-2.jpg' },
       ],
     })
-    vi.mocked(api.fetchPhotoDownload).mockImplementation(async (photoId) => ({
-      id: photoId,
-      downloadUrl: `https://example.com/${photoId}.jpg`,
-      takenAt: null,
-    }))
 
     render(<CommunityBoard initialPostId="post-1" />)
 
-    expect(await screen.findByRole('img', { name: `${postFixture.title} 사진 1` })).toHaveAttribute('src', 'https://example.com/photo-2.jpg')
+    expect(await screen.findByRole('img', { name: `${postFixture.title} 사진 1` })).toHaveAttribute('src', 'https://example.com/photo-1.jpg')
+  })
+
+  it('shows missing photo URLs as failed and reloads the post before retrying', async () => {
+    const expiredPost = {
+      ...postFixture,
+      photoId: 'photo-1',
+      photos: [{ photoId: 'photo-1', photoKey: 'post/user/one.jpg', downloadUrl: null }],
+    }
+    const refreshedPost = {
+      ...expiredPost,
+      photoUrl: 'https://example.com/refreshed.jpg',
+      photos: [{ ...expiredPost.photos[0], downloadUrl: 'https://example.com/refreshed.jpg' }],
+    }
+    vi.mocked(api.fetchPost).mockResolvedValueOnce(expiredPost).mockResolvedValueOnce(refreshedPost)
+    const user = userEvent.setup()
+
+    render(<CommunityBoard initialPostId="post-1" />)
+
+    expect(await screen.findByText('사진을 불러오지 못했어요')).toBeInTheDocument()
+    expect(screen.queryByLabelText('사진 불러오는 중')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '사진 다시 불러오기' }))
+    expect(await screen.findByRole('img', { name: `${postFixture.title} 사진 1` })).toHaveAttribute('src', 'https://example.com/refreshed.jpg')
+    expect(api.fetchPost).toHaveBeenCalledTimes(2)
   })
 
   it('loads popular/latest sorting and routes real IDs to detail', async () => {
@@ -358,12 +374,13 @@ describe('live community board', () => {
     expect(screen.getByRole('button', { name: '자유게시판' })).toHaveAttribute('aria-pressed', 'true')
     expect(api.fetchPosts).toHaveBeenLastCalledWith('latest', undefined, expect.any(AbortSignal))
   })
-  it('returns a directly opened free-post detail to the free list', async () => {
+  it('returns a directly opened post through browser history', async () => {
     const user = userEvent.setup()
     render(<CommunityBoard initialPostId="post-1" initialTab="free" />)
     await screen.findByRole('heading', { name: postFixture.title })
     await user.click(await screen.findByRole('button', { name: '뒤로가기' }))
-    expect(mockRouter.replace).toHaveBeenCalledWith('/community?tab=free')
+    expect(mockRouter.back).toHaveBeenCalledOnce()
+    expect(mockRouter.replace).not.toHaveBeenCalled()
   })
   it('ignores delayed results when changing tabs', async () => {
     const pending = deferred<PostPage>()
@@ -405,7 +422,8 @@ describe('live community board', () => {
     rerender(<CommunityBoard initialPostId="post-2" />)
     expect(await screen.findByRole('heading', { name: '다른 상세' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '뒤로가기' }))
-    expect(mockRouter.replace).toHaveBeenCalledWith('/community')
+    expect(mockRouter.back).toHaveBeenCalledOnce()
+    expect(mockRouter.replace).not.toHaveBeenCalled()
   })
   it('does not fall back to fixture content for deleted detail', async () => {
     vi.mocked(api.fetchPost).mockRejectedValue({ type: 'not-found' })

@@ -230,20 +230,12 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
 export default function CommunityScreen({ initialPostId, initialTab }: CommunityScreenProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState(initialTab === 'free' ? 1 : 0)
-  const [selectedPost, setSelectedPost] = useState<typeof posts[0] | null>(() =>
-    posts.find((post) => String(post.id) === initialPostId) ?? null
-  )
-
+  const selectedPost = posts.find((post) => String(post.id) === initialPostId) ?? null
   if (selectedPost) {
     return (
       <PostDetailView
         post={selectedPost}
-        onBack={() => {
-          setSelectedPost(null)
-          if (initialPostId) {
-            router.replace('/community')
-          }
-        }}
+        onBack={() => router.back()}
       />
     )
   }
@@ -282,7 +274,7 @@ export default function CommunityScreen({ initialPostId, initialTab }: Community
           {filteredPosts.map((post, i) => (
             <InteractiveCard
               key={post.id}
-              onClick={() => setSelectedPost(post)}
+              onClick={() => router.push(`/community?post=${encodeURIComponent(post.id)}${activeTab === 1 ? '&tab=free' : ''}`)}
               padding="none"
               className="overflow-hidden"
             >

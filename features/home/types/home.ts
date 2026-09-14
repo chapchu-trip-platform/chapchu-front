@@ -12,7 +12,7 @@ export interface HotPost {
   recommendationCount: number
   commentCount: number
   createdAt: string | null
-  photoId: string | null
+  photoUrl: string | null
 }
 
 export interface NearbyPlace {

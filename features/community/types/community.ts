@@ -1,6 +1,7 @@
 export interface PostPhoto {
   photoId: string
   photoKey: string | null
+  downloadUrl: string | null
 }
 
 export interface Post {
@@ -11,6 +12,7 @@ export interface Post {
   title: string
   content: string
   nickname: string
+  authorProfilePhotoUrl: string | null
   photoUrl: string | null
   photos: PostPhoto[]
   viewCount: number
@@ -26,6 +28,7 @@ export interface PostSummary {
   photoId: string | null
   title: string
   nickname: string
+  authorProfilePhotoUrl: string | null
   recommendationCount: number
   commentCount: number
   photoUrl: string | null
@@ -54,6 +57,10 @@ export interface PostInput {
   title: string
   content: string
   photos?: PostPhotoInput[]
+}
+
+export type UpdatePostInput = Pick<PostInput, 'title' | 'content'> & {
+  photos?: PostPhotoInput[] | null
 }
 
 export interface Comment {

@@ -88,6 +88,7 @@ function createDeferred<T>() {
 }
 
 beforeEach(() => {
+  window.sessionStorage.clear()
   vi.mocked(fetchProfileSummary).mockResolvedValue({ ...mockProfileSummary, petCount: 1 })
   vi.mocked(fetchPets).mockResolvedValue([pet])
   vi.mocked(fetchProfilePhoto).mockResolvedValue({ photoId: null, downloadUrl: null })
@@ -283,9 +284,22 @@ describe('ProfileRoute', () => {
 
     expect(await screen.findByText('초코와 여행 기록')).toBeInTheDocument()
     expect(fetchMyPosts).toHaveBeenCalledOnce()
-    expect(screen.getByRole('link', { name: mockProfilePosts[0].title })).toHaveAttribute(
+    expect(mockRouter.replace).toHaveBeenCalledWith('/my?section=posts', { scroll: false })
+    const postLink = screen.getByRole('link', { name: `${mockProfilePosts[0].title} 게시글 보기` })
+    expect(postLink).toHaveAttribute(
       'href', `/community?post=${encodeURIComponent(mockProfilePosts[0].id)}`
     )
+    expect(postLink).toContainElement(screen.getByText(mockProfilePosts[0].title))
+    expect(postLink).toContainElement(screen.getByText(mockProfilePosts[0].content))
+    expect(within(postLink).getByText(`조회 ${mockProfilePosts[0].viewCount}`)).toBeInTheDocument()
+  })
+
+  it('restores the written-post settings panel from history route state', async () => {
+    render(<ProfileRoute initialSettingsTab="posts" />)
+
+    expect(await screen.findByRole('dialog', { name: '내정보 설정' })).toBeInTheDocument()
+    expect(await screen.findByText(mockProfilePosts[0].title)).toBeInTheDocument()
+    expect(fetchMyPosts).toHaveBeenCalledOnce()
   })
 
   it('loads a written post representative photo from its photo id', async () => {
@@ -760,6 +774,7 @@ describe('ProfileRoute', () => {
     expect(settingsTrigger.closest('[inert]')).not.toBeNull()
 
     await user.click(screen.getByRole('button', { name: '뒤로 가기' }))
+    expect(mockRouter.replace).toHaveBeenLastCalledWith('/my', { scroll: false })
     await waitFor(() => {
       expect(screen.queryByRole('dialog', { name: '내정보 설정' })).not.toBeInTheDocument()
       expect(settingsTrigger).toHaveFocus()
@@ -775,8 +790,8 @@ describe('ProfileRoute', () => {
     render(<ProfileRoute />)
     await screen.findByRole('heading', { name: '초코맘' })
     await user.click(screen.getByRole('button', { name: /작성한 글.*내 작성글 보기/ }))
-    const firstLink = await screen.findByRole('link', { name: posts[0].title })
-    const lastLink = screen.getByRole('link', { name: posts[1].title })
+    const firstLink = await screen.findByRole('link', { name: `${posts[0].title} 게시글 보기` })
+    const lastLink = screen.getByRole('link', { name: `${posts[1].title} 게시글 보기` })
     const back = screen.getByRole('button', { name: '뒤로 가기' })
     expect(firstLink).toHaveAttribute('href', '/community?post=post%2Fwith%3Fquery%26value')
     expect(back).toHaveFocus()

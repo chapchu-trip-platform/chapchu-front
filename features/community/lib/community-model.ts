@@ -22,19 +22,32 @@ export function parsePost(value: unknown): Post {
   const photos = photoValues?.map(parsePostPhoto) ?? null
   if (!record(value) || !id(value.id) || !nullableId(value.petId) || !nullableId(value.photoId) ||
       !nullableId(value.courseId) || !text(value.title, 500) || !text(value.content) ||
-      !text(value.nickname, 100) || !(value.photoUrl === null || text(value.photoUrl, 4096)) ||
+      !text(value.nickname, 100) ||
+      !(value.authorProfilePhotoUrl === undefined || value.authorProfilePhotoUrl === null || text(value.authorProfilePhotoUrl, 4096)) ||
+      !(value.photoUrl === null || text(value.photoUrl, 4096)) ||
       !count(value.viewCount) || !count(value.recommendationCount) || !count(value.commentCount) || !date(value.createdAt) ||
       typeof value.recommended !== 'boolean' || typeof value.bookmarked !== 'boolean' || !photos) {
     throw new Error('Invalid community post response.')
   }
-  return { ...(value as unknown as Post), photoUrl: safePhotoUrl(value.photoUrl as string | null), photos }
+  return {
+    ...(value as unknown as Post),
+    authorProfilePhotoUrl: safePhotoUrl((value.authorProfilePhotoUrl as string | null | undefined) ?? null),
+    photoUrl: safePhotoUrl(value.photoUrl as string | null),
+    photos,
+  }
 }
 
 function parsePostPhoto(value: unknown): PostPhoto {
-  if (!record(value) || !id(value.photoId) || !(value.photoKey === null || (text(value.photoKey, 4096) && value.photoKey.trim()))) {
+  if (!record(value) || !id(value.photoId) ||
+      !(value.photoKey === null || (text(value.photoKey, 4096) && value.photoKey.trim())) ||
+      !(value.downloadUrl === undefined || value.downloadUrl === null || text(value.downloadUrl, 4096))) {
     throw new Error('Invalid community post photo response.')
   }
-  return { photoId: value.photoId, photoKey: value.photoKey }
+  return {
+    photoId: value.photoId,
+    photoKey: value.photoKey,
+    downloadUrl: safePhotoUrl((value.downloadUrl as string | null | undefined) ?? null),
+  }
 }
 
 export function parsePosts(value: unknown): Post[] {
@@ -47,9 +60,12 @@ export function parsePostSummary(value: unknown): PostSummary {
 
   const thumbnail = value.thumbnail
   const validThumbnail = thumbnail === null || (
-    record(thumbnail) && id(thumbnail.photoId) && (thumbnail.photoKey === null || text(thumbnail.photoKey, 4096))
+    record(thumbnail) && id(thumbnail.photoId) &&
+    (thumbnail.photoKey === null || text(thumbnail.photoKey, 4096)) &&
+    (thumbnail.downloadUrl === undefined || thumbnail.downloadUrl === null || text(thumbnail.downloadUrl, 4096))
   )
   if (!id(value.id) || !text(value.title, 500) || !text(value.nickname, 100) || !value.nickname.trim() ||
+      !(value.authorProfilePhotoUrl === undefined || value.authorProfilePhotoUrl === null || text(value.authorProfilePhotoUrl, 4096)) ||
       !count(value.recommendationCount) || !count(value.commentCount) || !validThumbnail || !date(value.createdAt)) {
     throw new Error('Invalid community post summary response.')
   }
@@ -62,9 +78,12 @@ export function parsePostSummary(value: unknown): PostSummary {
       : null,
     title: value.title,
     nickname: value.nickname,
+    authorProfilePhotoUrl: safePhotoUrl((value.authorProfilePhotoUrl as string | null | undefined) ?? null),
     recommendationCount: value.recommendationCount,
     commentCount: value.commentCount,
-    photoUrl: null,
+    photoUrl: record(thumbnail)
+      ? safePhotoUrl((thumbnail.downloadUrl as string | null | undefined) ?? null)
+      : null,
     createdAt: value.createdAt,
   }
 }

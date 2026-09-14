@@ -17,7 +17,11 @@ function post(recommendationCount: number) {
     title: `게시글 ${recommendationCount}`,
     recommendationCount,
     commentCount: recommendationCount + 1,
-    thumbnail: recommendationCount === 4 ? { photoId: 'photo-id', photoKey: 'post/user/photo.jpg' } : null,
+    thumbnail: recommendationCount === 4 ? {
+      photoId: 'photo-id',
+      photoKey: 'post/user/photo.jpg',
+      downloadUrl: 'https://example.com/photo.jpg',
+    } : null,
     createdAt: null,
   }
 }
@@ -74,7 +78,7 @@ describe('Home API', () => {
     expect(capturedConfig?.params?.size).toBe(3)
     expect(capturedConfig?.signal).toBe(signal)
     expect(posts.map((post) => post.id)).toEqual(['post-4', 'post-3', 'post-2'])
-    expect(posts[0].photoId).toBe('photo-id')
+    expect(posts[0].photoUrl).toBe('https://example.com/photo.jpg')
     expect(posts[0]).toMatchObject({ nickname: '작성자 4', commentCount: 5 })
   })
 

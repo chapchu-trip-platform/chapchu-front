@@ -19,7 +19,7 @@ describe('community API requests', () => {
     vi.mocked(apiClient.get).mockResolvedValue({ data: { posts: [summary], nextCursor: null } })
     const signal = new AbortController().signal
     await expect(api.fetchPosts('popular', 'date~id+/=', signal)).resolves.toEqual({
-      posts: [{ id: 'summary-1', photoId: null, title: '목록 제목', nickname: '작성자', recommendationCount: 1, commentCount: 2, photoUrl: null, createdAt: '2026-09-08T12:00:00Z' }],
+      posts: [{ id: 'summary-1', photoId: null, title: '목록 제목', nickname: '작성자', authorProfilePhotoUrl: null, recommendationCount: 1, commentCount: 2, photoUrl: null, createdAt: '2026-09-08T12:00:00Z' }],
       nextCursor: null,
     })
     expect(apiClient.get).toHaveBeenCalledWith('/posts', { params: { sort: 'popular', size: 20, cursor: 'date~id+/=' }, signal })
@@ -50,18 +50,31 @@ describe('community API requests', () => {
     await api.deletePost('post-1')
     expect(apiClient.delete).toHaveBeenCalledWith('/posts/post-1')
   })
-  it('loads a documented photo download URL and binds it to the requested photo', async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({
-      data: { id: 'photo-1', downloadUrl: 'https://example.com/photo.jpg', takenAt: null },
-    })
+  it('preserves the three-state post photo update contract', async () => {
+    vi.mocked(apiClient.patch).mockResolvedValue({ data: postFixture })
     const signal = new AbortController().signal
-    await expect(api.fetchPhotoDownload('photo-1', signal)).resolves.toMatchObject({ id: 'photo-1' })
-    expect(apiClient.get).toHaveBeenCalledWith('/photos/photo-1', { signal })
-
-    vi.mocked(apiClient.get).mockResolvedValue({
-      data: { id: 'other-photo', downloadUrl: 'https://example.com/photo.jpg', takenAt: null },
-    })
-    await expect(api.fetchPhotoDownload('photo-1')).rejects.toThrow('did not match')
+    await api.updatePost('post-1', { title: '유지', content: '본문' }, signal)
+    await api.updatePost('post-1', { title: '전체 삭제', content: '본문', photos: [] }, signal)
+    await api.updatePost('post-1', {
+      title: '교체', content: '본문', photos: [{ photoKey: 'post/user/one.jpg' }, { photoKey: 'post/user/two.jpg' }],
+    }, signal)
+    await api.updatePost('post-1', { title: '명시적 유지', content: '본문', photos: null }, signal)
+    expect(apiClient.patch).toHaveBeenNthCalledWith(1, '/posts/post-1', { title: '유지', content: '본문' }, { signal })
+    expect(apiClient.patch).toHaveBeenNthCalledWith(2, '/posts/post-1', { title: '전체 삭제', content: '본문', photos: [] }, { signal })
+    expect(apiClient.patch).toHaveBeenNthCalledWith(3, '/posts/post-1', {
+      title: '교체', content: '본문', photos: [{ photoKey: 'post/user/one.jpg' }, { photoKey: 'post/user/two.jpg' }],
+    }, { signal })
+    expect(apiClient.patch).toHaveBeenNthCalledWith(4, '/posts/post-1', {
+      title: '명시적 유지', content: '본문', photos: null,
+    }, { signal })
+  })
+  it('rejects duplicate photo keys before updating a post', async () => {
+    await expect(api.updatePost('post-1', {
+      title: '중복 사진',
+      content: '본문',
+      photos: [{ photoKey: 'post/user/same.jpg' }, { photoKey: 'post/user/same.jpg' }],
+    })).rejects.toThrow('Post photo keys must be unique.')
+    expect(apiClient.patch).not.toHaveBeenCalled()
   })
   it.each([202, 204])('does not confirm publication from an unexpected %i response', async status => {
     vi.mocked(apiClient.post).mockResolvedValue({ data: undefined, status })
