@@ -8,6 +8,7 @@ import type {
   PetMutationInput,
   PetOptions,
   ProfilePet,
+  ProfilePhoto,
   ProfilePost,
   ProfileReview,
   ProfileSummary,
@@ -103,6 +104,31 @@ function parseProfileSummary(value: unknown): ProfileSummary {
   }
 }
 
+function safePhotoUrl(value: unknown) {
+  if (!isString(value, 4_096) || !value.trim()) return null
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' && !url.username && !url.password ? url.href : null
+  } catch {
+    return null
+  }
+}
+
+function parseProfilePhotoResponse(value: unknown): ProfilePhoto {
+  if (!isObject(value) || !isObject(value.profilePhoto)) {
+    throw new Error('Profile photo response was invalid.')
+  }
+  const photoId = value.profilePhoto.photoId
+  if (!(photoId === null || isIdentifier(photoId, 200))) {
+    throw new Error('Profile photo response was invalid.')
+  }
+  const downloadUrl = safePhotoUrl(value.profilePhoto.downloadUrl)
+  if (photoId !== null && !downloadUrl) {
+    throw new Error('Profile photo response was invalid.')
+  }
+  return { photoId, downloadUrl }
+}
+
 function parsePet(value: unknown): ProfilePet {
   if (
     !isObject(value) ||
@@ -146,6 +172,7 @@ function parsePost(value: unknown): ProfilePost {
   if (
     !isObject(value) ||
     !isIdentifier(value.id, 100) ||
+    !(value.photoId === null || isIdentifier(value.photoId, 200)) ||
     !isString(value.title, 500) ||
     value.title.trim().length === 0 ||
     !isString(value.content) ||
@@ -162,13 +189,14 @@ function parsePost(value: unknown): ProfilePost {
 
   return {
     id: value.id,
+    photoId: value.photoId,
     title: value.title.trim(),
     content: value.content.trim(),
     viewCount: value.viewCount,
     recommendationCount: value.recommendationCount,
     commentCount: value.commentCount,
     nickname: value.nickname.trim(),
-    photoUrl: value.photoUrl,
+    photoUrl: safePhotoUrl(value.photoUrl),
     createdAt: value.createdAt,
   }
 }
@@ -229,6 +257,23 @@ export async function fetchProfileSummary(signal?: AbortSignal) {
     signal,
   })
   return parseProfileSummary(data)
+}
+
+export async function fetchProfilePhoto(signal?: AbortSignal) {
+  const { data }: { data: unknown } = await apiClient.get(API_ENDPOINTS.users.me, { signal })
+  return parseProfilePhotoResponse(data)
+}
+
+export async function updateProfilePhoto(photoId: string | null, signal?: AbortSignal) {
+  if (!(photoId === null || isIdentifier(photoId, 200))) {
+    throw new Error('Profile photo ID was invalid.')
+  }
+  const { data }: { data: unknown } = await apiClient.patch(
+    API_ENDPOINTS.users.photo,
+    { photoId },
+    { signal }
+  )
+  return parseProfilePhotoResponse(data)
 }
 
 export async function fetchPets(signal?: AbortSignal) {

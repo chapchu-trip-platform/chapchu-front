@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as api from '@/features/community/api/community-api'
@@ -25,6 +25,8 @@ function deferred<T>() {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  window.sessionStorage.clear()
+  window.history.replaceState({}, '', '/')
   Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() })
   useAuthStore.setState({ status: 'authenticated', sessionEpoch: 0 })
   usePostRecommendationStore.getState().reset()
@@ -40,37 +42,6 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('live community board', () => {
-  it.each(['edit-first', 'count-first'])('keeps the server comment total during concurrent post editing (%s)', async order => {
-    const user = userEvent.setup()
-    const edit = deferred<typeof postFixture>()
-    const total = deferred<typeof postFixture>()
-    vi.mocked(api.fetchMyPosts).mockResolvedValue([postFixture])
-    vi.mocked(api.updatePost).mockReturnValue(edit.promise)
-    const view = render(<CommunityBoard initialPostId="post-1" />)
-    await user.click(await screen.findByRole('button', { name: '더보기' }))
-    await user.click(await screen.findByRole('button', { name: '게시글 수정' }))
-    await user.clear(screen.getByRole('textbox', { name: '게시글 제목' }))
-    await user.type(screen.getByRole('textbox', { name: '게시글 제목' }), '수정 제목')
-    await user.click(screen.getByRole('button', { name: '수정 저장' }))
-    vi.mocked(api.fetchPost).mockReturnValue(total.promise)
-    const input = screen.getByRole('textbox', { name: '댓글 내용' })
-    await waitFor(() => expect(input).toBeEnabled())
-    await user.type(input, '새 댓글')
-    await user.click(screen.getByRole('button', { name: '댓글 전송' }))
-    await waitFor(() => expect(api.createComment).toHaveBeenCalled())
-    if (order === 'edit-first') {
-      await act(async () => edit.resolve({ ...postFixture, title: '수정 제목', commentCount: 3 }))
-      await act(async () => total.resolve({ ...postFixture, commentCount: 3 }))
-    } else {
-      await act(async () => total.resolve({ ...postFixture, commentCount: 3 }))
-      await act(async () => edit.resolve({ ...postFixture, title: '수정 제목', commentCount: 2 }))
-    }
-    await closeNotice(user)
-    await closeNotice(user)
-    expect(screen.getByRole('heading', { name: '댓글 3' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '수정 제목' })).toBeInTheDocument()
-    view.unmount()
-  })
   it('restores both server reaction flags with no session memory and replaces outdated memory on re-entry', async () => {
     const { rerender } = render(<CommunityBoard initialPostId="post-1" />)
     await screen.findByRole('button', { name: '게시글 추천' })
@@ -173,14 +144,14 @@ describe('live community board', () => {
     vi.mocked(api.fetchPost).mockResolvedValue({ ...postFixture, bookmarked: true })
     vi.mocked(api.setPostBookmark).mockRejectedValueOnce({ status: 500, type: 'server' })
     render(<CommunityBoard initialPostId="post-1" />)
-    await user.click(await screen.findByRole('button', { name: '신고' }))
-    await user.click(screen.getByRole('button', { name: '북마크 취소' }))
+    await user.click(await screen.findByRole('button', { name: '북마크 취소' }))
     expect(await screen.findByRole('dialog', { name: '안내' })).toHaveTextContent('북마크 취소를 완료하지 못했어요')
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
     await closeNotice(user)
     await waitFor(() => expect(screen.getByRole('button', { name: '북마크 취소' })).toHaveFocus())
+    await user.click(screen.getByRole('button', { name: '광고·스팸 신고' }))
     await user.click(screen.getByRole('button', { name: '신고 접수' }))
-    expect(await screen.findByRole('dialog')).toHaveTextContent('신고가 접수되었어요.')
+    expect(await screen.findByRole('dialog', { name: '안내' })).toHaveTextContent('신고가 접수되었어요.')
     await closeNotice(user)
     // Base UI resolves a non-tabbable fallback container to its first tabbable child.
     await waitFor(() => expect(screen.getByRole('button', { name: '뒤로가기' })).toHaveFocus())
@@ -188,10 +159,14 @@ describe('live community board', () => {
     expect(screen.getByRole('heading', { name: postFixture.title })).toBeInTheDocument()
   })
 
-  it('shows writing on the free board, reserves companion info for reviews, and replaces sharing with bookmarking', async () => {
+  it('offers writing only on the free board, reserves companion info for reviews, and replaces sharing with bookmarking', async () => {
     const user = userEvent.setup()
-    const { unmount } = render(<CommunityBoard initialTab="free" />)
+    const { unmount } = render(<CommunityBoard />)
     await screen.findByText(postFixture.title)
+    expect(api.fetchPosts).toHaveBeenCalledWith('popular', undefined, expect.any(AbortSignal))
+    expect(screen.queryByRole('link', { name: '글쓰기' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '자유게시판' }))
+    await waitFor(() => expect(api.fetchPosts).toHaveBeenCalledWith('latest', undefined, expect.any(AbortSignal)))
     expect(screen.getByRole('link', { name: '글쓰기' })).toHaveAttribute('href', '/community/write')
     expect(screen.queryByText('동행 반려동물')).not.toBeInTheDocument()
     expect(screen.queryByText('코스 정보')).not.toBeInTheDocument()
@@ -217,6 +192,26 @@ describe('live community board', () => {
     expect(await screen.findByRole('button', { name: '북마크' })).toHaveAttribute('aria-pressed', 'false')
   })
 
+  it('orders HOT posts by recommendation count without changing the server order for the free board', async () => {
+    const user = userEvent.setup()
+    const low = { ...postFixture, id: 'post-low', title: '추천 1개', recommendationCount: 1 }
+    const high = { ...postFixture, id: 'post-high', title: '추천 9개', recommendationCount: 9 }
+    const middle = { ...postFixture, id: 'post-middle', title: '추천 4개', recommendationCount: 4 }
+    vi.mocked(api.fetchPosts).mockResolvedValue({ posts: [low, high, middle], nextCursor: null })
+
+    render(<CommunityBoard />)
+    await screen.findByRole('heading', { name: high.title })
+    expect(screen.getAllByRole('heading', { level: 3 }).map(heading => heading.textContent)).toEqual([
+      high.title, middle.title, low.title,
+    ])
+
+    await user.click(screen.getByRole('button', { name: '자유게시판' }))
+    await waitFor(() => expect(api.fetchPosts).toHaveBeenCalledWith('latest', undefined, expect.any(AbortSignal)))
+    expect(screen.getAllByRole('heading', { level: 3 }).map(heading => heading.textContent)).toEqual([
+      low.title, high.title, middle.title,
+    ])
+  })
+
   it('uses a labeled temporary photo on free posts only when the actual photo is missing or fails', () => {
     const { rerender } = render(<CommunityPhoto title="실제 사진" url="https://example.com/photo.jpg" className="h-52" temporaryFallback />)
     expect(screen.queryByText('임시 사진')).not.toBeInTheDocument()
@@ -226,6 +221,135 @@ describe('live community board', () => {
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
     rerender(<CommunityPhoto title="사진 없는 글" url={null} className="h-52" temporaryFallback />)
     expect(screen.getByRole('img', { name: /임시 사진/ })).toBeInTheDocument()
+  })
+
+  it('uses the documented download URL directly without a separate photo request', () => {
+    render(<CommunityPhoto title="목록 사진" url="https://example.com/resolved.jpg" className="h-36" temporaryFallback />)
+    expect(screen.getByRole('img', { name: '목록 사진' })).toHaveAttribute('src', 'https://example.com/resolved.jpg')
+  })
+
+  it('shows author profile photos and falls back to the local default in post detail', async () => {
+    const authorPhotoUrl = 'https://example.com/author.jpg'
+    vi.mocked(api.fetchPosts).mockResolvedValue({
+      posts: [{ ...postFixture, authorProfilePhotoUrl: authorPhotoUrl }],
+      nextCursor: null,
+    })
+    const { unmount } = render(<CommunityBoard />)
+    expect(await screen.findByRole('img', { name: `${postFixture.nickname} 프로필 사진` })).toHaveAttribute('src', authorPhotoUrl)
+    unmount()
+
+    vi.mocked(api.fetchPost).mockResolvedValue({ ...postFixture, authorProfilePhotoUrl: null })
+    render(<CommunityBoard initialPostId="post-1" />)
+    expect(await screen.findByRole('img', { name: '기본 프로필' })).toHaveAttribute('src', '/images/default-profile.svg')
+  })
+
+  it('cycles post detail photos in both directions with wraparound', async () => {
+    vi.mocked(api.fetchPost).mockResolvedValue({
+      ...postFixture,
+      photoId: 'photo-1',
+      photos: [
+        { photoId: 'photo-1', photoKey: 'post/user/one.jpg', downloadUrl: 'https://example.com/photo-1.jpg' },
+        { photoId: 'photo-2', photoKey: 'post/user/two.jpg', downloadUrl: 'https://example.com/photo-2.jpg' },
+      ],
+    })
+
+    const user = userEvent.setup()
+    render(<CommunityBoard initialPostId="post-1" />)
+
+    const gallery = await screen.findByRole('region', { name: '게시글 사진 2장' })
+    expect(gallery).not.toHaveClass('mx-4', 'rounded-card', 'border')
+    expect(await screen.findByRole('img', { name: `${postFixture.title} 사진 1` })).toHaveAttribute('src', 'https://example.com/photo-1.jpg')
+    expect(screen.getByRole('img', { name: `${postFixture.title} 사진 1` })).toHaveClass('object-contain')
+    expect(gallery.querySelector('img[aria-hidden="true"]')).toHaveClass('blur-2xl', 'object-cover')
+    expect(screen.getByRole('button', { name: '이전 사진' })).toHaveClass('opacity-45', 'hover:opacity-100')
+    expect(screen.getByText('1 / 2')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '이전 사진' }))
+    expect(await screen.findByRole('img', { name: `${postFixture.title} 사진 2` })).toHaveAttribute('src', 'https://example.com/photo-2.jpg')
+    expect(screen.getByText('2 / 2')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '다음 사진' }))
+    expect(await screen.findByRole('img', { name: `${postFixture.title} 사진 1` })).toBeInTheDocument()
+
+    gallery.focus()
+    await user.keyboard('{ArrowRight}')
+    expect(await screen.findByRole('img', { name: `${postFixture.title} 사진 2` })).toBeInTheDocument()
+    await user.keyboard('{ArrowRight}')
+    expect(await screen.findByRole('img', { name: `${postFixture.title} 사진 1` })).toBeInTheDocument()
+  })
+
+  it('opens the current photo in a full-screen viewer with navigation and zoom controls', async () => {
+    const historyBack = vi.spyOn(window.history, 'back').mockImplementation(() => undefined)
+    vi.mocked(api.fetchPost).mockResolvedValue({
+      ...postFixture,
+      photoId: 'photo-1',
+      photos: [
+        { photoId: 'photo-1', photoKey: 'post/user/one.jpg', downloadUrl: 'https://example.com/photo-1.jpg' },
+        { photoId: 'photo-2', photoKey: 'post/user/two.jpg', downloadUrl: 'https://example.com/photo-2.jpg' },
+      ],
+    })
+    const user = userEvent.setup()
+    render(<CommunityBoard initialPostId="post-1" />)
+
+    await user.click(await screen.findByRole('button', { name: `${postFixture.title} 사진 1 전체 화면 보기` }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('1 / 2')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: '사진 축소' })).toBeDisabled()
+
+    await user.click(within(dialog).getByRole('button', { name: '사진 확대' }))
+    expect(within(dialog).getByText('150%')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: '전체 화면 다음 사진' }))
+    expect(within(dialog).getByText('2 / 2')).toBeInTheDocument()
+    expect(within(dialog).getByText('100%')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: '전체 화면 닫기' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(historyBack).toHaveBeenCalledOnce()
+
+    // Browser Back closes only the viewer and keeps the detail screen in place.
+    await user.click(screen.getByRole('button', { name: `${postFixture.title} 사진 2 전체 화면 보기` }))
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    act(() => window.dispatchEvent(new PopStateEvent('popstate')))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    historyBack.mockRestore()
+  })
+
+  it('preserves the photo order returned by the detail API', async () => {
+    vi.mocked(api.fetchPost).mockResolvedValue({
+      ...postFixture,
+      photoId: 'photo-2',
+      photoUrl: 'https://example.com/photo-2.jpg',
+      photos: [
+        { photoId: 'photo-1', photoKey: 'post/user/one.jpg', downloadUrl: 'https://example.com/photo-1.jpg' },
+        { photoId: 'photo-2', photoKey: 'post/user/two.jpg', downloadUrl: 'https://example.com/photo-2.jpg' },
+      ],
+    })
+
+    render(<CommunityBoard initialPostId="post-1" />)
+
+    expect(await screen.findByRole('img', { name: `${postFixture.title} 사진 1` })).toHaveAttribute('src', 'https://example.com/photo-1.jpg')
+  })
+
+  it('shows missing photo URLs as failed and reloads the post before retrying', async () => {
+    const expiredPost = {
+      ...postFixture,
+      photoId: 'photo-1',
+      photos: [{ photoId: 'photo-1', photoKey: 'post/user/one.jpg', downloadUrl: null }],
+    }
+    const refreshedPost = {
+      ...expiredPost,
+      photoUrl: 'https://example.com/refreshed.jpg',
+      photos: [{ ...expiredPost.photos[0], downloadUrl: 'https://example.com/refreshed.jpg' }],
+    }
+    vi.mocked(api.fetchPost).mockResolvedValueOnce(expiredPost).mockResolvedValueOnce(refreshedPost)
+    const user = userEvent.setup()
+
+    render(<CommunityBoard initialPostId="post-1" />)
+
+    expect(await screen.findByText('사진을 불러오지 못했어요')).toBeInTheDocument()
+    expect(screen.queryByLabelText('사진 불러오는 중')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '사진 다시 불러오기' }))
+    expect(await screen.findByRole('img', { name: `${postFixture.title} 사진 1` })).toHaveAttribute('src', 'https://example.com/refreshed.jpg')
+    expect(api.fetchPost).toHaveBeenCalledTimes(2)
   })
 
   it('loads popular/latest sorting and routes real IDs to detail', async () => {
@@ -250,12 +374,13 @@ describe('live community board', () => {
     expect(screen.getByRole('button', { name: '자유게시판' })).toHaveAttribute('aria-pressed', 'true')
     expect(api.fetchPosts).toHaveBeenLastCalledWith('latest', undefined, expect.any(AbortSignal))
   })
-  it('returns a directly opened free-post detail to the free list', async () => {
+  it('returns a directly opened post through browser history', async () => {
     const user = userEvent.setup()
     render(<CommunityBoard initialPostId="post-1" initialTab="free" />)
     await screen.findByRole('heading', { name: postFixture.title })
     await user.click(await screen.findByRole('button', { name: '뒤로가기' }))
-    expect(mockRouter.replace).toHaveBeenCalledWith('/community?tab=free')
+    expect(mockRouter.back).toHaveBeenCalledOnce()
+    expect(mockRouter.replace).not.toHaveBeenCalled()
   })
   it('ignores delayed results when changing tabs', async () => {
     const pending = deferred<PostPage>()
@@ -297,7 +422,8 @@ describe('live community board', () => {
     rerender(<CommunityBoard initialPostId="post-2" />)
     expect(await screen.findByRole('heading', { name: '다른 상세' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '뒤로가기' }))
-    expect(mockRouter.replace).toHaveBeenCalledWith('/community')
+    expect(mockRouter.back).toHaveBeenCalledOnce()
+    expect(mockRouter.replace).not.toHaveBeenCalled()
   })
   it('does not fall back to fixture content for deleted detail', async () => {
     vi.mocked(api.fetchPost).mockRejectedValue({ type: 'not-found' })
@@ -308,12 +434,11 @@ describe('live community board', () => {
   it('uses the server bookmark flag while ownership reads fail', async () => {
     vi.mocked(api.fetchMyBookmarks).mockRejectedValue({ type: 'network' })
     vi.mocked(api.fetchMyPosts).mockRejectedValue({ type: 'network' })
-    const user = userEvent.setup()
     render(<CommunityBoard initialPostId="post-1" />)
     expect(await screen.findByRole('button', { name: '북마크' })).toBeEnabled()
-    await user.click(screen.getByRole('button', { name: '더보기' }))
+    expect(screen.queryByRole('button', { name: '수정하기' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '게시글 삭제' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '내 게시글 다시 확인' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: '내 게시글 다시 확인' })).toBeInTheDocument()
   })
   it('hydrates bookmarks and does not toggle on failure', async () => {
     vi.mocked(api.fetchPost).mockResolvedValue({ ...postFixture, bookmarked: true })
@@ -395,13 +520,13 @@ describe('live community board', () => {
     const secondRoot = screen.getByText('둘째 댓글')
     expect(reply.compareDocumentPosition(secondRoot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
-  it('opens action panels visibly and keeps the comment form outside the scroll body', async () => {
+  it('moves report actions into a focused modal and keeps the comment form outside the scroll body', async () => {
     const user = userEvent.setup()
     render(<CommunityBoard initialPostId="post-1" />)
-    await user.click(await screen.findByRole('button', { name: '신고' }))
-    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled()
-    expect(screen.getByLabelText('게시글 작업')).toHaveFocus()
-    expect(screen.getByRole('textbox', { name: '댓글 내용' }).closest('.overflow-y-auto')).toBeNull()
+    await user.click(await screen.findByRole('button', { name: '광고·스팸 신고' }))
+    expect(screen.getByRole('dialog', { name: '광고·스팸 신고' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: '신고 상세 내용' })).toHaveFocus()
+    expect(screen.queryByRole('textbox', { name: '댓글 내용' })).not.toBeInTheDocument()
   })
   it('cancels own review deletion and retains the review on failed delete before retry', async () => {
     vi.mocked(api.deleteReview).mockRejectedValueOnce({ type: 'forbidden' }).mockResolvedValueOnce(undefined)
@@ -419,47 +544,38 @@ describe('live community board', () => {
     await user.click(screen.getByRole('button', { name: '리뷰 삭제 확인' }))
     expect(await screen.findByText('아직 작성한 여행 리뷰가 없어요.')).toBeInTheDocument()
   })
-  it('shows edit/delete only for own IDs and waits for successful edit response', async () => {
+  it('shows direct edit and delete actions in the header only for owned posts', async () => {
     vi.mocked(api.fetchMyPosts).mockResolvedValue([postFixture])
-    vi.mocked(api.updatePost).mockResolvedValue({ ...postFixture, title: '수정 완료' })
+    vi.mocked(api.deletePost).mockResolvedValue(undefined)
     const user = userEvent.setup()
     render(<CommunityBoard initialPostId="post-1" />)
-    await user.click(await screen.findByRole('button', { name: '더보기' }))
-    await user.click(await screen.findByRole('button', { name: '게시글 수정' }))
-    await user.clear(screen.getByRole('textbox', { name: '게시글 제목' }))
-    await user.type(screen.getByRole('textbox', { name: '게시글 제목' }), '수정 완료')
-    await user.click(screen.getByRole('button', { name: '수정 저장' }))
-    await closeNotice(user)
-    expect(await screen.findByRole('heading', { name: '수정 완료' })).toBeInTheDocument()
-    expect(api.updatePost).toHaveBeenCalledWith('post-1', { title: '수정 완료', content: postFixture.content })
-  })
-  it('keeps an edit draft after a failed request and only updates the post after retry succeeds', async () => {
-    vi.mocked(api.fetchMyPosts).mockResolvedValue([postFixture])
-    vi.mocked(api.updatePost).mockRejectedValueOnce({ type: 'network' }).mockResolvedValueOnce({ ...postFixture, title: '보존할 제목' })
-    const user = userEvent.setup()
-    render(<CommunityBoard initialPostId="post-1" />)
-    await user.click(await screen.findByRole('button', { name: '더보기' }))
-    await user.click(await screen.findByRole('button', { name: '게시글 수정' }))
-    await user.clear(screen.getByRole('textbox', { name: '게시글 제목' }))
-    await user.type(screen.getByRole('textbox', { name: '게시글 제목' }), '보존할 제목')
-    await user.click(screen.getByRole('button', { name: '수정 저장' }))
-    expect(await screen.findByRole('dialog')).toHaveTextContent('인터넷 연결')
-    await closeNotice(user)
-    expect(screen.getByRole('textbox', { name: '게시글 제목' })).toHaveValue('보존할 제목')
-    expect(screen.getByRole('heading', { name: postFixture.title })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: '수정 저장' }))
-    await closeNotice(user)
-    expect(await screen.findByRole('heading', { name: '보존할 제목' })).toBeInTheDocument()
+
+    await user.click(await screen.findByRole('button', { name: '수정하기' }))
+    expect(mockRouter.push).toHaveBeenCalledWith('/community/write?edit=post-1&from=detail')
+
+    const deleteButton = screen.getByRole('button', { name: '게시글 삭제' })
+    await user.click(deleteButton)
+    expect(screen.getByRole('dialog', { name: '게시글 삭제' })).toHaveTextContent('삭제 후에는 되돌릴 수 없어요.')
+    expect(api.deletePost).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: '취소' }))
+    expect(screen.queryByRole('dialog', { name: '게시글 삭제' })).not.toBeInTheDocument()
+    await waitFor(() => expect(deleteButton).toHaveFocus())
+    expect(screen.queryByRole('button', { name: '게시글 수정' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '더보기' })).not.toBeInTheDocument()
+
+    await user.click(deleteButton)
+    await user.click(screen.getByRole('button', { name: '삭제 확인' }))
+    await waitFor(() => expect(api.deletePost).toHaveBeenCalledExactlyOnceWith('post-1'))
   })
   it('does not submit a report on opening the form and preserves detail after a failed submission', async () => {
     vi.mocked(api.reportPost).mockRejectedValueOnce({ type: 'server' }).mockResolvedValueOnce(undefined)
     const user = userEvent.setup()
     render(<CommunityBoard initialPostId="post-1" />)
-    await user.click(await screen.findByRole('button', { name: '신고' }))
+    await user.click(await screen.findByRole('button', { name: '광고·스팸 신고' }))
     expect(api.reportPost).not.toHaveBeenCalled()
     await user.type(screen.getByRole('textbox', { name: '신고 상세 내용' }), '광고성 게시글')
     await user.click(screen.getByRole('button', { name: '신고 접수' }))
-    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: '안내' })).toBeInTheDocument()
     await closeNotice(user)
     expect(screen.getByRole('textbox', { name: '신고 상세 내용' })).toHaveValue('광고성 게시글')
     expect(screen.queryByText('신고가 접수되었어요.')).not.toBeInTheDocument()

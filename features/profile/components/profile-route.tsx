@@ -12,28 +12,34 @@ import {
   deletePet,
   fetchPetOptions,
   fetchPets,
+  fetchProfilePhoto,
   fetchProfileSummary,
   getProfileErrorMessage,
   updateNickname,
   updatePet,
+  updateProfilePhoto,
   withdrawAccount,
 } from '@/features/profile/api/profile-api'
+import { savePhotos, uploadPhotoFiles } from '@/features/photos/api/photo-api'
 import { usePetStore } from '@/features/profile/stores/pet-store'
 import type {
   PetMutationInput,
   ProfileLoadStatus,
+  ProfilePhoto,
   ProfileSummary,
 } from '@/features/profile/types/profile'
 
-export default function ProfileRoute() {
+export default function ProfileRoute({ initialSettingsTab }: { initialSettingsTab?: SettingsTab }) {
   const router = useRouter()
   const prefersReducedMotion = useReducedMotion()
-  const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(null)
-  const [settingsLayerActive, setSettingsLayerActive] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(initialSettingsTab ?? null)
+  const [settingsLayerActive, setSettingsLayerActive] = useState(Boolean(initialSettingsTab))
   const [summary, setSummary] = useState<ProfileSummary | null>(null)
+  const [profilePhoto, setProfilePhoto] = useState<ProfilePhoto | null>(null)
   const [status, setStatus] = useState<ProfileLoadStatus>('loading')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const loadControllerRef = useRef<AbortController | null>(null)
+  const photoMutationControllerRef = useRef<AbortController | null>(null)
   const mountedRef = useRef(false)
   const settingsPanelRef = useRef<HTMLDivElement | null>(null)
   const settingsTriggerRef = useRef<HTMLElement | null>(null)
@@ -53,16 +59,19 @@ export default function ProfileRoute() {
     void Promise.all([
       fetchProfileSummary(controller.signal),
       fetchPets(controller.signal),
+      fetchProfilePhoto(controller.signal),
     ])
-      .then(([nextSummary, nextPets]) => {
+      .then(([nextSummary, nextPets, nextProfilePhoto]) => {
         if (!isCurrent()) return
         setSummary(nextSummary)
         setPets(nextPets)
+        setProfilePhoto(nextProfilePhoto)
         setStatus('success')
       })
       .catch((error: unknown) => {
         if (!isCurrent()) return
         setPets([])
+        setProfilePhoto(null)
         setErrorMessage(getProfileErrorMessage(error))
         setStatus('error')
       })
@@ -76,20 +85,26 @@ export default function ProfileRoute() {
     return () => {
       mountedRef.current = false
       loadControllerRef.current?.abort()
+      photoMutationControllerRef.current?.abort()
       if (useAuthStore.getState().sessionEpoch === sessionEpoch) {
         usePetStore.getState().setPets([])
       }
     }
   }, [requestProfile])
 
-  const closeSettings = useCallback(() => setSettingsTab(null), [])
+  const closeSettings = useCallback(() => {
+    const closingTab = settingsTab
+    setSettingsTab(null)
+    if (closingTab === 'posts') router.replace('/my', { scroll: false })
+  }, [router, settingsTab])
 
   const openSettings = useCallback((tab: SettingsTab) => {
     settingsTriggerRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null
     setSettingsLayerActive(true)
     setSettingsTab(tab)
-  }, [])
+    if (tab === 'posts') router.replace('/my?section=posts', { scroll: false })
+  }, [router])
 
   useEffect(() => {
     if (!settingsLayerActive) return
@@ -219,6 +234,29 @@ export default function ProfileRoute() {
     )
   }
 
+  const handleUpdateProfilePhoto = async (file: File | null) => {
+    const sessionEpoch = useAuthStore.getState().sessionEpoch
+    photoMutationControllerRef.current?.abort()
+    const controller = new AbortController()
+    photoMutationControllerRef.current = controller
+    try {
+      let photoId: string | null = null
+      if (file) {
+        const [ticket] = await uploadPhotoFiles([file], 'PROFILE', controller.signal)
+        const [savedPhoto] = await savePhotos([{ photoKey: ticket.photoKey }], controller.signal)
+        photoId = savedPhoto.id
+      }
+      const nextPhoto = await updateProfilePhoto(photoId, controller.signal)
+      assertActiveSession(sessionEpoch)
+      setProfilePhoto(nextPhoto)
+      return nextPhoto
+    } finally {
+      if (photoMutationControllerRef.current === controller) {
+        photoMutationControllerRef.current = null
+      }
+    }
+  }
+
   const handleWithdraw = async () => {
     const sessionEpoch = useAuthStore.getState().sessionEpoch
     await withdrawAccount()
@@ -235,6 +273,7 @@ export default function ProfileRoute() {
       >
         <ProfileScreen
           summary={summary}
+          profilePhoto={profilePhoto}
           pets={pets}
           status={status}
           errorMessage={errorMessage}
@@ -245,6 +284,7 @@ export default function ProfileRoute() {
           onCreatePet={handleCreatePet}
           onUpdatePet={handleUpdatePet}
           onDeletePet={handleDeletePet}
+          onUpdateProfilePhoto={handleUpdateProfilePhoto}
           onWithdraw={handleWithdraw}
         />
       </div>

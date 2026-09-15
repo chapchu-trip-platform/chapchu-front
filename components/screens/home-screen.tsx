@@ -3,15 +3,16 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react'
-import { Eye, MessageCircle, Star, ThumbsUp } from 'lucide-react'
+import { MessageCircle, Star, ThumbsUp } from 'lucide-react'
 import { LazyMotion, animate, domAnimation, m, useReducedMotion } from 'motion/react'
 import { Button } from '@/components/ui/button'
-import { mockNearbyPlaces } from '@/data/mock'
+import { PhotoImage } from '@/components/common/photo-image'
 import WeatherCard from '@/features/home/components/weather-card'
 import {
   formatPetCompanion,
   type HomeDataStatus,
   type HotPost,
+  type NearbyPlace,
 } from '@/features/home/types/home'
 import TmapMap from '@/features/map/components/tmap-map'
 import type { LocationLoadStatus } from '@/features/location/stores/location-store'
@@ -25,6 +26,9 @@ interface HomeScreenProps {
   locationStatus: LocationLoadStatus
   petNames: string[]
   petNamesStatus: HomeDataStatus
+  nearbyPlaces: NearbyPlace[]
+  nearbyPlacesStatus: HomeDataStatus
+  onRetryNearbyPlaces: () => void
   hotPosts: HotPost[]
   hotPostsStatus: HomeDataStatus
   onRetryHotPosts: () => void
@@ -33,15 +37,13 @@ interface HomeScreenProps {
   onRetryWeather: () => void
 }
 
-const nearbyPlaces = mockNearbyPlaces.slice(0, 3)
-
-const HOT_POST_PLACEHOLDERS = [
-  '/images/album-cover.png',
-  '/images/place-park.png',
-  '/images/place-cafe.png',
-] as const
-
 const HOME_MOTION_EASE = [0.22, 1, 0.36, 1] as const
+
+function formatDistance(distanceMeters: number) {
+  return distanceMeters < 1_000
+    ? `${distanceMeters.toLocaleString()}m`
+    : `${(distanceMeters / 1_000).toFixed(1)}km`
+}
 
 function formatPostDate(createdAt: string | null) {
   if (!createdAt) return '작성일 미제공'
@@ -61,6 +63,9 @@ export default function HomeScreen({
   locationStatus,
   petNames,
   petNamesStatus,
+  nearbyPlaces,
+  nearbyPlacesStatus,
+  onRetryNearbyPlaces,
   hotPosts,
   hotPostsStatus,
   onRetryHotPosts,
@@ -281,11 +286,30 @@ export default function HomeScreen({
         data-motion-section="nearby"
       >
         <div className="px-4 mb-3">
-          <h3 className="text-[16px] font-semibold text-deep-brown">추천 장소 예시</h3>
+          <h3 className="text-[16px] font-semibold text-deep-brown">주변 추천 장소</h3>
           <p className="mt-0.5 text-[11px] text-warm-gray">
-            위치 기반 추천 API 연결 전 예시 데이터예요.
+            현재 위치 반경 1.5km 안의 반려동물 동반 장소예요.
           </p>
         </div>
+        {nearbyPlacesStatus === 'loading' && (
+          <div className="flex gap-3 overflow-hidden px-4 pb-2" role="status" aria-label="주변 추천 장소를 불러오는 중">
+            {[0, 1, 2].map((index) => (
+              <div key={index} aria-hidden="true" className="h-52 w-44 flex-shrink-0 animate-pulse rounded-card bg-card-surface" />
+            ))}
+          </div>
+        )}
+        {nearbyPlacesStatus === 'error' && (
+          <div className="mx-4 rounded-card border border-border bg-card-surface px-4 py-5 text-center">
+            <p className="text-[13px] font-semibold text-deep-brown">주변 장소를 불러오지 못했어요.</p>
+            <Button onClick={onRetryNearbyPlaces} variant="link" size="sm" className="mt-1">다시 시도</Button>
+          </div>
+        )}
+        {nearbyPlacesStatus === 'success' && nearbyPlaces.length === 0 && (
+          <div className="mx-4 rounded-card border border-border bg-card-surface px-4 py-5 text-center">
+            <p className="text-[13px] text-warm-gray">반경 1.5km 안에서 추천 장소를 찾지 못했어요.</p>
+          </div>
+        )}
+        {nearbyPlacesStatus === 'success' && nearbyPlaces.length > 0 && (
         <div
           className="flex cursor-grab select-none gap-3 overflow-x-auto overscroll-x-contain px-4 pb-2 active:cursor-grabbing no-scrollbar"
           data-testid="nearby-place-carousel"
@@ -298,7 +322,7 @@ export default function HomeScreen({
         >
           {nearbyPlaces.map((place, i) => (
             <m.article
-              key={i}
+              key={place.id}
               initial={prefersReducedMotion ? false : { opacity: 0, x: 12 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{
@@ -309,21 +333,22 @@ export default function HomeScreen({
               className="w-44 flex-shrink-0 overflow-hidden rounded-card border border-border bg-card-surface shadow-sm"
             >
               <div className="relative h-28">
-                <Image
-                  src={place.image}
+                <PhotoImage
+                  src={place.imageUrl}
                   alt={place.name}
-                  fill
                   priority={i === 0}
-                  loading={i === 0 ? 'eager' : 'lazy'}
-                  draggable={false}
-                  className="object-cover"
+                  className="h-full"
+                  imageClassName="object-cover"
+                  fallbackSrc="/images/place-park.png"
+                  fallbackAlt={`${place.name} 기본 장소 이미지`}
                 />
-                {/* Pet friendly badge */}
-                <div className="absolute top-2 left-2 bg-sage-green rounded-full px-2 py-0.5 flex items-center gap-1">
-                  <span className="text-[10px] text-white font-medium">반려동물 OK</span>
-                </div>
+                {place.hasPetPolicy && (
+                  <div className="absolute top-2 left-2 bg-sage-green rounded-full px-2 py-0.5 flex items-center gap-1">
+                    <span className="text-[10px] text-white font-medium">반려동물 정보</span>
+                  </div>
+                )}
                 <div className="absolute bottom-2 right-2 flex min-h-5 items-center justify-center rounded-full bg-black/50 px-2 py-0.5">
-                  <span className="text-[10px] leading-none text-white">{place.distance}</span>
+                  <span className="text-[10px] leading-none text-white">{formatDistance(place.distanceMeters)}</span>
                 </div>
               </div>
               <div className="p-2.5">
@@ -332,12 +357,13 @@ export default function HomeScreen({
                 <div className="flex items-center gap-1 mt-1.5">
                   <Star className="w-3 h-3 text-soft-orange fill-soft-orange" />
                   <span className="text-[11px] font-medium text-deep-brown">{place.rating}</span>
-                  <span className="text-[11px] text-warm-gray">({place.reviews})</span>
+                  <span className="text-[11px] text-warm-gray">({place.reviewCount})</span>
                 </div>
               </div>
             </m.article>
           ))}
         </div>
+        )}
       </m.section>
 
       {/* HOT Posts */}
@@ -406,11 +432,13 @@ export default function HomeScreen({
               className="relative flex gap-3 rounded-card border border-border bg-card-surface p-3 shadow-sm"
             >
               <div className="relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0">
-                <Image
-                  src={HOT_POST_PLACEHOLDERS[i] ?? HOT_POST_PLACEHOLDERS[0]}
-                  alt=""
-                  fill
-                  className="object-cover"
+                <PhotoImage
+                  src={post.photoUrl}
+                  alt={`${post.title} 대표 사진`}
+                  className="h-full"
+                  fallbackSrc="/images/post-cover.png"
+                  fallbackAlt="게시글 기본 이미지"
+                  sizes="80px"
                 />
                 {i === 0 && (
                   <div className="absolute left-1 top-1 flex h-5 min-w-8 items-center justify-center rounded-full bg-soft-orange px-1.5">
@@ -422,9 +450,6 @@ export default function HomeScreen({
                 <h4 className="text-[13px] font-semibold text-deep-brown leading-snug line-clamp-2 text-balance">
                   <Link href={`/community?post=${encodeURIComponent(post.id)}`} className="after:absolute after:inset-0 after:rounded-card focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-sage-green">{post.title}</Link>
                 </h4>
-                <p className="line-clamp-1 text-[11px] text-warm-gray">
-                  {post.content || '게시글 내용이 없어요.'}
-                </p>
                 <p className="flex min-w-0 items-center gap-1 text-[10px] text-warm-gray/80">
                   <span className="truncate font-medium text-deep-brown/70" title={post.nickname}>
                     {post.nickname}
@@ -433,9 +458,6 @@ export default function HomeScreen({
                   <span className="shrink-0">{formatPostDate(post.createdAt)}</span>
                 </p>
                 <div className="flex items-center gap-2 mt-auto">
-                  <span className="flex items-center gap-0.5 text-[11px] text-warm-gray">
-                    <Eye className="w-3 h-3" /> {post.viewCount.toLocaleString()}
-                  </span>
                   <span className="flex items-center gap-0.5 text-[11px] text-warm-gray">
                     <ThumbsUp className="w-3 h-3" /> {post.recommendationCount.toLocaleString()}
                   </span>

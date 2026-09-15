@@ -37,6 +37,7 @@ export const API_ENDPOINTS = {
   },
   users: {
     me: '/users/me',
+    photo: '/users/me/photo',
     mypage: '/users/me/mypage',
     preferences: '/users/me/preferences',
     posts: '/users/me/posts',
@@ -51,6 +52,7 @@ export const API_ENDPOINTS = {
     detail: (petId: string) => `/pets/${pathId(petId)}`,
   },
   photos: {
+    list: '/photos',
     uploadUrl: '/photos/upload-url',
     create: '/photos',
     detail: (photoId: string) => `/photos/${pathId(photoId)}`,

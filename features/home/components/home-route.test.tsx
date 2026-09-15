@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import HomeRoute from '@/features/home/components/home-route'
-import { fetchHomeSummary, fetchPopularPosts } from '@/features/home/api/home-api'
+import { fetchHomeSummary, fetchNearbyPlaces, fetchPopularPosts } from '@/features/home/api/home-api'
 import { webLocationProvider } from '@/features/location/providers/web-location-provider'
 import { useLocationStore } from '@/features/location/stores/location-store'
 import type {
@@ -13,6 +13,7 @@ import type { CurrentWeather } from '@/types/weather'
 
 vi.mock('@/features/home/api/home-api', () => ({
   fetchHomeSummary: vi.fn(),
+  fetchNearbyPlaces: vi.fn(),
   fetchPopularPosts: vi.fn(),
 }))
 
@@ -73,14 +74,13 @@ beforeEach(() => {
       id: 'post-1',
       nickname: '멍멍이아빠',
       title: '인기 여행기',
-      content: '즐거운 여행',
-      viewCount: 30,
       recommendationCount: 10,
       commentCount: 3,
       createdAt: null,
-      hasPhoto: false,
+      photoUrl: null,
     },
   ])
+  vi.mocked(fetchNearbyPlaces).mockReset().mockResolvedValue([])
   vi.mocked(webLocationProvider.checkPermission).mockReset().mockResolvedValue('granted')
   vi.mocked(webLocationProvider.requestCurrentPosition).mockReset().mockResolvedValue({
     ok: true,
@@ -336,12 +336,10 @@ describe('HomeRoute data and location flow', () => {
           id: 'post-2',
           nickname: '재시도작성자',
           title: '다시 불러온 게시글',
-          content: '내용',
-          viewCount: 1,
           recommendationCount: 1,
           commentCount: 2,
           createdAt: null,
-          hasPhoto: false,
+          photoUrl: null,
         },
       ])
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(weatherResponse()))

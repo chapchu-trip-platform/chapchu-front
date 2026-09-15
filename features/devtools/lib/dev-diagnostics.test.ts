@@ -141,6 +141,83 @@ describe('development diagnostics redaction', () => {
     })
   })
 
+  it('redacts a photo download URL from API response diagnostics', () => {
+    const consoleDebug = vi.spyOn(console, 'debug').mockImplementation(() => undefined)
+    const listener = vi.fn()
+    const unsubscribe = subscribeToDiagnosticEvents(listener)
+    announceDiagnosticViewer()
+    const downloadUrl = 'https://bucket.example/photo.jpg?signature=active-presigned-secret'
+    const config = { url: '/photos/photo-1', method: 'get', headers: {} } as InternalAxiosRequestConfig
+
+    recordApiResponse('authenticated', {
+      config,
+      data: { id: 'photo-1', downloadUrl, takenAt: null },
+      headers: {},
+      status: 200,
+      statusText: 'OK',
+    } as AxiosResponse)
+
+    const emittedText = JSON.stringify({ listener: listener.mock.calls, console: consoleDebug.mock.calls })
+    expect(emittedText).not.toContain(downloadUrl)
+    expect(emittedText).not.toContain('active-presigned-secret')
+    expect(emittedText).toContain('[REDACTED]')
+    unsubscribe()
+  })
+
+  it('redacts a presigned photo upload URL from API response diagnostics', () => {
+    const consoleDebug = vi.spyOn(console, 'debug').mockImplementation(() => undefined)
+    const listener = vi.fn()
+    const unsubscribe = subscribeToDiagnosticEvents(listener)
+    announceDiagnosticViewer()
+    const uploadUrl = 'https://bucket.example/photo.jpg?signature=active-upload-secret'
+    const config = {
+      url: '/photos/upload-url',
+      method: 'post',
+      headers: {},
+    } as InternalAxiosRequestConfig
+
+    recordApiResponse('authenticated', {
+      config,
+      data: [{ uploadUrl, photoKey: 'post/user/photo.jpg', fileName: 'photo.jpg' }],
+      headers: {},
+      status: 201,
+      statusText: 'Created',
+    } as AxiosResponse)
+
+    const emittedText = JSON.stringify({
+      listener: listener.mock.calls,
+      console: consoleDebug.mock.calls,
+    })
+    expect(emittedText).not.toContain(uploadUrl)
+    expect(emittedText).not.toContain('active-upload-secret')
+    expect(emittedText).toContain('[REDACTED]')
+    unsubscribe()
+  })
+
+  it('redacts photo identifiers and user-authored post fields', () => {
+    expect(
+      sanitizeDiagnosticValue({
+        title: '반려동물과 다녀온 장소',
+        content: '사용자가 작성한 게시글 본문',
+        photos: [
+          {
+            fileName: 'private-trip-name.jpg',
+            photoKey: 'post/user/private-trip-name.jpg',
+          },
+        ],
+      })
+    ).toEqual({
+      title: '[REDACTED]',
+      content: '[REDACTED]',
+      photos: [
+        {
+          fileName: '[REDACTED]',
+          photoKey: '[REDACTED]',
+        },
+      ],
+    })
+  })
+
   it('sanitizes summaries before publishing them to listeners', () => {
     vi.spyOn(console, 'debug').mockImplementation(() => undefined)
     const listener = vi.fn()
