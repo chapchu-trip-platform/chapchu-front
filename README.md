@@ -23,6 +23,15 @@ npm install
 npm run dev
 ```
 
+To open the development app from a phone on the same Wi-Fi network, run:
+
+```bash
+npm run dev:mobile
+```
+
+The command prints the LAN URL and allows that address for Next.js development
+assets. A changing network address is detected again on every run.
+
 ## Validation Commands
 
 ```bash

@@ -21,7 +21,19 @@ export const API_ENDPOINTS = {
   },
   places: {
     nearby: '/places/nearby',
-    detail: (placeId: string) => `/places/${pathId(placeId)}`,
+    recommended: '/recommended-places',
+    detail: (externalPlaceId: string) => `/places/${pathId(externalPlaceId)}`,
+  },
+  courses: {
+    create: '/courses',
+    detail: (courseId: string) => `/courses/${pathId(courseId)}`,
+    reviews: (courseId: string) => `/courses/${pathId(courseId)}/reviews`,
+    complete: (courseId: string) => `/courses/${pathId(courseId)}/complete`,
+    mine: '/users/me/courses',
+  },
+  coursePlaces: {
+    visit: (coursePlaceId: string) =>
+      `/course-places/${pathId(coursePlaceId)}/visit`,
   },
   users: {
     me: '/users/me',
@@ -42,16 +54,8 @@ export const API_ENDPOINTS = {
   photos: {
     list: '/photos',
     uploadUrl: '/photos/upload-url',
+    create: '/photos',
     detail: (photoId: string) => `/photos/${pathId(photoId)}`,
-  },
-  routes: {
-    recommend: '/routes/recommendations',
-    detail: (routeId: string) => `/routes/${pathId(routeId)}`,
-  },
-  trips: {
-    list: '/trips',
-    detail: (tripId: string) => `/trips/${pathId(tripId)}`,
-    notes: (tripId: string) => `/trips/${pathId(tripId)}/notes`,
   },
   community: {
     posts: '/posts',
@@ -63,13 +67,14 @@ export const API_ENDPOINTS = {
     comment: (commentId: string) => `/comments/${pathId(commentId)}`,
   },
   reviews: {
+    create: '/reviews',
     list: '/reviews',
     byPlace: (placeId: string) => `/places/${pathId(placeId)}/reviews`,
     detail: (reviewId: string) => `/reviews/${pathId(reviewId)}`,
     recommendations: (reviewId: string) => `/reviews/${pathId(reviewId)}/recommendations`,
   },
   albums: {
-    list: '/albums',
-    detail: (albumId: string) => `/albums/${pathId(albumId)}`,
+    mine: '/users/me/album',
+    byPet: (petId: string) => `/users/me/pets/${pathId(petId)}/album`,
   },
 } as const

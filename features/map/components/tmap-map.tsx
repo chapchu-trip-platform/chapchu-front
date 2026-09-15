@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, Loader2, MapPin } from 'lucide-react'
 import { loadTmapSdk } from '@/lib/load-tmap-sdk'
 import { cn } from '@/lib/utils'
+import type { PedestrianRouteCoordinate } from '@/features/map/api/walking-time-api'
 
 const SEOUL_CITY_HALL = {
   lat: 37.5665,
@@ -13,6 +14,18 @@ const SEOUL_CITY_HALL = {
 
 type TmapLoadStatus = 'loading' | 'ready' | 'error'
 type TmapMarkerVariant = 'default' | 'profile'
+type TmapRouteMarkerVariant = 'candidate' | 'current' | 'origin' | 'destination'
+
+export interface TmapMapMarker {
+  id: string
+  position: {
+    lat: number
+    lng: number
+  }
+  title: string
+  label?: string
+  variant?: TmapRouteMarkerVariant
+}
 
 interface TmapMapProps {
   center?: {
@@ -26,7 +39,9 @@ interface TmapMapProps {
   showZoomControl?: boolean
   interactive?: boolean
   markerVariant?: TmapMarkerVariant
+  markers?: TmapMapMarker[]
   profileImageSrc?: string
+  routePath?: PedestrianRouteCoordinate[]
 }
 
 export default function TmapMap({
@@ -38,12 +53,18 @@ export default function TmapMap({
   showZoomControl = true,
   interactive = true,
   markerVariant = 'default',
+  markers = [],
   profileImageSrc = '/images/dog-hero.png',
+  routePath = [],
 }: TmapMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const centerRef = useRef(center)
   const mapInstanceRef = useRef<TmapMapInstance | null>(null)
   const markerInstanceRef = useRef<TmapMarkerInstance | null>(null)
+  const markerInstancesRef = useRef(
+    new Map<string, { instance: TmapMarkerInstance; signature: string }>()
+  )
+  const routePolylineRef = useRef<TmapPolylineInstance | null>(null)
   const tmapNamespaceRef = useRef<Tmapv2Namespace | null>(null)
   const [status, setStatus] = useState<TmapLoadStatus>('loading')
 
@@ -54,6 +75,7 @@ export default function TmapMap({
   useEffect(() => {
     let isMounted = true
     const mapRoot = containerRef.current
+    const markerInstances = markerInstancesRef.current
 
     loadTmapSdk()
       .then((Tmapv2) => {
@@ -83,6 +105,10 @@ export default function TmapMap({
       isMounted = false
       markerInstanceRef.current?.setMap?.(null)
       markerInstanceRef.current = null
+      markerInstances.forEach(({ instance }) => instance.setMap?.(null))
+      markerInstances.clear()
+      routePolylineRef.current?.setMap?.(null)
+      routePolylineRef.current = null
       mapInstanceRef.current?.destroy?.()
       mapInstanceRef.current?.remove?.()
       mapInstanceRef.current = null
@@ -118,10 +144,76 @@ export default function TmapMap({
     })
   }, [center.lat, center.lng, locationLabel, markerVariant, showMarker, status])
 
+  useEffect(() => {
+    if (status !== 'ready') return
+    const Tmapv2 = tmapNamespaceRef.current
+    const mapInstance = mapInstanceRef.current
+    if (!Tmapv2 || !mapInstance) return
+
+    const nextMarkerIds = new Set(markers.map((marker) => marker.id))
+
+    markerInstancesRef.current.forEach(({ instance }, markerId) => {
+      if (nextMarkerIds.has(markerId)) return
+      instance.setMap?.(null)
+      markerInstancesRef.current.delete(markerId)
+    })
+
+    markers.forEach((marker) => {
+      const position = new Tmapv2.LatLng(marker.position.lat, marker.position.lng)
+      const existingMarker = markerInstancesRef.current.get(marker.id)
+
+      const signature = `${marker.title}:${marker.label ?? ''}:${marker.variant ?? 'default'}`
+      if (existingMarker?.signature === signature) {
+        existingMarker.instance.setPosition?.(position)
+        return
+      }
+
+      existingMarker?.instance.setMap?.(null)
+      const icon = marker.label || marker.variant
+        ? createMarkerIcon(marker.variant)
+        : undefined
+      markerInstancesRef.current.set(marker.id, {
+        instance: new Tmapv2.Marker({
+          position,
+          map: mapInstance,
+          ...(icon ? { icon } : {}),
+          title: marker.title,
+        }),
+        signature,
+      })
+    })
+  }, [markers, status])
+
+  useEffect(() => {
+    if (status !== 'ready') return
+    const Tmapv2 = tmapNamespaceRef.current
+    const mapInstance = mapInstanceRef.current
+    const Polyline = Tmapv2?.Polyline
+    if (!Tmapv2 || !Polyline || !mapInstance) return
+
+    routePolylineRef.current?.setMap?.(null)
+    routePolylineRef.current = null
+    if (routePath.length < 2) return
+
+    routePolylineRef.current = new Polyline({
+      path: routePath.map((point) => new Tmapv2.LatLng(point.lat, point.lng)),
+      map: mapInstance,
+      strokeColor: '#6FAF8E',
+      strokeOpacity: 0.92,
+      strokeWeight: 7,
+      strokeStyle: 'solid',
+    })
+
+    return () => {
+      routePolylineRef.current?.setMap?.(null)
+      routePolylineRef.current = null
+    }
+  }, [routePath, status])
+
   return (
     <div
       className={cn(
-        'relative h-full min-h-52 w-full overflow-hidden bg-sky-blue/20',
+        'relative isolate h-full min-h-52 w-full overflow-hidden bg-sky-blue/20',
         className
       )}
     >
@@ -177,4 +269,24 @@ export default function TmapMap({
       )}
     </div>
   )
+}
+
+function createMarkerIcon(variant: TmapRouteMarkerVariant = 'candidate') {
+  if (variant === 'current') {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="46" height="46" viewBox="0 0 46 46"><defs><filter id="s" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#3A2F2A" flood-opacity=".22"/></filter></defs><g filter="url(#s)"><circle cx="23" cy="23" r="19" fill="#FDFAF4" stroke="#FFFFFF" stroke-width="3"/><path d="M14.1 26.2 30.8 11.8c1.5-1.3 3.7.2 2.9 2L25 35.3c-.7 1.8-3.3 1.7-3.8-.2l-1.7-6.4-5.3-1.1c-.7-.2-.8-1-.1-1.4Z" fill="#6FAF8E" stroke="#3A2F2A" stroke-width="1.2" stroke-linejoin="round"/><path d="m19.5 28.7 8.8-9.3" fill="none" stroke="#D6EDE3" stroke-width="1.5" stroke-linecap="round"/></g></svg>`
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
+  }
+
+  const fill = variant === 'destination'
+    ? '#E06454'
+    : variant === 'origin'
+      ? '#6FAF8E'
+      : '#E98B5B'
+  const glyph = variant === 'origin'
+    ? '<circle cx="22" cy="20" r="7" fill="none" stroke="#FFFFFF" stroke-width="2.4"/><circle cx="22" cy="20" r="3" fill="#FFFFFF"/>'
+    : variant === 'destination'
+      ? '<path d="M17 29V12.5M18 13.5h10l-2.4 3.7 2.4 3.7H18" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>'
+      : '<ellipse cx="22" cy="24" rx="6.2" ry="5" fill="#FFFFFF"/><circle cx="15.8" cy="18.1" r="2.3" fill="#FFFFFF"/><circle cx="21.2" cy="15.7" r="2.4" fill="#FFFFFF"/><circle cx="27.1" cy="17.6" r="2.3" fill="#FFFFFF"/>'
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="52" viewBox="0 0 44 52"><defs><filter id="s" x="-30%" y="-25%" width="160%" height="160%"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#3A2F2A" flood-opacity=".2"/></filter></defs><g filter="url(#s)"><path d="M22 50C18.7 44.7 4 31.4 4 20C4 10.1 12.1 2 22 2s18 8.1 18 18c0 11.4-14.7 24.7-18 30Z" fill="${fill}" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/><circle cx="22" cy="20" r="12" fill="#FDFAF4" fill-opacity=".18"/>${glyph}</g></svg>`
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
 }

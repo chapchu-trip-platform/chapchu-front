@@ -1,322 +1,201 @@
 'use client'
 
-import Image from 'next/image'
 import { useState } from 'react'
-import { MapPin, Navigation, Star, Clock, ChevronRight, X, ThumbsUp } from 'lucide-react'
+import { CalendarDays, Loader2, MapPin, Navigation } from 'lucide-react'
 import TopBar from '@/components/top-bar'
 import { Button } from '@/components/ui/button'
-import { IconButton } from '@/components/ui/icon-button'
-import { InteractiveCard } from '@/components/ui/interactive-card'
-import { cn } from '@/lib/utils'
+import CoursePlaceCard from '@/features/map/components/course-place-card'
+import type { SearchableLocation } from '@/features/location/types/location'
+import MapFlowBottomDock from '@/features/map/components/map-flow-bottom-dock'
+import MapFlowDetailSheet from '@/features/map/components/map-flow-detail-sheet'
+import TmapMap, { type TmapMapMarker } from '@/features/map/components/tmap-map'
+import {
+  formatWalkingTime,
+  type PedestrianRoute,
+} from '@/features/map/api/walking-time-api'
+import type { RecommendedCourse } from '@/features/map/types/course'
 
 interface MapRouteScreenProps {
-  onBack: () => void
+  course: RecommendedCourse
+  destination: SearchableLocation | null
+  isStartingTrip?: boolean
+  onBack?: () => void
   onStartTrip: () => void
+  origin: SearchableLocation | null
+  pedestrianRoute?: PedestrianRoute | null
+  pedestrianRouteStatus?: 'idle' | 'loading' | 'success' | 'error'
+  startTripError?: string | null
 }
 
-const waypoints = [
-  {
-    name: '성수 펫 카페',
-    address: '서울 성동구 성수동 2가',
-    image: '/images/place-cafe.png',
-    hours: '10:00 ~ 21:00',
-    rating: 4.8,
-    reviews: 124,
-    petRule: '목줄 착용 필수',
-    type: '카페',
-  },
-  {
-    name: '서울숲 공원',
-    address: '서울 성동구 뚝섬로 273',
-    image: '/images/place-park.png',
-    hours: '상시 개방',
-    rating: 4.9,
-    reviews: 320,
-    petRule: '목줄 착용, 배변봉투 필수',
-    type: '공원',
-  },
-  {
-    name: '한강 펫 레스토랑',
-    address: '서울 용산구 이촌동',
-    image: '/images/place-restaurant.png',
-    hours: '11:30 ~ 22:00',
-    rating: 4.6,
-    reviews: 87,
-    petRule: '소형견만 동반 가능',
-    type: '레스토랑',
-  },
-]
-
-interface PlaceDetailSheetProps {
-  place: typeof waypoints[0]
-  onClose: () => void
-  onSelect: () => void
-}
-
-function PlaceDetailSheet({ place, onClose, onSelect }: PlaceDetailSheetProps) {
-  const reviews = [
-    { author: '산책러버', text: '반려견과 함께 최고의 시간! 직원분들도 친절했어요.', rating: 5 },
-    { author: '멍뭉이맘', text: '물그릇과 간식도 챙겨줘서 감동이었어요.', rating: 5 },
-  ]
-
-  return (
-    <div className="absolute inset-0 z-50 flex flex-col justify-end">
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <div className="relative bg-card-surface rounded-t-[24px] overflow-hidden slide-up">
-        {/* Handle */}
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full bg-border" />
-        </div>
-        <IconButton
-          onClick={onClose}
-          variant="muted"
-          size="sm"
-          className="absolute top-3 right-4"
-          aria-label="닫기"
-        >
-          <X className="w-4 h-4 text-warm-gray" />
-        </IconButton>
-
-        <div className="overflow-y-auto no-scrollbar max-h-[80vh]">
-          {/* Image */}
-          <div className="relative h-44 mx-4 mt-2 rounded-card overflow-hidden">
-            <Image src={place.image} alt={place.name} fill className="object-cover" />
-            <div className="absolute top-2 left-2 bg-sage-green rounded-full px-2.5 py-1">
-              <span className="text-[11px] text-white font-medium">반려동물 동반 가능</span>
-            </div>
-          </div>
-
-          <div className="px-4 py-3">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="text-[18px] font-bold text-deep-brown">{place.name}</h3>
-                <div className="flex items-center gap-1 mt-0.5">
-                  <Star className="w-3.5 h-3.5 text-soft-orange fill-soft-orange" />
-                  <span className="text-[13px] font-semibold text-deep-brown">{place.rating}</span>
-                  <span className="text-[12px] text-warm-gray">({place.reviews}개 리뷰)</span>
-                </div>
-              </div>
-              <span className="px-2.5 py-1 rounded-full bg-muted text-[12px] text-warm-gray font-medium">{place.type}</span>
-            </div>
-
-            <div className="flex items-start gap-1.5 mt-3">
-              <MapPin className="w-3.5 h-3.5 text-warm-gray mt-0.5 flex-shrink-0" />
-              <span className="text-[13px] text-warm-gray">{place.address}</span>
-            </div>
-            <div className="flex items-center gap-1.5 mt-1.5">
-              <Clock className="w-3.5 h-3.5 text-warm-gray flex-shrink-0" />
-              <span className="text-[13px] text-warm-gray">{place.hours}</span>
-            </div>
-
-            {/* Pet rules */}
-            <div className="mt-3 p-3 bg-sage-green-light rounded-xl">
-              <p className="text-[12px] font-semibold text-sage-green mb-1">반려동물 이용 규칙</p>
-              <p className="text-[12px] text-deep-brown">{place.petRule}</p>
-            </div>
-
-            {/* Reviews */}
-            <div className="mt-4">
-              <h4 className="text-[14px] font-semibold text-deep-brown mb-2">대표 리뷰</h4>
-              {reviews.map((r, i) => (
-                <div key={i} className="flex gap-2 mb-3">
-                  <div className="w-7 h-7 rounded-full bg-sage-green/20 flex items-center justify-center flex-shrink-0">
-                    <span className="text-[10px] font-bold text-sage-green">{r.author[0]}</span>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1 mb-0.5">
-                      <span className="text-[12px] font-semibold text-deep-brown">{r.author}</span>
-                      <div className="flex">
-                        {Array.from({ length: r.rating }).map((_, j) => (
-                          <Star key={j} className="w-2.5 h-2.5 text-soft-orange fill-soft-orange" />
-                        ))}
-                      </div>
-                    </div>
-                    <p className="text-[12px] text-warm-gray">{r.text}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="px-4 pb-8">
-            <Button
-              onClick={onSelect}
-              fullWidth
-              size="lg"
-            >
-              이 장소 선택하기
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
+function getRouteMapZoom(points: Array<{ latitude: number; longitude: number }>) {
+  if (points.length < 2) return 14
+  const latitudes = points.map((point) => point.latitude)
+  const longitudes = points.map((point) => point.longitude)
+  const coordinateSpan = Math.max(
+    Math.max(...latitudes) - Math.min(...latitudes),
+    Math.max(...longitudes) - Math.min(...longitudes)
   )
+
+  if (coordinateSpan > 1) return 7
+  if (coordinateSpan > 0.5) return 8
+  if (coordinateSpan > 0.2) return 9
+  if (coordinateSpan > 0.08) return 10
+  if (coordinateSpan > 0.03) return 11
+  if (coordinateSpan > 0.01) return 12
+  return 14
 }
 
-export default function MapRouteScreen({ onBack, onStartTrip }: MapRouteScreenProps) {
-  const [selectedPlace, setSelectedPlace] = useState<typeof waypoints[0] | null>(null)
+export default function MapRouteScreen({
+  course,
+  destination,
+  isStartingTrip = false,
+  onBack,
+  onStartTrip,
+  origin,
+  pedestrianRoute = null,
+  pedestrianRouteStatus = 'idle',
+  startTripError = null,
+}: MapRouteScreenProps) {
   const [bottomExpanded, setBottomExpanded] = useState(false)
+  const mapPoints = [
+    ...(origin ? [origin] : []),
+    ...course.places,
+  ]
+  const mapCenter = mapPoints.length > 0
+    ? {
+        lat: mapPoints.reduce((sum, point) => sum + point.latitude, 0) / mapPoints.length,
+        lng: mapPoints.reduce((sum, point) => sum + point.longitude, 0) / mapPoints.length,
+      }
+    : destination
+      ? { lat: destination.latitude, lng: destination.longitude }
+      : undefined
+  const mapMarkers: TmapMapMarker[] = [
+    ...(origin
+      ? [
+          {
+            id: `origin-${origin.id}`,
+            position: { lat: origin.latitude, lng: origin.longitude },
+            title: `출발지: ${origin.name}`,
+            label: '출발',
+            variant: 'origin' as const,
+          },
+        ]
+      : []),
+    ...course.places.map((place) => ({
+      id: `course-place-${place.id}`,
+      position: { lat: place.latitude, lng: place.longitude },
+      title: `${place.visitOrder}번 방문지: ${place.name}`,
+      label: place.isFinal ? '도착' : String(place.visitOrder),
+      variant: place.isFinal ? 'destination' as const : 'candidate' as const,
+    })),
+  ]
+  const mapZoom = getRouteMapZoom(mapPoints)
+  const routeTitle = `${course.startLocation} → ${course.endLocation}`
 
   return (
-    <div className="flex flex-col flex-1 bg-warm-beige relative overflow-hidden">
-      <TopBar title="추천 경로" showBack onBack={onBack} />
+    <div className="relative flex flex-1 flex-col overflow-hidden bg-warm-beige">
+      <TopBar title="장소 순서 확정" showBack={Boolean(onBack)} onBack={onBack} />
 
-      {/* Map area */}
-      <div className="relative flex-1 bg-sky-blue/20 overflow-hidden">
-        {/* Grid */}
-        {[0,1,2,3,4,5,6,7].map(i => (
-          <div key={i} className="absolute w-full h-px bg-white/25" style={{ top: `${i * 14}%` }} />
-        ))}
-        {[0,1,2,3,4,5,6].map(i => (
-          <div key={i} className="absolute h-full w-px bg-white/25" style={{ left: `${i * 17}%` }} />
-        ))}
-        {/* Roads */}
-        <div className="absolute top-[35%] w-full h-3 bg-white/50 rounded" />
-        <div className="absolute left-[25%] h-full w-3 bg-white/50 rounded" />
-        <div className="absolute top-[60%] w-[70%] left-[15%] h-2 bg-white/40 rounded" />
-
-        {/* Route line */}
-        <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }}>
-          <path
-            d="M 60,30 Q 100,55 140,50 Q 200,45 240,65 Q 290,85 320,80"
-            stroke="#6FAF8E"
-            strokeWidth="4"
-            fill="none"
-            strokeLinecap="round"
-            opacity="0.9"
-          />
-        </svg>
-
-        {/* Origin marker */}
-        <div className="absolute top-[25%] left-[12%] flex flex-col items-center">
-          <div className="w-8 h-8 rounded-full bg-sage-green flex items-center justify-center shadow-md">
-            <Navigation className="w-4 h-4 text-white" />
-          </div>
-          <div className="bg-white rounded-lg px-2 py-0.5 mt-1 shadow text-[10px] font-semibold text-deep-brown">현재 위치</div>
-        </div>
-
-        {/* Waypoint markers */}
-        {[
-          { top: '30%', left: '35%', label: '1' },
-          { top: '42%', left: '58%', label: '2' },
-          { top: '56%', left: '74%', label: '3' },
-        ].map((m, i) => (
-          <button
-            key={i}
-            onClick={() => setSelectedPlace(waypoints[i])}
-            className="absolute flex flex-col items-center transition-[filter] hover:brightness-[0.97] active:brightness-[0.94]"
-            style={{ top: m.top, left: m.left }}
-          >
-            <div className="w-7 h-7 rounded-full bg-soft-orange flex items-center justify-center shadow-md border-2 border-white">
-              <span className="text-[11px] font-bold text-white">{m.label}</span>
-            </div>
-          </button>
-        ))}
-
-        {/* Destination */}
-        <div className="absolute top-[68%] left-[82%] flex flex-col items-center">
-          <div className="w-8 h-8 rounded-full bg-danger flex items-center justify-center shadow-md">
-            <MapPin className="w-4 h-4 text-white" />
-          </div>
-          <div className="bg-white rounded-lg px-2 py-0.5 mt-1 shadow text-[10px] font-semibold text-deep-brown">도착지</div>
-        </div>
+      <div className="relative z-0 flex-1 overflow-hidden bg-sky-blue/20">
+        <TmapMap
+          center={mapCenter}
+          locationLabel={routeTitle}
+          markers={mapMarkers}
+          routePath={pedestrianRoute?.path ?? []}
+          zoom={mapZoom}
+        />
       </div>
 
-      {/* Bottom sheet */}
-      <div className={cn('bg-card-surface rounded-t-[24px] -mt-6 shadow-xl', bottomExpanded ? '' : '')}>
-        {/* Handle */}
-        <button
-          className="flex justify-center w-full pt-3 pb-1"
-          onClick={() => setBottomExpanded(!bottomExpanded)}
-          aria-label="시트 열기/닫기"
-        >
-          <div className="w-10 h-1 rounded-full bg-border" />
-        </button>
-
-        {/* Route summary */}
-        <div className="px-4 pb-3">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-[16px] font-bold text-deep-brown">서울 성동구 → 용산구</h3>
-            <div className="flex gap-2">
-              <span className="px-2 py-1 rounded-full bg-sage-green-light text-sage-green text-[11px] font-semibold flex items-center gap-1">
-                <ThumbsUp className="w-3 h-3" /> 반려동물 적합
-              </span>
-            </div>
+      <MapFlowDetailSheet
+        id="route-details-sheet"
+        expanded={bottomExpanded}
+        onExpandedChange={setBottomExpanded}
+        expandLabel="방문 순서 펼치기"
+        collapseLabel="방문 순서 접기"
+        contentClassName="overflow-y-auto no-scrollbar"
+      >
+        <div className="space-y-2 px-4 pb-3 pt-1">
+          <div
+            role="status"
+            className="rounded-xl border border-sage-green/30 bg-sage-green-light px-3 py-2 text-[11px] font-medium text-deep-brown"
+          >
+            선택한 최종 도착지를 기준으로 서버가 생성한 코스입니다.
           </div>
-          <div className="flex gap-4">
-            <div className="flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5 text-warm-gray" />
-              <span className="text-[12px] text-warm-gray">중간 거점 3개</span>
+          {pedestrianRouteStatus === 'loading' && (
+            <div className="flex items-center gap-2 rounded-xl border border-soft-orange/30 bg-soft-orange/10 px-3 py-2 text-[11px] leading-relaxed text-deep-brown">
+              <Loader2 aria-hidden="true" className="size-3.5 shrink-0 animate-spin" />
+              방문 순서에 맞는 보행 경로를 찾고 있어요.
             </div>
-            <div className="flex items-center gap-1">
-              <Navigation className="w-3.5 h-3.5 text-warm-gray" />
-              <span className="text-[12px] text-warm-gray">약 12.4km</span>
+          )}
+          {pedestrianRouteStatus === 'success' && pedestrianRoute && (
+            <div className="flex flex-wrap gap-x-2 gap-y-1 rounded-xl border border-soft-orange/30 bg-soft-orange/10 px-3 py-2 text-[11px] leading-relaxed text-deep-brown">
+              <span className="font-semibold">보행 경로</span>
+              <span>{(pedestrianRoute.totalDistanceMeters / 1000).toFixed(1)}km</span>
+              <span>{formatWalkingTime(pedestrianRoute.totalTimeSeconds)}</span>
             </div>
-            <div className="flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5 text-warm-gray" />
-              <span className="text-[12px] text-warm-gray">약 4시간</span>
+          )}
+          {pedestrianRouteStatus === 'error' && (
+            <div role="alert" className="rounded-xl border border-danger/20 bg-danger/5 px-3 py-2 text-[11px] leading-relaxed text-deep-brown">
+              보행 경로를 불러오지 못했어요. 장소 순서는 그대로 확인할 수 있습니다.
             </div>
-          </div>
+          )}
+          {startTripError && (
+            <div
+              role="alert"
+              className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] leading-relaxed text-danger"
+            >
+              {startTripError}
+            </div>
+          )}
+        </div>
 
-          {/* Recommendation reason */}
-          <div className="mt-3 p-3 bg-sage-green-light rounded-xl">
-            <p className="text-[12px] text-deep-brown leading-relaxed">
-              오늘 날씨가 맑고 기온이 적절해 산책하기 최적이에요. 반려동물 동반 가능 장소 위주로 경로를 구성했습니다.
+        <div className="px-4 pb-2">
+          <h4 className="mb-2 text-[13px] font-semibold text-warm-gray">방문 순서</h4>
+          <ol className="flex flex-col gap-2">
+            {course.places.map((place) => (
+              <li key={place.id}>
+                <CoursePlaceCard place={place} />
+              </li>
+            ))}
+          </ol>
+        </div>
+      </MapFlowDetailSheet>
+
+      <MapFlowBottomDock expanded={bottomExpanded} testId="route-summary-dock">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="whitespace-normal break-words text-[15px] font-bold leading-snug text-deep-brown">
+              {routeTitle}
             </p>
           </div>
+          <span className="shrink-0 rounded-full bg-sage-green-light px-3 py-1 text-[13px] font-semibold text-sage-green">
+            코스 구성 완료
+          </span>
         </div>
-
-        {/* Waypoint list */}
-        <div className="px-4 pb-2">
-          <h4 className="text-[13px] font-semibold text-warm-gray mb-2">중간 거점</h4>
-          <div className="flex flex-col gap-2">
-            {waypoints.map((place, i) => (
-              <InteractiveCard
-                key={i}
-                onClick={() => setSelectedPlace(place)}
-                variant="muted"
-                padding="sm"
-                className="flex items-center gap-3"
-              >
-                <div className="w-7 h-7 rounded-full bg-soft-orange flex items-center justify-center flex-shrink-0">
-                  <span className="text-[12px] font-bold text-white">{i + 1}</span>
-                </div>
-                <div className="relative w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
-                  <Image src={place.image} alt={place.name} fill className="object-cover" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-semibold text-deep-brown truncate">{place.name}</p>
-                  <div className="flex items-center gap-1">
-                    <Star className="w-3 h-3 text-soft-orange fill-soft-orange" />
-                    <span className="text-[11px] text-warm-gray">{place.rating}</span>
-                    <span className="text-[11px] text-warm-gray">· {place.type}</span>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-warm-gray flex-shrink-0" />
-              </InteractiveCard>
-            ))}
+        <div data-testid="route-summary-stats" className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <div className="flex items-center gap-1">
+            <MapPin className="h-4 w-4 text-warm-gray" />
+            <span className="whitespace-nowrap text-[12px] text-warm-gray">
+              장소 {course.places.length}개
+            </span>
           </div>
+          <div className="flex items-center gap-1">
+            <CalendarDays className="h-4 w-4 text-warm-gray" />
+            <span className="whitespace-nowrap text-[12px] text-warm-gray">
+              {course.travelDate}
+            </span>
+          </div>
+          <Navigation className="ml-auto h-4 w-4 text-sage-green" aria-hidden="true" />
         </div>
-
-        <div className="px-4 pb-8 pt-2">
-          <Button
-            onClick={onStartTrip}
-            fullWidth
-            size="lg"
-          >
-            이 경로로 여행 시작
-          </Button>
-        </div>
-      </div>
-
-      {/* Place Detail Sheet */}
-      {selectedPlace && (
-        <PlaceDetailSheet
-          place={selectedPlace}
-          onClose={() => setSelectedPlace(null)}
-          onSelect={() => setSelectedPlace(null)}
-        />
-      )}
+        <Button
+          onClick={onStartTrip}
+          disabled={course.places.length === 0 || isStartingTrip}
+          size="lg"
+          className="map-flow-dock-button"
+        >
+          {isStartingTrip ? <><Loader2 className="animate-spin" /> 여행을 준비하는 중</> : '이 코스로 여행 시작'}
+        </Button>
+      </MapFlowBottomDock>
     </div>
   )
 }

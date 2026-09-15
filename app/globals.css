@@ -124,6 +124,18 @@
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
 
+/* Keep the primary action aligned across the map flow's bottom docks. */
+.map-flow-detail-sheet {
+  height: clamp(260px, 46dvh, 420px);
+}
+
+.map-flow-dock-button {
+  position: absolute;
+  right: 1rem;
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  left: 1rem;
+}
+
 .safe-bottom-onboarding {
   padding-bottom: max(2.5rem, env(safe-area-inset-bottom));
 }
@@ -199,6 +211,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .slide-up,
   .onboarding-slide-in-right,
   .onboarding-slide-out-left,
   .onboarding-slide-in-left,
