@@ -2,6 +2,7 @@
 
 import { create } from 'zustand'
 import { useLocationStore } from '@/features/location/stores/location-store'
+import { useTravelStore } from '@/features/travel/stores/travel-store'
 
 export type AuthStatus =
   | 'idle'
@@ -26,6 +27,13 @@ interface AuthState {
   clearSession: () => void
 }
 
+export function isDemoSessionActive() {
+  return (
+    process.env.NODE_ENV !== 'production' &&
+    useAuthStore.getState().status === 'demo'
+  )
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
   accessToken: null,
   authNotice: null,
@@ -47,6 +55,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   setStatus: (status) => set({ status }),
   startDemoSession: () => {
     useLocationStore.getState().reset()
+    useTravelStore.getState().resetTravel()
     set((state) => ({
       accessToken: null,
       authNotice: null,
@@ -58,6 +67,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   clearSession: () => {
     useLocationStore.getState().reset()
+    useTravelStore.getState().resetTravel()
     set((state) => ({
       accessToken: null,
       registrationToken: null,

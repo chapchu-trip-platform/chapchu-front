@@ -11,6 +11,9 @@ const mockTmapNamespace: Tmapv2Namespace = {
   Marker: class {
     constructor() {}
   },
+  Polyline: class {
+    constructor() {}
+  },
 }
 
 describe('loadTmapSdk', () => {

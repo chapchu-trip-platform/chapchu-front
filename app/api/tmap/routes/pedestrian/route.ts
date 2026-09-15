@@ -17,6 +17,12 @@ interface PedestrianRoutePoint {
 interface PedestrianRouteRequest {
   origin: PedestrianRoutePoint
   destination: PedestrianRoutePoint
+  waypoints: PedestrianRoutePoint[]
+}
+
+interface RouteCoordinate {
+  lat: number
+  lng: number
 }
 
 export const dynamic = 'force-dynamic'
@@ -47,25 +53,84 @@ function isRoutePoint(value: unknown): value is PedestrianRoutePoint {
 function parseRequestBody(value: unknown): PedestrianRouteRequest | null {
   if (!isRecord(value)) return null
   if (!isRoutePoint(value.origin) || !isRoutePoint(value.destination)) return null
+  const waypoints = value.waypoints ?? []
+  if (
+    !Array.isArray(waypoints) ||
+    waypoints.length > 3 ||
+    !waypoints.every(isRoutePoint)
+  ) {
+    return null
+  }
 
   return {
     origin: value.origin,
     destination: value.destination,
+    waypoints,
   }
 }
 
-function readTotalTimeSeconds(value: unknown) {
+function readRoute(value: unknown) {
   if (!isRecord(value) || !Array.isArray(value.features)) return null
 
+  let totalTimeSeconds: number | null = null
+  let totalDistanceMeters: number | null = null
+  const path: RouteCoordinate[] = []
+
   for (const feature of value.features) {
-    if (!isRecord(feature) || !isRecord(feature.properties)) continue
-    const totalTime = feature.properties.totalTime
-    if (typeof totalTime === 'number' && Number.isFinite(totalTime) && totalTime >= 0) {
-      return totalTime
+    if (!isRecord(feature)) continue
+
+    if (isRecord(feature.properties)) {
+      const totalTime = feature.properties.totalTime
+      const totalDistance = feature.properties.totalDistance
+      if (
+        totalTimeSeconds === null &&
+        typeof totalTime === 'number' &&
+        Number.isFinite(totalTime) &&
+        totalTime >= 0
+      ) {
+        totalTimeSeconds = totalTime
+      }
+      if (
+        totalDistanceMeters === null &&
+        typeof totalDistance === 'number' &&
+        Number.isFinite(totalDistance) &&
+        totalDistance >= 0
+      ) {
+        totalDistanceMeters = totalDistance
+      }
+    }
+
+    if (!isRecord(feature.geometry) || feature.geometry.type !== 'LineString') continue
+    if (!Array.isArray(feature.geometry.coordinates)) continue
+
+    for (const coordinate of feature.geometry.coordinates) {
+      if (
+        !Array.isArray(coordinate) ||
+        coordinate.length < 2 ||
+        typeof coordinate[0] !== 'number' ||
+        !Number.isFinite(coordinate[0]) ||
+        coordinate[0] < -180 ||
+        coordinate[0] > 180 ||
+        typeof coordinate[1] !== 'number' ||
+        !Number.isFinite(coordinate[1]) ||
+        coordinate[1] < -90 ||
+        coordinate[1] > 90
+      ) continue
+
+      const point = { lat: coordinate[1], lng: coordinate[0] }
+      const previous = path.at(-1)
+      if (!previous || previous.lat !== point.lat || previous.lng !== point.lng) {
+        path.push(point)
+      }
     }
   }
 
-  return null
+  if (totalTimeSeconds === null) return null
+  return {
+    totalDistanceMeters: totalDistanceMeters ?? 0,
+    totalTimeSeconds,
+    path,
+  }
 }
 
 export async function POST(request: Request) {
@@ -119,6 +184,14 @@ export async function POST(request: Request) {
         startName: encodeURIComponent(body.origin.name.trim()),
         endName: encodeURIComponent(body.destination.name.trim()),
         searchOption: '0',
+        sort: 'index',
+        ...(body.waypoints.length > 0
+          ? {
+              passList: body.waypoints
+                .map((waypoint) => `${waypoint.longitude},${waypoint.latitude}`)
+                .join('_'),
+            }
+          : {}),
       }),
     })
 
@@ -129,8 +202,8 @@ export async function POST(request: Request) {
       )
     }
 
-    const totalTimeSeconds = readTotalTimeSeconds(await upstreamResponse.json())
-    if (totalTimeSeconds === null) {
+    const route = readRoute(await upstreamResponse.json())
+    if (!route) {
       return Response.json(
         { message: 'TMAP 보행자 경로 응답이 올바르지 않아요.' },
         { status: 502, headers: RESPONSE_HEADERS }
@@ -138,7 +211,7 @@ export async function POST(request: Request) {
     }
 
     return Response.json(
-      { totalTimeSeconds },
+      route,
       { status: 200, headers: RESPONSE_HEADERS }
     )
   } catch {

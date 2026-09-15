@@ -2,6 +2,7 @@
 
 import { apiClient } from '@/lib/api/client'
 import { API_ENDPOINTS } from '@/lib/api/endpoints'
+import { isDemoSessionActive } from '@/features/auth/stores/auth-store'
 
 export interface SelectablePet {
   id: string
@@ -26,6 +27,8 @@ function isPetListItem(value: unknown): value is { id: string; petName: string }
 }
 
 export async function fetchSelectablePets(signal?: AbortSignal): Promise<SelectablePet[]> {
+  if (isDemoSessionActive()) return [{ id: 'demo-pet-1', name: '골든이' }]
+
   const { data }: { data: unknown } = await apiClient.get(API_ENDPOINTS.pets.list, {
     signal,
   })

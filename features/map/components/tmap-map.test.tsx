@@ -178,6 +178,139 @@ describe('TmapMap', () => {
     expect(destinationMarker.setMap).toHaveBeenCalledWith(null)
   })
 
+  it('renders the current position as a text-free map arrow', async () => {
+    const markerInstance = { setMap: vi.fn(), setPosition: vi.fn() }
+    const Marker = vi.fn(function MarkerConstructor(options: unknown) {
+      void options
+      return markerInstance
+    })
+    vi.mocked(loadTmapSdk).mockResolvedValue({
+      LatLng: vi.fn(function LatLng() {}),
+      Map: vi.fn(function MapConstructor() {
+        return { destroy: vi.fn(), remove: vi.fn(), setCenter: vi.fn() }
+      }),
+      Marker,
+    } as unknown as Tmapv2Namespace)
+
+    render(
+      <TmapMap
+        markers={[
+          {
+            id: 'current-position',
+            position: { lat: 37.5444, lng: 127.0374 },
+            title: '현재 위치',
+            variant: 'current',
+          },
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(Marker).toHaveBeenCalledOnce())
+    const markerOptions = Marker.mock.calls[0]?.[0] as { icon?: string }
+    const iconSvg = decodeURIComponent(markerOptions.icon?.split(',')[1] ?? '')
+
+    expect(iconSvg).toContain('#6FAF8E')
+    expect(iconSvg).toContain('#FDFAF4')
+    expect(iconSvg).not.toContain('<text')
+  })
+
+  it('renders origin, candidate, and destination pins with text-free symbols', async () => {
+    const Marker = vi.fn(function MarkerConstructor(options: unknown) {
+      void options
+      return { setMap: vi.fn(), setPosition: vi.fn() }
+    })
+    vi.mocked(loadTmapSdk).mockResolvedValue({
+      LatLng: vi.fn(function LatLng() {}),
+      Map: vi.fn(function MapConstructor() {
+        return { destroy: vi.fn(), remove: vi.fn(), setCenter: vi.fn() }
+      }),
+      Marker,
+    } as unknown as Tmapv2Namespace)
+
+    render(
+      <TmapMap
+        markers={[
+          {
+            id: 'origin',
+            position: { lat: 37.55, lng: 127.01 },
+            title: '출발지',
+            label: '출발',
+            variant: 'origin',
+          },
+          {
+            id: 'candidate',
+            position: { lat: 37.54, lng: 127.02 },
+            title: '추천 장소',
+            label: '1',
+            variant: 'candidate',
+          },
+          {
+            id: 'destination',
+            position: { lat: 37.53, lng: 127.03 },
+            title: '도착지',
+            label: '도착',
+            variant: 'destination',
+          },
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(Marker).toHaveBeenCalledTimes(3))
+    const iconSvgs = Marker.mock.calls.map(([options]) => {
+      const icon = (options as { icon?: string }).icon
+      return decodeURIComponent(icon?.split(',')[1] ?? '')
+    })
+
+    expect(iconSvgs.every((svg) => !svg.includes('<text'))).toBe(true)
+    expect(iconSvgs[0]).toContain('#6FAF8E')
+    expect(iconSvgs[0]).toContain('r="7"')
+    expect(iconSvgs[1]).toContain('#E98B5B')
+    expect(iconSvgs[1]).toContain('<ellipse')
+    expect(iconSvgs[2]).toContain('#E06454')
+    expect(iconSvgs[2]).toContain('M17 29V12.5')
+  })
+
+  it('draws and cleans up the pedestrian route polyline', async () => {
+    const polylineInstance = { setMap: vi.fn() }
+    const Polyline = vi.fn(function PolylineConstructor() {
+      return polylineInstance
+    })
+    const LatLng = vi.fn(function LatLng() {})
+    const mapInstance = { destroy: vi.fn(), remove: vi.fn(), setCenter: vi.fn() }
+    vi.mocked(loadTmapSdk).mockResolvedValue({
+      LatLng,
+      Map: vi.fn(function MapConstructor() {
+        return mapInstance
+      }),
+      Marker: vi.fn(),
+      Polyline,
+    } as unknown as Tmapv2Namespace)
+
+    const { unmount } = render(
+      <TmapMap
+        routePath={[
+          { lat: 37.5547, lng: 126.9706 },
+          { lat: 37.5444, lng: 127.0374 },
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(Polyline).toHaveBeenCalledOnce())
+    expect(Polyline).toHaveBeenCalledWith({
+      path: [expect.any(Object), expect.any(Object)],
+      map: mapInstance,
+      strokeColor: '#6FAF8E',
+      strokeOpacity: 0.92,
+      strokeWeight: 7,
+      strokeStyle: 'solid',
+    })
+    expect(LatLng).toHaveBeenCalledWith(37.5547, 126.9706)
+    expect(LatLng).toHaveBeenCalledWith(37.5444, 127.0374)
+
+    unmount()
+    expect(polylineInstance.setMap).toHaveBeenCalledWith(null)
+  })
+
   it('renders a profile pin and blocks direct interaction for the Home tracking map', async () => {
     const Map = vi.fn(function MapConstructor() {
       return { destroy: vi.fn(), remove: vi.fn(), setCenter: vi.fn() }

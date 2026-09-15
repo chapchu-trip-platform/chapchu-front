@@ -3,7 +3,7 @@
 ## 문서 상태
 
 - 상태: `VERIFIED WITH BLOCKERS`
-- 확인일: 2026-09-08
+- 확인일: 2026-09-15
 - 기준 문서: <https://api.chapchu.site/docs/index.html>
 - 프론트엔드 Base URL: `NEXT_PUBLIC_API_BASE_URL`
 
@@ -15,84 +15,70 @@
 
 ```text
 setup: 출발지·도착지 선택
-  → options: 반려동물·중간 거점 개수 선택
-  → recommendation: 선택 조건으로 자동 추천 경로 요청
-  → route: 추천 경로 표시 및 여행 시작 활성화
+  → options: 반려동물 선택
+  → places: 입력한 도착 지역 기준 최종 도착지 후보 5곳 조회 및 한 곳 선택
+  → route: 선택 확정 즉시 서버가 생성한 코스 확인 및 여행 시작
   → progress: 여행 진행
   → end: 여행 종료
 ```
 
-2026-09-01 사용자 결정에 따라 사용자가 후보 장소를 직접 선택·정렬하는 기존
-`places` 단계는 목표 흐름에서 제외한다. 추천 요청의 논리 입력은 다음 네 가지다.
+2026-09-15에 확인한 최신 흐름에서는 먼저 `POST /recommended-places`로 최종 도착지
+후보를 보여주고, 사용자가 후보 중 정확히 한 곳을 선택한다. 처음 검색한 도착지는
+후보 탐색의 중심 좌표로만 사용한다. 선택을 확정하면 `POST /courses`의 단수형
+`destination` 필드에 선택한 추천 장소 전체 객체를 보내며, 서버가 중간 스탑을
+큐레이션하고 코스를 생성한다.
 
 - 반려동물
 - 출발지
-- 도착지
-- 중간 거점 개수
+- 대략적인 도착 지역
+- 추천 후보 중 선택한 최종 도착지 한 곳
 
 여행 시작 버튼은 추천 API가 성공하여 유효한 추천 경로를 받은 뒤에만 활성화한다.
 API 실패 또는 빈 응답을 기존 mock 추천 경로로 대체하지 않는다.
 
-2026-09-08 공개 문서 갱신으로 `POST /courses`가 출발지·도착지 좌표와 이름,
-중간 거점 수를 받는다. 프론트는 이 세 조건을 실제 추천 요청에 전달한다. 여행 시간은
-공개 요청 계약에 없고 2026-09-08 사용자 결정으로 화면 선택 항목에서도 제거했다.
+`intermediateStopCount`는 요청 계약에서 제거됐다. 중간 스탑의 개수와 구성은
+서버가 판단하며 프론트에서 별도 개수를 전송하지 않는다.
 
-## 중간 거점 선택
+## 추천 장소 선택
 
-2026-09-08 사용자 결정:
-
-- 최소 도보 이동 시간 표시와 해당 TMAP 조회를 여행 조건 화면에서 제거한다.
-- 중간 거점은 0개부터 최대 7개까지 선택한다.
+- 도착 지역 좌표를 기준으로 반경 5km, `limit=5`로 요청한다.
+- 반려동물·날씨·선호 활동이 반영된 순서를 그대로 보여준다.
+- 사용자는 최종 도착지 후보 중 정확히 한 곳을 선택한다.
+- 다른 후보를 누르면 기존 선택이 새 후보로 교체된다.
+- 선택 전에는 코스 생성 버튼을 비활성화한다.
 
 ## 자동 추천 요청 목표 JSON
 
 다음은 제품 입력 모델이며 `POST /courses` 요청으로 변환한다.
 
 ```ts
-type RouteRecommendationCriteria = {
+type PlaceRecommendationCriteria = {
   petId: string
-  origin: {
-    name: string
-    address: string
-    latitude: number
-    longitude: number
-  }
-  destination: {
-    name: string
-    address: string
-    latitude: number
-    longitude: number
-  }
-  waypointCount: number // 0..7
+  lat: number
+  lng: number
+  radiusMeters: 5000
+  limit: 5
 }
 ```
 
-다음은 geometry를 포함하는 향후 목표 UI model이다. 현재 `POST /courses` 응답에는 장소
-좌표가 있지만 총거리, 예상 시간, polyline은 없으므로 해당 값은 표시하지 않는다.
+다음은 지도 화면에서 사용하는 경로 모델이다. `POST /courses` 응답의 방문 순서와 좌표를
+기준으로 같은 출처의 TMAP 보행자 길찾기를 추가 호출해 거리, 예상 시간, 경로선을 만든다.
 
 ```ts
 type MapRoute = {
-  id: string
   totalDistanceMeters: number
-  totalTravelTimeHours: number
-  waypoints: Array<{
-    id: string
-    name: string
-    address: string
-    latitude: number
-    longitude: number
-    visitOrder: number
-  }>
-  polyline: Array<{
-    latitude: number
-    longitude: number
+  totalTimeSeconds: number
+  path: Array<{
+    lat: number
+    lng: number
   }>
 }
 ```
 
-현재 연결에서는 문서화된 `CourseDto` 런타임 검증을 통과하고 `places`가 한 개 이상인
-경우에만 여행 시작 버튼을 활성화한다. 장소 이미지·좌표·정책은 응답 모델에 보존하며,
-거리·시간·polyline 조건은 해당 필드를 제공하는 계약이 추가된 뒤 적용한다.
+현재 연결에서는 추천 장소 목록을 런타임 검증한 뒤 선택 화면으로 이동한다.
+선택한 최종 도착지를 서버에 보내고, 반환된 코스의 방문 순서를 그대로 표시한 뒤
+여행 시작 버튼을 활성화한다. 장소 이미지·좌표·정책은 응답 모델에 보존하며,
+거리·시간·polyline은 Chapchu 코스 응답에 추정해 넣지 않고 TMAP 길찾기 응답만 사용한다.
 
 ## 확인된 Endpoint
 
@@ -163,10 +149,7 @@ type CreateCourseRequestDto = {
   startLocation: string
   startLat: number
   startLng: number
-  endLocation: string
-  endLat: number
-  endLng: number
-  intermediateStopCount: number
+  destination: RecommendedPlaceDto
   temperature?: number
   humidity?: number
   weatherStatus?: string
@@ -186,25 +169,21 @@ type CourseDto = {
     longitude: number
     visitOrder: number
     finalPlace: boolean
+    reason: string | null
     petPolicy: unknown | null
   }>
 }
 ```
 
-이 API는 출발지~도착지 bounding box를 `intermediateStopCount + 2`개 구역으로 나누고,
-구역별 후보를 검색·필터·랭킹한 뒤 AI가 방문 순서를 결정하는 코스 추천 API다. 프론트는
-`GET /pets`에서 선택한 본인 반려동물 ID, 출발지·도착지 이름과 좌표, 중간 거점 수,
-기기 로컬 기준 현재 날짜를 전송한다. 요청 직전 출발지 기준 날씨를 조회해 성공한 값만
-선택 필드로 포함하며, 날씨 조회 실패는 코스 생성을 막지 않는다. 장소가 없는 중간 구역은
-건너뛰므로 응답 장소 수가 `intermediateStopCount + 2`보다 적을 수 있다. 여행 시간은 공개
-요청 계약에 없으므로 전송하지 않는다. AI 추천 처리에는 요청별 60초 제한 시간을 적용하며,
+프론트는 `GET /pets`에서 선택한 본인 반려동물 ID, 출발지, 선택한 최종 도착지
+전체 객체(`destination`), 기기 로컬 기준 현재 날짜를 전송한다. 최종 도착지를
+선택하기 전에는 요청하지 않는다. 추천 장소 요청 직전 탐색 지역 기준
+날씨를 조회해 성공한 값만 선택 필드로 포함하며, 날씨 조회 실패는 장소 추천과 코스
+생성을 막지 않는다. AI 추천 처리에는 요청별 60초 제한 시간을 적용하며,
 만료된 access token의 갱신이 성공한 경우 최초 `401`에서 처리되지 않은 요청을 한 번만
 재전송한다.
 
-추천할 장소가 없으면 백엔드는 `404 Not Found`와
-`{"code":"NOT_FOUND","message":"주변에 반려동물 동반 가능 장소가 없습니다."}`를
-반환한다. 프론트는 이 정확한 응답을 endpoint 누락 오류가 아닌 추천 결과 empty 상태로
-처리한다.
+응답의 `places`는 서버가 큐레이션한 중간 스탑과 선택한 고정 최종 도착지로 구성된다.
 
 ### 코스 조회
 
@@ -243,37 +222,47 @@ Content-Type: application/json
 - 현재 위치가 장소에서 500m 이상 떨어지면 `400 Bad Request`다.
 - 마지막 장소 체크인 시 코스가 완료 상태가 된다.
 
+### 코스 완료
+
+```http
+POST /courses/{courseId}/complete
+Authorization: Bearer {access_token}
+```
+
+- 본인 코스만 완료 처리할 수 있다.
+- 이미 완료된 코스에 다시 호출해도 `200 OK`를 반환한다.
+- 여행 중도 종료 확정 시 이 endpoint가 성공한 후 홈으로 이동한다.
+
 ## 화면 단계별 사용 가능 여부
 
 | 단계 | 필요한 계약 | 현재 상태 | 처리 원칙 |
 | --- | --- | --- | --- |
 | `setup` | 출발지·도착지 키워드 검색 | `READY` | 서버 전용 `POST /api/tmap/pois`에서 TMAP POI 검색 |
-| `options` | 반려동물·중간 거점 개수 선택 | `READY` | `GET /pets`, 거점 0..7 |
-| `recommendation` | `POST /courses` 코스 추천 | `READY` | 출발·도착·거점 수·반려동물·선택 날씨 전송 |
+| `options` | 반려동물 선택 | `READY` | `GET /pets` |
+| `places` | `POST /recommended-places` | `READY` | 도착 지역 반경 5km 최종 도착지 후보 최대 5곳, 한 곳 선택 |
+| `route` | `POST /courses` 코스 생성·저장 | `READY` | 선택한 최종 도착지 전체 객체를 `destination`으로 전송 |
 | `route` | 추천 장소와 방문 순서 | `READY` | 검증된 `CourseDto.places` 표시 |
 | `route` | 장소 좌표 | `READY` | 검증된 `CourseDto.places[].latitude/longitude` 보존 |
-| `route` | polyline, 거리, 시간 | `BLOCKED` | 공개 response에 해당 필드 없음 |
+| `route` | polyline, 거리, 시간 | `READY` | 서버 코스 방문 순서로 `POST /api/tmap/routes/pedestrian` 호출 |
 | `route` | 여행 시작 활성화 | `READY` | 유효한 비어 있지 않은 코스 응답 필요 |
 | `progress` | 방문 체크인 | `READY` | 코스 생성 후 받은 `coursePlaceId` 필요 |
-| `end` | 코스 완료 | `PARTIAL` | 마지막 체크인에 의해 완료되지만 상세 종료 응답 없음 |
+| `end` | 코스 완료 | `READY` | 마지막 체크인 또는 `POST /courses/{courseId}/complete` |
 
 ## 백엔드 확인 필요 사항
 
-1. route geometry/polyline, 총거리, 예상 시간 응답 계약
-2. `petPolicy`와 nullable 필드의 정확한 스키마
-3. `intermediateStopCount`의 서버 최대값과 프론트 0..7 범위 지원 여부
-4. 좌표가 요청 및 서버 접근 로그에 남는 것에 대한 운영·보안 정책
+1. `petPolicy`와 nullable 필드의 정확한 스키마
+2. 좌표가 요청 및 서버 접근 로그에 남는 것에 대한 운영·보안 정책
 
 ## 구현 규칙
 
 - endpoint 상수는 `lib/api/endpoints.ts`에서만 관리한다.
 - 백엔드 DTO는 feature API 계층에서 런타임 검증 후 화면 모델로 매핑한다.
-- 추천 요청 조건과 추천 응답 경로, 실제 진행 중인 여행을 같은 상태로 취급하지 않는다.
+- 탐색 지역, 최종 도착지 후보, 선택한 최종 도착지, 서버 생성 코스를 같은 상태로 취급하지 않는다.
 - `GET /places/nearby` 결과를 `SearchableLocation`과 혼용하지 않는다.
 - `externalPlaceId`와 프론트 임시 ID를 혼용하지 않는다.
 - 좌표는 비영속 Zustand 메모리에만 보관하고 로그·분석 이벤트에 남기지 않는다.
 - `loading`, `success`, `empty`, `error` 상태를 모두 구현한다.
-- 계약이 `BLOCKED`인 단계는 mock과 실제 API 모드를 명시적으로 분리한다.
+- 추천 장소 응답은 빈 목록을 별도 empty 상태로 표시한다.
 
 ## 출발지·도착지 검색
 
@@ -283,3 +272,8 @@ Content-Type: application/json
 사용하고, TMAP 응답은 `SearchableLocation` UI 모델로 축소한다. 보행자 출입구 좌표를
 우선 사용하고 실패 시 정문, 중심 좌표 순으로 대체한다. 세부 계약은
 [`docs/location-search-api.md`](./location-search-api.md)에서 관리한다.
+
+장소 순서 확정 이후에는 `POST /courses`가 반환한 방문 순서를 유지해 TMAP 보행자
+길찾기를 호출한다. 중간 장소는 `passList`에 순서대로 넣고, 마지막 장소를 도착지로
+사용한다. 브라우저에는 API 키나 TMAP 원본 응답 대신 총거리, 총시간, WGS84 경로 좌표만
+반환하며 같은 경로선을 여행 진행 지도에서도 유지한다.

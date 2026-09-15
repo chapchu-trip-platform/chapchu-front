@@ -3,7 +3,8 @@ import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import MapRouteOptionsScreen, {
-  type CourseRecommendationStatus,
+  type MinimumWalkingTimeStatus,
+  type PlaceRecommendationStatus,
 } from '@/components/screens/map-route-options-screen'
 
 const origin = {
@@ -31,23 +32,23 @@ function Harness({
   ],
   recommendationError = null,
   recommendationStatus = 'idle',
+  minimumWalkingTimeSeconds = null,
+  minimumWalkingTimeStatus = 'idle',
 }: {
   onPetSelect?: (petId: string) => void
   onRecommend?: () => void
   pets?: Array<{ id: string; name: string }>
   recommendationError?: string | null
-  recommendationStatus?: CourseRecommendationStatus
+  recommendationStatus?: PlaceRecommendationStatus
+  minimumWalkingTimeSeconds?: number | null
+  minimumWalkingTimeStatus?: MinimumWalkingTimeStatus
 } = {}) {
-  const [options, setOptions] = useState({
-    waypointCount: 0,
-  })
   const [selectedPetId, setSelectedPetId] = useState<string | null>('pet-1')
 
   return (
     <MapRouteOptionsScreen
       destination={destination}
       onBack={vi.fn()}
-      onOptionsChange={setOptions}
       onPetSelect={(petId) => {
         setSelectedPetId(petId)
         onPetSelect(petId)
@@ -59,7 +60,8 @@ function Harness({
       recommendationError={recommendationError}
       recommendationStatus={recommendationStatus}
       selectedPetId={selectedPetId}
-      waypointCount={options.waypointCount}
+      minimumWalkingTimeSeconds={minimumWalkingTimeSeconds}
+      minimumWalkingTimeStatus={minimumWalkingTimeStatus}
     />
   )
 }
@@ -67,36 +69,12 @@ function Harness({
 describe('MapRouteOptionsScreen', () => {
   afterEach(() => cleanup())
 
-  it('offers zero to seven intermediate stops without showing walking time', async () => {
-    const user = userEvent.setup()
+  it('requests destination candidates without offering an intermediate stop count', () => {
     render(<Harness />)
 
-    expect(screen.getByRole('button', { name: '0개 · 직행' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
-    expect(screen.getByRole('button', { name: '0개 · 직행' })).toHaveClass(
-      'focus-visible:ring-2',
-      'rounded-xl'
-    )
-    expect(screen.getByRole('button', { name: '7개' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '8개' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '0개 · 직행' }).parentElement).toHaveClass(
-      'grid-cols-4'
-    )
-    expect(screen.queryByRole('heading', { name: '여행 시간' })).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('heading', { name: '최소 도보 이동 시간' })
-    ).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: '7개' }))
-
-    expect(screen.getByRole('button', { name: '7개' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
-    expect(screen.getByRole('button', { name: '추천 코스 받기' })).toBeEnabled()
-    expect(screen.getByText(/선택한 반려동물·출발지·도착지와/)).toBeInTheDocument()
+    expect(screen.queryByText('중간 거점 개수')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '추천 장소 받기' })).toBeEnabled()
+    expect(screen.getByText(/방문할 장소 5곳을 추천/)).toBeInTheDocument()
   })
 
   it('shows pets and changes the selected pet', async () => {
@@ -117,6 +95,30 @@ describe('MapRouteOptionsScreen', () => {
     )
   })
 
+  it('shortens pet names longer than ten characters for display', () => {
+    render(<Harness pets={[{ id: 'pet-1', name: '가나다라마바사아자차카' }]} />)
+
+    expect(screen.getByText('가나다라마바사아자차...')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '가나다라마바사아자차카' })).toHaveAttribute(
+      'title',
+      '가나다라마바사아자차카'
+    )
+  })
+
+  it('shows the minimum walking time between the selected endpoints', () => {
+    render(
+      <Harness
+        minimumWalkingTimeSeconds={4120}
+        minimumWalkingTimeStatus="success"
+      />
+    )
+
+    expect(screen.getByTestId('minimum-walking-time')).toHaveTextContent(
+      '최소 소요 시간'
+    )
+    expect(screen.getByTestId('minimum-walking-time')).toHaveTextContent('약 1시간 9분')
+  })
+
   it('disables duplicate submissions and exposes recommendation failures', async () => {
     const onRecommend = vi.fn()
     const { rerender } = render(
@@ -124,7 +126,7 @@ describe('MapRouteOptionsScreen', () => {
     )
 
     expect(
-      await screen.findByRole('button', { name: '추천 코스 생성 중' })
+      await screen.findByRole('button', { name: '추천 장소 찾는 중' })
     ).toBeDisabled()
 
     rerender(
@@ -138,6 +140,6 @@ describe('MapRouteOptionsScreen', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       '추천 서버에 연결하지 못했습니다.'
     )
-    expect(screen.getByRole('button', { name: '추천 코스 다시 받기' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '추천 장소 다시 받기' })).toBeEnabled()
   })
 })

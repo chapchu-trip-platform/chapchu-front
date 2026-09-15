@@ -1,36 +1,39 @@
 'use client'
 
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { CalendarDays, CheckCircle2, MapPin, Navigation } from 'lucide-react'
+import { useState } from 'react'
+import { CalendarDays, Loader2, MapPin, Navigation } from 'lucide-react'
 import TopBar from '@/components/top-bar'
 import { Button } from '@/components/ui/button'
+import CoursePlaceCard from '@/features/map/components/course-place-card'
 import type { SearchableLocation } from '@/features/location/types/location'
+import MapFlowBottomDock from '@/features/map/components/map-flow-bottom-dock'
+import MapFlowDetailSheet from '@/features/map/components/map-flow-detail-sheet'
 import TmapMap, { type TmapMapMarker } from '@/features/map/components/tmap-map'
+import {
+  formatWalkingTime,
+  type PedestrianRoute,
+} from '@/features/map/api/walking-time-api'
 import type { RecommendedCourse } from '@/features/map/types/course'
-import { cn } from '@/lib/utils'
 
 interface MapRouteScreenProps {
   course: RecommendedCourse
   destination: SearchableLocation | null
-  onBack: () => void
+  isStartingTrip?: boolean
+  onBack?: () => void
   onStartTrip: () => void
   origin: SearchableLocation | null
+  pedestrianRoute?: PedestrianRoute | null
+  pedestrianRouteStatus?: 'idle' | 'loading' | 'success' | 'error'
+  startTripError?: string | null
 }
 
-const DETAIL_HANDLE_HEIGHT_PX = 32
-const SHEET_SNAP_THRESHOLD_PX = 40
-
-interface SheetDragState {
-  pointerId: number
-  startY: number
-  startOffset: number
-  maxOffset: number
-}
-
-function getRouteMapZoom(origin: SearchableLocation, destination: SearchableLocation) {
+function getRouteMapZoom(points: Array<{ latitude: number; longitude: number }>) {
+  if (points.length < 2) return 14
+  const latitudes = points.map((point) => point.latitude)
+  const longitudes = points.map((point) => point.longitude)
   const coordinateSpan = Math.max(
-    Math.abs(origin.latitude - destination.latitude),
-    Math.abs(origin.longitude - destination.longitude)
+    Math.max(...latitudes) - Math.min(...latitudes),
+    Math.max(...longitudes) - Math.min(...longitudes)
   )
 
   if (coordinateSpan > 1) return 7
@@ -45,24 +48,27 @@ function getRouteMapZoom(origin: SearchableLocation, destination: SearchableLoca
 export default function MapRouteScreen({
   course,
   destination,
+  isStartingTrip = false,
   onBack,
   onStartTrip,
   origin,
+  pedestrianRoute = null,
+  pedestrianRouteStatus = 'idle',
+  startTripError = null,
 }: MapRouteScreenProps) {
   const [bottomExpanded, setBottomExpanded] = useState(false)
-  const [dragOffset, setDragOffset] = useState<number | null>(null)
-  const sheetRef = useRef<HTMLDivElement>(null)
-  const dragStateRef = useRef<SheetDragState | null>(null)
-  const didDragRef = useRef(false)
-  const mapCenter =
-    origin && destination
-      ? {
-          lat: (origin.latitude + destination.latitude) / 2,
-          lng: (origin.longitude + destination.longitude) / 2,
-        }
-      : origin
-        ? { lat: origin.latitude, lng: origin.longitude }
-        : undefined
+  const mapPoints = [
+    ...(origin ? [origin] : []),
+    ...course.places,
+  ]
+  const mapCenter = mapPoints.length > 0
+    ? {
+        lat: mapPoints.reduce((sum, point) => sum + point.latitude, 0) / mapPoints.length,
+        lng: mapPoints.reduce((sum, point) => sum + point.longitude, 0) / mapPoints.length,
+      }
+    : destination
+      ? { lat: destination.latitude, lng: destination.longitude }
+      : undefined
   const mapMarkers: TmapMapMarker[] = [
     ...(origin
       ? [
@@ -70,200 +76,103 @@ export default function MapRouteScreen({
             id: `origin-${origin.id}`,
             position: { lat: origin.latitude, lng: origin.longitude },
             title: `출발지: ${origin.name}`,
+            label: '출발',
+            variant: 'origin' as const,
           },
         ]
       : []),
-    ...(destination
-      ? [
-          {
-            id: `destination-${destination.id}`,
-            position: { lat: destination.latitude, lng: destination.longitude },
-            title: `도착지: ${destination.name}`,
-          },
-        ]
-      : []),
+    ...course.places.map((place) => ({
+      id: `course-place-${place.id}`,
+      position: { lat: place.latitude, lng: place.longitude },
+      title: `${place.visitOrder}번 방문지: ${place.name}`,
+      label: place.isFinal ? '도착' : String(place.visitOrder),
+      variant: place.isFinal ? 'destination' as const : 'candidate' as const,
+    })),
   ]
-  const mapZoom = origin && destination ? getRouteMapZoom(origin, destination) : 14
+  const mapZoom = getRouteMapZoom(mapPoints)
   const routeTitle = `${course.startLocation} → ${course.endLocation}`
-
-  const startSheetDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    const sheetHeight = sheetRef.current?.getBoundingClientRect().height ?? 0
-    const maxOffset = Math.max(0, sheetHeight - DETAIL_HANDLE_HEIGHT_PX)
-
-    dragStateRef.current = {
-      pointerId: event.pointerId,
-      startY: event.clientY,
-      startOffset: bottomExpanded ? 0 : maxOffset,
-      maxOffset,
-    }
-    didDragRef.current = false
-    setDragOffset(bottomExpanded ? 0 : maxOffset)
-    event.currentTarget.setPointerCapture?.(event.pointerId)
-  }
-
-  const moveSheet = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    const dragState = dragStateRef.current
-    if (!dragState || dragState.pointerId !== event.pointerId) return
-
-    const deltaY = event.clientY - dragState.startY
-    if (Math.abs(deltaY) > 4) didDragRef.current = true
-    setDragOffset(
-      Math.min(dragState.maxOffset, Math.max(0, dragState.startOffset + deltaY))
-    )
-  }
-
-  const finishSheetDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    const dragState = dragStateRef.current
-    if (!dragState || dragState.pointerId !== event.pointerId) return
-
-    const deltaY = event.clientY - dragState.startY
-    const currentOffset = Math.min(
-      dragState.maxOffset,
-      Math.max(0, dragState.startOffset + deltaY)
-    )
-    const shouldExpand =
-      deltaY <= -SHEET_SNAP_THRESHOLD_PX ||
-      (deltaY < SHEET_SNAP_THRESHOLD_PX && currentOffset < dragState.maxOffset / 2)
-
-    setBottomExpanded(shouldExpand)
-    setDragOffset(null)
-    dragStateRef.current = null
-    event.currentTarget.releasePointerCapture?.(event.pointerId)
-  }
-
-  const cancelSheetDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (dragStateRef.current?.pointerId !== event.pointerId) return
-    setDragOffset(null)
-    dragStateRef.current = null
-    didDragRef.current = false
-  }
-
-  const sheetTransform =
-    dragOffset !== null
-      ? `translate3d(0, ${dragOffset}px, 0)`
-      : bottomExpanded
-        ? 'translate3d(0, 0, 0)'
-        : `translate3d(0, calc(100% - ${DETAIL_HANDLE_HEIGHT_PX}px), 0)`
 
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden bg-warm-beige">
-      <TopBar title="추천 코스" showBack onBack={onBack} />
+      <TopBar title="장소 순서 확정" showBack={Boolean(onBack)} onBack={onBack} />
 
       <div className="relative z-0 flex-1 overflow-hidden bg-sky-blue/20">
         <TmapMap
           center={mapCenter}
           locationLabel={routeTitle}
           markers={mapMarkers}
+          routePath={pedestrianRoute?.path ?? []}
           zoom={mapZoom}
         />
       </div>
 
-      <div
-        ref={sheetRef}
+      <MapFlowDetailSheet
         id="route-details-sheet"
-        style={{ transform: sheetTransform }}
-        className={cn(
-          'absolute inset-x-0 bottom-[88px] z-10 flex h-[62%] min-h-[340px] max-h-[520px] flex-col overflow-hidden rounded-t-[24px] bg-card-surface shadow-xl will-change-transform',
-          dragOffset === null && 'transition-transform duration-300 ease-out'
-        )}
+        expanded={bottomExpanded}
+        onExpandedChange={setBottomExpanded}
+        expandLabel="방문 순서 펼치기"
+        collapseLabel="방문 순서 접기"
+        contentClassName="overflow-y-auto no-scrollbar"
       >
-        <button
-          type="button"
-          className="flex h-8 w-full shrink-0 cursor-grab touch-none items-center justify-center active:cursor-grabbing"
-          onClick={() => {
-            if (didDragRef.current) {
-              didDragRef.current = false
-              return
-            }
-            setBottomExpanded((expanded) => !expanded)
-          }}
-          onPointerDown={startSheetDrag}
-          onPointerMove={moveSheet}
-          onPointerUp={finishSheetDrag}
-          onPointerCancel={cancelSheetDrag}
-          aria-controls="route-details-sheet-content"
-          aria-expanded={bottomExpanded}
-          aria-label={bottomExpanded ? '추천 코스 상세 접기' : '추천 코스 상세 펼치기'}
-        >
-          <div className="h-1 w-10 rounded-full bg-border" />
-        </button>
-
-        <div
-          id="route-details-sheet-content"
-          className="isolate min-h-0 flex-1 overflow-y-auto rounded-t-[24px] bg-card-surface no-scrollbar"
-        >
-          <div className="space-y-2 px-4 pb-3 pt-1">
+        <div className="space-y-2 px-4 pb-3 pt-1">
+          <div
+            role="status"
+            className="rounded-xl border border-sage-green/30 bg-sage-green-light px-3 py-2 text-[11px] font-medium text-deep-brown"
+          >
+            선택한 최종 도착지를 기준으로 서버가 생성한 코스입니다.
+          </div>
+          {pedestrianRouteStatus === 'loading' && (
+            <div className="flex items-center gap-2 rounded-xl border border-soft-orange/30 bg-soft-orange/10 px-3 py-2 text-[11px] leading-relaxed text-deep-brown">
+              <Loader2 aria-hidden="true" className="size-3.5 shrink-0 animate-spin" />
+              방문 순서에 맞는 보행 경로를 찾고 있어요.
+            </div>
+          )}
+          {pedestrianRouteStatus === 'success' && pedestrianRoute && (
+            <div className="flex flex-wrap gap-x-2 gap-y-1 rounded-xl border border-soft-orange/30 bg-soft-orange/10 px-3 py-2 text-[11px] leading-relaxed text-deep-brown">
+              <span className="font-semibold">보행 경로</span>
+              <span>{(pedestrianRoute.totalDistanceMeters / 1000).toFixed(1)}km</span>
+              <span>{formatWalkingTime(pedestrianRoute.totalTimeSeconds)}</span>
+            </div>
+          )}
+          {pedestrianRouteStatus === 'error' && (
+            <div role="alert" className="rounded-xl border border-danger/20 bg-danger/5 px-3 py-2 text-[11px] leading-relaxed text-deep-brown">
+              보행 경로를 불러오지 못했어요. 장소 순서는 그대로 확인할 수 있습니다.
+            </div>
+          )}
+          {startTripError && (
             <div
-              role="status"
-              className="rounded-xl border border-sage-green/30 bg-sage-green-light px-3 py-2 text-[11px] font-medium text-deep-brown"
+              role="alert"
+              className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] leading-relaxed text-danger"
             >
-              선택한 출발지·도착지와 중간 거점 수로 생성된 추천 코스입니다.
+              {startTripError}
             </div>
-            <div className="rounded-xl border border-soft-orange/30 bg-soft-orange/10 px-3 py-2 text-[11px] leading-relaxed text-deep-brown">
-              지도 경로선은 아직 코스 생성 API에 포함되지 않습니다.
-            </div>
-          </div>
-
-          <div className="px-4 pb-2">
-            <h4 className="mb-2 text-[13px] font-semibold text-warm-gray">
-              추천 방문 장소
-            </h4>
-            <ol className="flex flex-col gap-2">
-              {course.places.map((place) => (
-                <li
-                  key={place.id}
-                  className="flex items-center gap-3 rounded-xl bg-muted/60 p-3"
-                >
-                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-soft-orange text-[12px] font-bold text-white">
-                    {place.visitOrder}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[14px] font-semibold text-deep-brown">
-                      {place.name}
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-warm-gray">
-                      방문 순서 {place.visitOrder}
-                    </p>
-                  </div>
-                  {place.isFinal && (
-                    <span className="rounded-full bg-sage-green-light px-2 py-1 text-[10px] font-semibold text-sage-green">
-                      마지막 장소
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </div>
-
-          <div className="px-4 pb-8 pt-2">
-            <Button
-              onClick={onStartTrip}
-              disabled={course.places.length === 0}
-              fullWidth
-              size="lg"
-            >
-              이 코스로 여행 시작
-            </Button>
-          </div>
+          )}
         </div>
-      </div>
 
-      <div
-        data-testid="route-summary-dock"
-        className={cn(
-          'absolute inset-x-0 bottom-0 z-20 h-[88px] bg-card-surface px-4 pb-1 pt-3',
-          bottomExpanded ? 'rounded-t-none shadow-none' : 'rounded-t-[24px] shadow-xl'
-        )}
-      >
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <h3 className="line-clamp-2 min-w-0 text-[19px] font-bold leading-tight text-deep-brown">
-            {routeTitle}
-          </h3>
-          <span className="flex flex-shrink-0 items-center gap-1 rounded-full bg-sage-green-light px-2.5 py-1 text-[12px] font-semibold text-sage-green">
-            <CheckCircle2 className="h-3.5 w-3.5" /> 추천 완료
+        <div className="px-4 pb-2">
+          <h4 className="mb-2 text-[13px] font-semibold text-warm-gray">방문 순서</h4>
+          <ol className="flex flex-col gap-2">
+            {course.places.map((place) => (
+              <li key={place.id}>
+                <CoursePlaceCard place={place} />
+              </li>
+            ))}
+          </ol>
+        </div>
+      </MapFlowDetailSheet>
+
+      <MapFlowBottomDock expanded={bottomExpanded} testId="route-summary-dock">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="whitespace-normal break-words text-[15px] font-bold leading-snug text-deep-brown">
+              {routeTitle}
+            </p>
+          </div>
+          <span className="shrink-0 rounded-full bg-sage-green-light px-3 py-1 text-[13px] font-semibold text-sage-green">
+            코스 구성 완료
           </span>
         </div>
-        <div data-testid="route-summary-stats" className="flex items-center gap-4">
+        <div data-testid="route-summary-stats" className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <div className="flex items-center gap-1">
             <MapPin className="h-4 w-4 text-warm-gray" />
             <span className="whitespace-nowrap text-[12px] text-warm-gray">
@@ -278,7 +187,15 @@ export default function MapRouteScreen({
           </div>
           <Navigation className="ml-auto h-4 w-4 text-sage-green" aria-hidden="true" />
         </div>
-      </div>
+        <Button
+          onClick={onStartTrip}
+          disabled={course.places.length === 0 || isStartingTrip}
+          size="lg"
+          className="map-flow-dock-button"
+        >
+          {isStartingTrip ? <><Loader2 className="animate-spin" /> 여행을 준비하는 중</> : '이 코스로 여행 시작'}
+        </Button>
+      </MapFlowBottomDock>
     </div>
   )
 }

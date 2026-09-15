@@ -12,6 +12,9 @@ function request(body: unknown) {
 const validRequest = {
   origin: { name: '서울역', latitude: 37.5547, longitude: 126.9706 },
   destination: { name: '서울숲', latitude: 37.5444, longitude: 127.0374 },
+  waypoints: [
+    { name: '반려견 카페', latitude: 37.55, longitude: 127.01 },
+  ],
 }
 
 describe('/api/tmap/routes/pedestrian route', () => {
@@ -32,7 +35,7 @@ describe('/api/tmap/routes/pedestrian route', () => {
     }
   })
 
-  it('keeps the API key server-only and returns only the total walking time', async () => {
+  it('keeps the API key server-only and returns route geometry and metrics', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       Response.json({
         type: 'FeatureCollection',
@@ -41,6 +44,18 @@ describe('/api/tmap/routes/pedestrian route', () => {
             type: 'Feature',
             properties: { totalDistance: 5100, totalTime: 4120 },
             geometry: { type: 'Point', coordinates: [126.9706, 37.5547] },
+          },
+          {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: [
+                [126.9706, 37.5547],
+                [127.01, 37.55],
+                [127.0374, 37.5444],
+              ],
+            },
           },
         ],
       })
@@ -53,7 +68,15 @@ describe('/api/tmap/routes/pedestrian route', () => {
     const upstreamBody = JSON.parse(String(init.body)) as Record<string, unknown>
 
     expect(response.status).toBe(200)
-    expect(data).toEqual({ totalTimeSeconds: 4120 })
+    expect(data).toEqual({
+      totalDistanceMeters: 5100,
+      totalTimeSeconds: 4120,
+      path: [
+        { lat: 37.5547, lng: 126.9706 },
+        { lat: 37.55, lng: 127.01 },
+        { lat: 37.5444, lng: 127.0374 },
+      ],
+    })
     expect(response.headers.get('Cache-Control')).toBe('no-store, max-age=0')
     expect(url.toString()).toContain('/tmap/routes/pedestrian')
     expect(new Headers(init.headers).get('appKey')).toBe('test-tmap-key')
@@ -64,6 +87,7 @@ describe('/api/tmap/routes/pedestrian route', () => {
       endY: 37.5444,
       reqCoordType: 'WGS84GEO',
       resCoordType: 'WGS84GEO',
+      passList: '127.01,37.55',
     })
     expect(JSON.stringify(data)).not.toContain('test-tmap-key')
   })
@@ -78,6 +102,23 @@ describe('/api/tmap/routes/pedestrian route', () => {
         origin: { ...validRequest.origin, latitude: 100 },
       })
     )
+
+    expect(response.status).toBe(400)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects more than three intermediate waypoints', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await POST(request({
+      ...validRequest,
+      waypoints: Array.from({ length: 4 }, (_, index) => ({
+        name: `경유지 ${index + 1}`,
+        latitude: 37.55 + index * 0.001,
+        longitude: 127.01 + index * 0.001,
+      })),
+    }))
 
     expect(response.status).toBe(400)
     expect(fetchMock).not.toHaveBeenCalled()

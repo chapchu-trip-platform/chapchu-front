@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MapSetupScreen from '@/components/screens/map-setup-screen'
 import { searchLocations } from '@/features/location/api/location-search-api'
+import { RECENT_LOCATIONS_STORAGE_KEY } from '@/features/location/lib/recent-locations'
 
 vi.mock('@/features/location/api/location-search-api', () => ({
   searchLocations: vi.fn(),
@@ -120,6 +121,53 @@ describe('MapSetupScreen location search', () => {
     await user.type(screen.getByRole('searchbox', { name: '도착지' }), '없는 장소')
 
     expect(screen.getByRole('button', { name: '다음' })).toBeDisabled()
+  })
+
+  it('restores recent locations after remount and resolves fresh coordinates on reuse', async () => {
+    const user = userEvent.setup()
+    const destination = {
+      id: 'poi-1',
+      name: '서울숲',
+      address: '서울 성동구 뚝섬로 273',
+      latitude: 37.5444,
+      longitude: 127.0374,
+    }
+    vi.mocked(searchLocations).mockResolvedValue([destination])
+
+    const firstRender = render(
+      <MapSetupScreen
+        onBack={vi.fn()}
+        onNext={vi.fn()}
+        locationStatus="idle"
+      />
+    )
+    await user.type(screen.getByRole('searchbox', { name: '도착지' }), '서울숲')
+    await user.click(await screen.findByRole('button', { name: /서울숲/ }))
+
+    const storedHistory = window.localStorage.getItem(RECENT_LOCATIONS_STORAGE_KEY) ?? ''
+    expect(storedHistory).toContain('서울숲')
+    expect(storedHistory).not.toContain('latitude')
+    expect(storedHistory).not.toContain('longitude')
+
+    firstRender.unmount()
+    vi.mocked(searchLocations).mockClear()
+    render(
+      <MapSetupScreen
+        onBack={vi.fn()}
+        onNext={vi.fn()}
+        locationStatus="idle"
+      />
+    )
+    await user.click(screen.getByRole('searchbox', { name: '출발지' }))
+    await user.click(screen.getByRole('button', { name: /서울숲.*서울 성동구/ }))
+
+    await waitFor(() => {
+      expect(searchLocations).toHaveBeenCalledWith(
+        '서울숲',
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      )
+      expect(screen.getByRole('searchbox', { name: '출발지' })).toHaveValue('서울숲')
+    })
   })
 
   it('keeps search results inside a fixed flex viewport', async () => {

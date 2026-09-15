@@ -121,10 +121,64 @@ Backend coordination still needs to confirm:
 - registration token expiry and one-time-use behavior
 - production log redaction for the token-bearing `/auth/callback?registration_token=...` request;
   client-side URL cleanup cannot remove it from upstream access logs
-- route geometry/polyline, total-distance, and estimated-time response fields
-- travel note draft save API
-- album save API
+- whether route geometry, total-distance, and estimated-time will later move into the course API;
+  the current UI derives them from the server-side TMAP pedestrian adapter
+- a server-side trip-level overall-review field; the current API stores the overall review only
+  when it is shared as a course-linked community post
+- whether a future Chapchu backend location-search API should replace the current server-side TMAP
+  POI adapter
 - community read-state/public companion-detail contracts (see below)
+
+Map endpoint integration follows the verified contract and blocker matrix in
+[`docs/map-api-contract.md`](./map-api-contract.md). The authenticated `POST /recommended-places`
+request sends the selected owned `petId`, destination-area coordinates, a 5km radius, a five-place
+limit, and any weather values refreshed successfully for that area. The returned items are final
+destination candidates, and the user must select exactly one. A weather failure does not block the
+recommendation request. Confirming the selection immediately calls `POST /courses` with the start
+location and the selected full place object in the singular `destination` field. The server then
+creates the course and curates any intermediate stops. Route geometry, total distance, and estimated
+time are not part of the Chapchu course contract, so the UI obtains them separately from the
+server-side TMAP pedestrian route adapter using the server-provided visit order.
+Keyword location search uses the same-origin server adapter at `POST /api/tmap/pois`; it is not a
+Chapchu backend endpoint.
+
+The map options UI loads `GET /pets` and requires a pet selection before requesting destination
+candidates. `intermediateStopCount` is no longer part of the published course request.
+
+## Travel Photo, Review, And Album Integration
+
+The public API documentation at <https://api.chapchu.site/docs/index.html> defines albums as a
+derived view rather than a separately saved entity. Travel photos use this sequence:
+
+1. authenticated `POST /photos/upload-url` with `type: REVIEW`
+2. direct browser `PUT` of each image to its presigned URL
+3. authenticated `POST /photos` with the corresponding `coursePlaceId`, `photoKey`, and `takenAt`
+
+The travel-progress UI performs this sequence as soon as a user selects photos. It then requests
+`GET /photos/{photoId}` so the private presigned download URL can be previewed. A place accepts at
+most ten photos, matching the review attachment limit.
+
+Place-review text and rating are temporary until the trip-end confirmation. Drafts are kept in
+tab-scoped `sessionStorage` under the current course ID and are removed on logout or travel reset;
+they are never written to `localStorage`. Album confirmation creates each complete place review
+through `POST /reviews`, including its `coursePlaceId` and already-saved photo IDs. Photos without
+a place review remain private album photos; photos attached to a review are reported as public by
+the album response.
+
+There is no album create endpoint. `GET /users/me/album` groups the current user's course-linked
+photos by course. Album detail combines that group with `GET /courses/{courseId}` and
+`GET /courses/{courseId}/reviews`, and displays only fields published by those contracts. The UI
+does not synthesize distance, duration, arrival time, address, or temperature values that the
+album/course responses do not provide.
+
+The overall trip review is shared with `POST /posts`, including the owned `petId` and `courseId`.
+The current backend contract has no board/category or location-privacy field and no trip-level
+overall-review field on albums, so those values are not invented in the API request.
+
+Keyword location search uses the server-only TMAP POI adapter at `POST /api/tmap/pois`. The browser
+sends a two-to-100-character query and a result limit in a POST body. The adapter performs nationwide
+accuracy-ranked TMAP search, maps only ID, name, address, and WGS84 coordinates, and never exposes
+`T_MAP_APIKEY` or TMAP error payloads. A TMAP `204` is returned to the UI as an empty item list.
 
 ## Home And Location API Status
 

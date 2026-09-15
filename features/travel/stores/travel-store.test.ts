@@ -13,7 +13,6 @@ describe('useTravelStore', () => {
     expect(state.travelStage).toBe('idle')
     expect(state.routeOrigin).toBeNull()
     expect(state.routeDestination).toBeNull()
-    expect(state.waypointCount).toBeNull()
     expect(state.recommendedCourse).toBeNull()
     expect(state.selectedWaypoints).toEqual([])
     expect(state.noteDrafts).toEqual([])
@@ -75,15 +74,14 @@ describe('useTravelStore', () => {
     })
   })
 
-  it('stores route options and clears them when endpoints change', () => {
-    useTravelStore.getState().setRouteOptions({
-      waypointCount: 3,
+  it('clears a previously created course when endpoints change', () => {
+    useTravelStore.getState().setRecommendedCourse({
+      id: 'previous-course',
+      travelDate: '2026-09-01',
+      startLocation: '이전 출발지',
+      endLocation: '이전 도착지',
+      places: [],
     })
-
-    expect(useTravelStore.getState()).toMatchObject({
-      waypointCount: 3,
-    })
-
     useTravelStore.getState().setRouteEndpoints(
       {
         id: 'origin-2',
@@ -101,12 +99,10 @@ describe('useTravelStore', () => {
       }
     )
 
-    expect(useTravelStore.getState()).toMatchObject({
-      waypointCount: 0,
-    })
+    expect(useTravelStore.getState().recommendedCourse).toBeNull()
   })
 
-  it('stores a recommended course separately and clears it when options change', () => {
+  it('stores a recommended course separately', () => {
     useTravelStore.getState().setRecommendedCourse({
       id: 'course-1',
       travelDate: '2026-09-01',
@@ -128,11 +124,48 @@ describe('useTravelStore', () => {
     })
 
     expect(useTravelStore.getState().recommendedCourse?.id).toBe('course-1')
+  })
 
-    useTravelStore.getState().setRouteOptions({
-      waypointCount: 2,
+  it('keeps travel state in memory instead of persisting a local recovery copy', () => {
+    localStorage.clear()
+
+    useTravelStore.getState().setRecommendedCourse({
+      id: 'memory-only-course',
+      travelDate: '2026-09-12',
+      startLocation: '서울역',
+      endLocation: '서울숲',
+      places: [],
     })
 
-    expect(useTravelStore.getState().recommendedCourse).toBeNull()
+    expect(localStorage.getItem('chapchu.travel-session')).toBeNull()
+  })
+
+  it('caches in-progress review drafts in session storage for the same course', () => {
+    sessionStorage.clear()
+    useTravelStore.getState().beginTravelDrafts('course-1')
+    useTravelStore.getState().upsertNoteDraft({
+      waypointId: 'course-place-1',
+      externalPlaceId: 'place-1',
+      content: '함께 걷기 좋았어요.',
+      rating: 5,
+      photoUrls: [],
+      photos: [],
+      saved: true,
+    })
+
+    expect(sessionStorage.getItem('chapchu.travel-drafts')).toContain('함께 걷기 좋았어요.')
+
+    useTravelStore.setState({
+      draftCourseId: null,
+      noteDrafts: [],
+      overallReview: '',
+    })
+    useTravelStore.getState().hydrateTravelDrafts('course-1')
+
+    expect(useTravelStore.getState().noteDrafts[0]).toMatchObject({
+      waypointId: 'course-place-1',
+      rating: 5,
+      saved: true,
+    })
   })
 })

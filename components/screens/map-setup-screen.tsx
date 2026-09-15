@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   AlertCircle,
   ChevronRight,
@@ -16,6 +16,13 @@ import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { InteractiveCard } from '@/components/ui/interactive-card'
 import { searchLocations } from '@/features/location/api/location-search-api'
+import {
+  loadRecentLocations,
+  MAX_RECENT_LOCATIONS,
+  type RecentLocation,
+  saveRecentLocations,
+  toRecentLocation,
+} from '@/features/location/lib/recent-locations'
 import type { LocationLoadStatus } from '@/features/location/stores/location-store'
 import type { SearchableLocation } from '@/features/location/types/location'
 import TmapMap from '@/features/map/components/tmap-map'
@@ -33,8 +40,6 @@ type ActiveField = 'origin' | 'destination'
 type SearchStatus = 'idle' | 'loading' | 'success' | 'error'
 
 const SEARCH_DEBOUNCE_MS = 300
-const MAX_RECENT_LOCATIONS = 5
-
 interface LocationSearchFeedbackProps {
   action?: ReactNode
   description?: string
@@ -80,10 +85,17 @@ export default function MapSetupScreen({
     initialDestination?.name ?? ''
   )
   const [activeField, setActiveField] = useState<ActiveField | null>(null)
-  const [recentLocations, setRecentLocations] = useState<SearchableLocation[]>([])
+  const [recentLocations, setRecentLocations] = useState<RecentLocation[]>(
+    loadRecentLocations
+  )
+  const [resolvingRecentLocationId, setResolvingRecentLocationId] = useState<
+    string | null
+  >(null)
+  const [recentSelectionError, setRecentSelectionError] = useState<string | null>(null)
   const [searchResults, setSearchResults] = useState<SearchableLocation[]>([])
   const [searchStatus, setSearchStatus] = useState<SearchStatus>('idle')
   const [retryCount, setRetryCount] = useState(0)
+  const recentSelectionRequestRef = useRef<AbortController | null>(null)
 
   const query = activeField === 'origin' ? originInput : destinationInput
   const normalizedQuery = activeField ? query.trim() : ''
@@ -114,22 +126,36 @@ export default function MapSetupScreen({
     }
   }, [activeField, normalizedQuery, retryCount])
 
+  useEffect(
+    () => () => {
+      recentSelectionRequestRef.current?.abort()
+    },
+    []
+  )
+
   const activateField = (field: ActiveField) => {
+    recentSelectionRequestRef.current?.abort()
+    setResolvingRecentLocationId(null)
+    setRecentSelectionError(null)
     setSearchResults([])
     setSearchStatus('idle')
     setActiveField(field)
   }
 
   const saveRecentLocation = (location: SearchableLocation) => {
-    const nextLocations = [
-      location,
-      ...recentLocations.filter((item) => item.id !== location.id),
-    ].slice(0, MAX_RECENT_LOCATIONS)
-    setRecentLocations(nextLocations)
+    setRecentLocations((current) => {
+      const nextLocations = [
+        toRecentLocation(location),
+        ...current.filter((item) => item.id !== location.id),
+      ].slice(0, MAX_RECENT_LOCATIONS)
+      saveRecentLocations(nextLocations)
+      return nextLocations
+    })
   }
 
   const clearRecentLocations = () => {
     setRecentLocations([])
+    saveRecentLocations([])
   }
 
   const handleSelect = (location: SearchableLocation) => {
@@ -150,9 +176,45 @@ export default function MapSetupScreen({
   }
 
   const removeRecentLocation = (locationId: string) => {
-    setRecentLocations((current) =>
-      current.filter((item) => item.id !== locationId)
-    )
+    setRecentLocations((current) => {
+      const nextLocations = current.filter((item) => item.id !== locationId)
+      saveRecentLocations(nextLocations)
+      return nextLocations
+    })
+  }
+
+  const selectRecentLocation = async (recent: RecentLocation) => {
+    if (!activeField || resolvingRecentLocationId) return
+
+    recentSelectionRequestRef.current?.abort()
+    const controller = new AbortController()
+    recentSelectionRequestRef.current = controller
+    setResolvingRecentLocationId(recent.id)
+    setRecentSelectionError(null)
+
+    try {
+      const results = await searchLocations(recent.name, { signal: controller.signal })
+      if (controller.signal.aborted) return
+      const resolvedLocation =
+        results.find((location) => location.id === recent.id) ??
+        results.find(
+          (location) =>
+            location.name === recent.name && location.address === recent.address
+        )
+      if (!resolvedLocation) {
+        setRecentSelectionError('이 장소를 다시 확인하지 못했어요. 새로 검색해주세요.')
+        return
+      }
+      handleSelect(resolvedLocation)
+    } catch (error: unknown) {
+      if ((error as { name?: string }).name === 'AbortError') return
+      setRecentSelectionError('최근 검색 장소를 불러오지 못했어요. 다시 시도해주세요.')
+    } finally {
+      if (recentSelectionRequestRef.current === controller) {
+        recentSelectionRequestRef.current = null
+        setResolvingRecentLocationId(null)
+      }
+    }
   }
 
   const useCurrentLocation = () => {
@@ -311,11 +373,16 @@ export default function MapSetupScreen({
                 >
                   <button
                     type="button"
-                    onClick={() => handleSelect(recent)}
+                    onClick={() => void selectRecentLocation(recent)}
+                    disabled={Boolean(resolvingRecentLocationId)}
                     className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left"
                   >
                     <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-muted">
-                      <Search className="h-4 w-4 text-warm-gray" />
+                      {resolvingRecentLocationId === recent.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-sage-green" />
+                      ) : (
+                        <Search className="h-4 w-4 text-warm-gray" />
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[14px] font-medium text-deep-brown">
@@ -337,6 +404,12 @@ export default function MapSetupScreen({
                   </button>
                 </div>
               ))}
+
+              {!normalizedQuery && recentSelectionError && (
+                <p className="px-4 py-3 text-[12px] text-danger" role="alert">
+                  {recentSelectionError}
+                </p>
+              )}
 
               {!normalizedQuery && recentLocations.length === 0 && (
                 <LocationSearchFeedback

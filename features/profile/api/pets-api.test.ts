@@ -1,6 +1,7 @@
 import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { afterEach, describe, expect, it } from 'vitest'
 import { fetchSelectablePets } from '@/features/profile/api/pets-api'
+import { useAuthStore } from '@/features/auth/stores/auth-store'
 import { apiClient } from '@/lib/api/client'
 
 const originalAdapter = apiClient.defaults.adapter
@@ -11,9 +12,25 @@ function response(config: InternalAxiosRequestConfig, data: unknown): AxiosRespo
 
 afterEach(() => {
   apiClient.defaults.adapter = originalAdapter
+  useAuthStore.setState({ status: 'idle' })
+  sessionStorage.clear()
 })
 
 describe('pets API', () => {
+  it('uses a local pet for the development test account', async () => {
+    useAuthStore.getState().startDemoSession()
+    let requestedBackend = false
+    apiClient.defaults.adapter = async (config) => {
+      requestedBackend = true
+      return response(config, [])
+    }
+
+    await expect(fetchSelectablePets()).resolves.toEqual([
+      { id: 'demo-pet-1', name: '골든이' },
+    ])
+    expect(requestedBackend).toBe(false)
+  })
+
   it('loads authenticated pets and maps them to course selection options', async () => {
     let capturedConfig: InternalAxiosRequestConfig | undefined
     apiClient.defaults.adapter = async (config) => {

@@ -18,6 +18,7 @@ export function mapCourse(dto: CourseDto): RecommendedCourse {
         longitude: place.longitude,
         visitOrder: place.visitOrder,
         isFinal: place.finalPlace,
+        ...(place.reason !== undefined ? { reason: place.reason } : {}),
         petPolicy: place.petPolicy,
       })),
   }

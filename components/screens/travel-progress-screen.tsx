@@ -1,146 +1,87 @@
 'use client'
 
-import Image from 'next/image'
-import { useState } from 'react'
-import { MapPin, X, Camera, Star, BookOpen, AlertTriangle } from 'lucide-react'
 import {
-  BottomSheetBackdrop,
-  BottomSheetHandle,
-  BottomSheetRoot,
-  BottomSheetSurface,
-} from '@/components/ui/bottom-sheet'
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import {
+  AlertTriangle,
+  Clock3,
+  Loader2,
+  MapPin,
+} from 'lucide-react'
+import TopBar from '@/components/top-bar'
 import { Button } from '@/components/ui/button'
-import { IconButton } from '@/components/ui/icon-button'
-import { Textarea } from '@/components/ui/input'
 import { ModalActions } from '@/components/ui/modal-actions'
-import { cn } from '@/lib/utils'
+import MapFlowBottomDock from '@/features/map/components/map-flow-bottom-dock'
+import MapFlowDetailSheet from '@/features/map/components/map-flow-detail-sheet'
+import TmapMap, { type TmapMapMarker } from '@/features/map/components/tmap-map'
+import type { PedestrianRouteCoordinate } from '@/features/map/api/walking-time-api'
+import type { RecommendedCourse } from '@/features/map/types/course'
+import { useLocationStore } from '@/features/location/stores/location-store'
+import { visitCoursePlace } from '@/features/travel/api/course-place-visit-api'
+import {
+  completeCourse,
+  getCourseCompletionErrorMessage,
+} from '@/features/travel/api/course-completion-api'
+import TravelCoursePlaceCard, {
+  type TravelReviewDraft,
+} from '@/features/travel/components/travel-course-place-card'
+import {
+  getTravelPhotoErrorMessage,
+  uploadCoursePlacePhotos,
+} from '@/features/travel/api/travel-photos-api'
+import { useTravelStore } from '@/features/travel/stores/travel-store'
+import { formatPetName } from '@/lib/format-pet-name'
+
+// Temporary QA mode: the backend receives the destination coordinates so a
+// tester can check in without physically moving within the 500m boundary.
+const TEMPORARILY_ALLOW_REMOTE_CHECK_IN = process.env.NODE_ENV !== 'production'
 
 interface TravelProgressScreenProps {
+  course: RecommendedCourse
+  petName: string | null
   onEndTrip: () => void
   onAbort: () => void
-}
-
-interface TravelNoteSheetProps {
-  placeName: string
-  onClose: () => void
-  onSave: () => void
-}
-
-function TravelNoteSheet({ placeName, onClose, onSave }: TravelNoteSheetProps) {
-  const [note, setNote] = useState('')
-  const [rating, setRating] = useState(0)
-  const [saved, setSaved] = useState(false)
-
-  const handleSave = () => {
-    setSaved(true)
-    setTimeout(() => {
-      onSave()
-    }, 1000)
-  }
-
-  return (
-    <BottomSheetRoot>
-      <BottomSheetBackdrop onClick={onClose} />
-      <BottomSheetSurface className="slide-up">
-        <BottomSheetHandle />
-        <IconButton onClick={onClose} className="absolute top-3 right-4" variant="muted" size="sm" aria-label="닫기">
-          <X className="w-4 h-4 text-warm-gray" />
-        </IconButton>
-
-        <div className="px-4 pb-8 max-h-[85vh] overflow-y-auto no-scrollbar">
-          <h3 className="text-[16px] font-bold text-deep-brown mb-1">{placeName}</h3>
-          <p className="text-[12px] text-warm-gray mb-4">이 장소에서의 기억을 남겨보세요</p>
-
-          {/* Photo add */}
-          <div className="flex gap-2 mb-4">
-            <div className="w-20 h-20 rounded-xl bg-muted flex flex-col items-center justify-center gap-1 border-2 border-dashed border-border cursor-pointer">
-              <Camera className="w-5 h-5 text-warm-gray" />
-              <span className="text-[10px] text-warm-gray">사진 추가</span>
-            </div>
-          </div>
-
-          {/* Note input */}
-          <div className="mb-4">
-            <label className="text-[13px] font-semibold text-deep-brown mb-2 block">간단 후기</label>
-            <Textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="이 장소에서의 느낌을 자유롭게 기록해보세요..."
-              rows={3}
-              className="rounded-xl bg-muted px-3 py-2.5"
-            />
-          </div>
-
-          {/* Rating */}
-          <div className="mb-6">
-            <label className="text-[13px] font-semibold text-deep-brown mb-2 block">만족도</label>
-            <div className="flex gap-2">
-              {[1, 2, 3, 4, 5].map((v) => (
-                <IconButton
-                  key={v}
-                  onClick={() => setRating(v)}
-                  aria-label={`${v}점`}
-                  size="sm"
-                >
-                  <Star
-                    className={cn('w-7 h-7 transition-colors', v <= rating ? 'text-soft-orange fill-soft-orange' : 'text-border')}
-                  />
-                </IconButton>
-              ))}
-            </div>
-          </div>
-
-          {/* Buttons */}
-          {saved ? (
-            <div className="w-full h-12 rounded-btn bg-sage-green-light flex items-center justify-center gap-2">
-              <span className="text-sage-green font-semibold text-[15px]">임시저장 완료!</span>
-            </div>
-          ) : (
-            <ModalActions>
-              <Button
-                onClick={handleSave}
-                variant="secondary"
-                size="lg"
-              >
-                임시저장
-              </Button>
-              <Button
-                onClick={onSave}
-                size="lg"
-              >
-                다음 장소로
-              </Button>
-            </ModalActions>
-          )}
-        </div>
-      </BottomSheetSurface>
-    </BottomSheetRoot>
-  )
+  routePath?: PedestrianRouteCoordinate[]
 }
 
 interface AbortConfirmSheetProps {
+  error: string | null
+  isCompleting: boolean
   onCancel: () => void
   onConfirm: () => void
 }
 
-function AbortConfirmSheet({ onCancel, onConfirm }: AbortConfirmSheetProps) {
+function AbortConfirmSheet({
+  error,
+  isCompleting,
+  onCancel,
+  onConfirm,
+}: AbortConfirmSheetProps) {
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center p-6">
-      <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
-      <div className="relative bg-card-surface rounded-card p-6 w-full shadow-2xl">
-        <div className="w-12 h-12 rounded-full bg-danger/10 flex items-center justify-center mx-auto mb-3">
-          <AlertTriangle className="w-6 h-6 text-danger" />
+      <div
+        className="absolute inset-0 bg-black/40"
+        onClick={isCompleting ? undefined : onCancel}
+      />
+      <div className="relative w-full rounded-card bg-card-surface p-6 shadow-2xl">
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-danger/10">
+          <AlertTriangle className="h-6 w-6 text-danger" />
         </div>
-        <h3 className="text-[17px] font-bold text-deep-brown text-center mb-2">여행을 중도 종료할까요?</h3>
-        <p className="text-[13px] text-warm-gray text-center mb-6 leading-relaxed">
-          지금까지 저장된 노트와 사진은 앨범에 임시저장됩니다.
-        </p>
+        <h3 className="mb-2 text-center text-[17px] font-bold text-deep-brown">여행을 중도 종료할까요?</h3>
+        <p className="mb-6 text-center text-[13px] leading-relaxed text-warm-gray">지금까지 저장된 노트와 사진은 앨범에 임시저장됩니다.</p>
+        {error && (
+          <p className="mb-4 text-center text-[12px] leading-relaxed text-danger" role="alert">
+            {error}
+          </p>
+        )}
         <ModalActions>
-          <Button onClick={onCancel} variant="outline">
-            계속 여행
-          </Button>
-          <Button onClick={onConfirm} variant="destructive">
-            중도 종료
+          <Button disabled={isCompleting} onClick={onCancel} variant="outline">계속 여행</Button>
+          <Button disabled={isCompleting} onClick={onConfirm} variant="destructive">
+            {isCompleting ? <><Loader2 className="animate-spin" /> 완료 처리 중</> : '중도 종료'}
           </Button>
         </ModalActions>
       </div>
@@ -148,175 +89,466 @@ function AbortConfirmSheet({ onCancel, onConfirm }: AbortConfirmSheetProps) {
   )
 }
 
-export default function TravelProgressScreen({ onEndTrip, onAbort }: TravelProgressScreenProps) {
-  const [showNoteSheet, setShowNoteSheet] = useState(false)
-  const [showAbortConfirm, setShowAbortConfirm] = useState(false)
-  const [currentStop, setCurrentStop] = useState(1)
+function VisitFailureDialog({
+  message,
+  onClose,
+}: {
+  message: string
+  onClose: () => void
+}) {
+  return (
+    <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/45 px-4">
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="visit-failure-title"
+        aria-describedby="visit-failure-description"
+        className="w-full rounded-card border border-border bg-card-surface p-5 shadow-xl"
+      >
+        <div className="mx-auto mb-3 flex size-11 items-center justify-center rounded-full bg-danger/10">
+          <AlertTriangle aria-hidden="true" className="size-5 text-danger" />
+        </div>
+        <h2 id="visit-failure-title" className="text-center text-[17px] font-bold text-deep-brown">
+          방문 인증에 실패했어요
+        </h2>
+        <p id="visit-failure-description" className="mt-2 text-center text-[13px] leading-relaxed text-warm-gray">
+          {message}
+        </p>
+        <Button autoFocus onClick={onClose} fullWidth className="mt-5">
+          확인
+        </Button>
+      </div>
+    </div>
+  )
+}
 
-  const stops = ['성수 펫 카페', '서울숲 공원', '한강 펫 레스토랑']
-  const progress = (currentStop / stops.length) * 100
+function distanceInMeters(
+  from: { latitude: number; longitude: number },
+  to: { latitude: number; longitude: number }
+) {
+  const earthRadiusMeters = 6_371_000
+  const latDelta = ((to.latitude - from.latitude) * Math.PI) / 180
+  const lngDelta = ((to.longitude - from.longitude) * Math.PI) / 180
+  const fromLat = (from.latitude * Math.PI) / 180
+  const toLat = (to.latitude * Math.PI) / 180
+  const a = Math.sin(latDelta / 2) ** 2 + Math.sin(lngDelta / 2) ** 2 * Math.cos(fromLat) * Math.cos(toLat)
+  return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+function formatDistance(distance: number | null) {
+  if (distance === null) return '계산 중'
+  if (distance < 1000) return `${Math.max(1, Math.round(distance))}m`
+  return `${(distance / 1000).toFixed(1)}km`
+}
+
+function formatLocationTime(capturedAt: string | undefined) {
+  if (!capturedAt) return '위치 확인 중'
+  const date = new Date(capturedAt)
+  if (Number.isNaN(date.getTime())) return '위치 확인 중'
+  return `업데이트 ${date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`
+}
+
+function getVisitErrorMessage(error: unknown) {
+  if (!error || typeof error !== 'object') return '방문 기록을 저장하지 못했어요. 다시 시도해주세요.'
+  const normalized = error as { status?: unknown; type?: unknown }
+  if (normalized.status === 400 || normalized.status === 422) return '장소에서 500m 이내인지 확인한 뒤 다시 시도해주세요.'
+  if (normalized.status === 401) return '로그인이 만료되었습니다. 다시 로그인해주세요.'
+  if (normalized.type === 'network') return '네트워크 연결을 확인하고 다시 시도해주세요.'
+  if (normalized.type === 'timeout') return '방문 기록 시간이 초과되었습니다. 다시 시도해주세요.'
+  return '방문 기록을 저장하지 못했어요. 다시 시도해주세요.'
+}
+
+export default function TravelProgressScreen({
+  course,
+  petName,
+  onEndTrip,
+  onAbort,
+  routePath = [],
+}: TravelProgressScreenProps) {
+  const [showAbortConfirm, setShowAbortConfirm] = useState(false)
+  const [bottomExpanded, setBottomExpanded] = useState(false)
+  const [expandedPlaceIds, setExpandedPlaceIds] = useState<string[]>([])
+  const [photoStatuses, setPhotoStatuses] = useState<
+    Record<string, { status: 'idle' | 'loading' | 'success' | 'error'; error: string | null }>
+  >({})
+  const [visitedPlaceIds, setVisitedPlaceIds] = useState<string[]>([])
+  const [checkInStatus, setCheckInStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [checkInError, setCheckInError] = useState<string | null>(null)
+  const [courseCompletionStatus, setCourseCompletionStatus] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [courseCompletionError, setCourseCompletionError] = useState<string | null>(null)
+  const checkInControllerRef = useRef<AbortController | null>(null)
+  const completionControllerRef = useRef<AbortController | null>(null)
+  const photoControllersRef = useRef(new Map<string, AbortController>())
+  const position = useLocationStore((state) => state.position)
+  const refreshLocation = useLocationStore((state) => state.refreshLocation)
+  const cancelLocationRequest = useLocationStore((state) => state.cancelLocationRequest)
+  const noteDrafts = useTravelStore((state) => state.noteDrafts)
+  const beginTravelDrafts = useTravelStore((state) => state.beginTravelDrafts)
+  const hydrateTravelDrafts = useTravelStore((state) => state.hydrateTravelDrafts)
+  const upsertNoteDraft = useTravelStore((state) => state.upsertNoteDraft)
+
+  const places = useMemo(() => [...course.places].sort((left, right) => left.visitOrder - right.visitOrder), [course.places])
+  const visitedPlaceIdSet = useMemo(() => new Set(visitedPlaceIds), [visitedPlaceIds])
+  const nextPlace = places.find((place) => !visitedPlaceIdSet.has(place.id)) ?? null
+  const visitedCount = places.filter((place) => visitedPlaceIdSet.has(place.id)).length
+  const progress = places.length === 0 ? 0 : (visitedCount / places.length) * 100
+  const distanceToNext = position && nextPlace ? distanceInMeters(position, nextPlace) : null
+  const mapCenter = position
+    ? { lat: position.latitude, lng: position.longitude }
+    : nextPlace
+      ? { lat: nextPlace.latitude, lng: nextPlace.longitude }
+      : undefined
+  const mapMarkers = useMemo<TmapMapMarker[]>(
+    () => [
+      ...places.map((place) => ({
+        id: `course-place-${place.id}`,
+        position: { lat: place.latitude, lng: place.longitude },
+        title: `${place.visitOrder}번 방문지: ${place.name}${visitedPlaceIdSet.has(place.id) ? ' (방문 완료)' : ''}`,
+        label: place.isFinal ? '도착' : String(place.visitOrder),
+        variant: place.isFinal ? 'destination' as const : 'candidate' as const,
+      })),
+      ...(position ? [{ id: 'current-position', position: { lat: position.latitude, lng: position.longitude }, title: '현재 위치', variant: 'current' as const }] : []),
+    ],
+    [places, position, visitedPlaceIdSet]
+  )
+  const routeTitle = `${course.startLocation} → ${course.endLocation}`
+  const displayPetName = formatPetName(petName)
+
+  useEffect(() => {
+    hydrateTravelDrafts(course.id)
+    beginTravelDrafts(course.id)
+    const photoControllers = photoControllersRef.current
+    void refreshLocation()
+    const refreshTimer = window.setInterval(() => void refreshLocation(), 15_000)
+    return () => {
+      window.clearInterval(refreshTimer)
+      checkInControllerRef.current?.abort()
+      completionControllerRef.current?.abort()
+      photoControllers.forEach((controller) => controller.abort())
+      photoControllers.clear()
+      cancelLocationRequest()
+    }
+  }, [beginTravelDrafts, cancelLocationRequest, course.id, hydrateTravelDrafts, refreshLocation])
+
+  const handleCheckIn = async () => {
+    if (!nextPlace || checkInStatus === 'loading') return
+    const checkInPosition = TEMPORARILY_ALLOW_REMOTE_CHECK_IN
+      ? { latitude: nextPlace.latitude, longitude: nextPlace.longitude }
+      : position
+    if (!checkInPosition) return
+    const controller = new AbortController()
+    checkInControllerRef.current?.abort()
+    checkInControllerRef.current = controller
+    setCheckInStatus('loading')
+    setCheckInError(null)
+    try {
+      await visitCoursePlace(nextPlace.id, checkInPosition, controller.signal)
+      if (controller.signal.aborted) return
+      setVisitedPlaceIds((current) => current.includes(nextPlace.id) ? current : [...current, nextPlace.id])
+      setCheckInStatus('success')
+    } catch (error: unknown) {
+      if (controller.signal.aborted) return
+      setCheckInStatus('error')
+      setCheckInError(getVisitErrorMessage(error))
+    } finally {
+      if (checkInControllerRef.current === controller) checkInControllerRef.current = null
+    }
+  }
+
+  const handleAbort = async () => {
+    if (courseCompletionStatus === 'loading') return
+    checkInControllerRef.current?.abort()
+    completionControllerRef.current?.abort()
+    const controller = new AbortController()
+    completionControllerRef.current = controller
+    setCourseCompletionStatus('loading')
+    setCourseCompletionError(null)
+
+    try {
+      await completeCourse(course.id, controller.signal)
+      if (controller.signal.aborted) return
+      setShowAbortConfirm(false)
+      setCourseCompletionStatus('idle')
+      onAbort()
+    } catch (error: unknown) {
+      if (controller.signal.aborted) return
+      setCourseCompletionStatus('error')
+      setCourseCompletionError(getCourseCompletionErrorMessage(error))
+    } finally {
+      if (completionControllerRef.current === controller) {
+        completionControllerRef.current = null
+      }
+    }
+  }
+
+  const togglePlaceDetails = (placeId: string) => {
+    setExpandedPlaceIds((current) =>
+      current.includes(placeId)
+        ? current.filter((id) => id !== placeId)
+        : [...current, placeId]
+    )
+  }
+
+  const updateReviewDraft = (
+    placeId: string,
+    update: Partial<Pick<TravelReviewDraft, 'note' | 'rating'>>
+  ) => {
+    const place = places.find((item) => item.id === placeId)
+    const current = noteDrafts.find((draft) => draft.waypointId === placeId)
+    upsertNoteDraft({
+      waypointId: placeId,
+      externalPlaceId: place?.externalPlaceId,
+      content: update.note ?? current?.content ?? '',
+      rating: update.rating ?? current?.rating ?? 0,
+      photos: current?.photos ?? [],
+      photoUrls: current?.photoUrls ?? [],
+      saved: false,
+      ...(current?.reviewId ? { reviewId: current.reviewId } : {}),
+    })
+  }
+
+  const saveReviewDraft = (placeId: string) => {
+    const place = places.find((item) => item.id === placeId)
+    const current = noteDrafts.find((draft) => draft.waypointId === placeId)
+    upsertNoteDraft({
+      waypointId: placeId,
+      externalPlaceId: place?.externalPlaceId,
+      content: current?.content ?? '',
+      rating: current?.rating ?? 0,
+      photos: current?.photos ?? [],
+      photoUrls: current?.photoUrls ?? [],
+      saved: true,
+      ...(current?.reviewId ? { reviewId: current.reviewId } : {}),
+    })
+  }
+
+  const savePhotos = async (placeId: string, files: File[]) => {
+    const place = places.find((item) => item.id === placeId)
+    if (!place) return
+    const currentDraft = useTravelStore
+      .getState()
+      .noteDrafts.find((draft) => draft.waypointId === placeId)
+    const selectedFiles = files.slice(0, 10 - (currentDraft?.photos?.length ?? 0))
+    if (selectedFiles.length === 0) return
+
+    photoControllersRef.current.get(placeId)?.abort()
+    const controller = new AbortController()
+    photoControllersRef.current.set(placeId, controller)
+    setPhotoStatuses((current) => ({
+      ...current,
+      [placeId]: { status: 'loading', error: null },
+    }))
+
+    try {
+      const photos = await uploadCoursePlacePhotos(placeId, selectedFiles, controller.signal)
+      if (controller.signal.aborted) return
+      const latestDraft = useTravelStore
+        .getState()
+        .noteDrafts.find((draft) => draft.waypointId === placeId)
+      const nextPhotos = [...(latestDraft?.photos ?? []), ...photos]
+      upsertNoteDraft({
+        waypointId: placeId,
+        externalPlaceId: place.externalPlaceId,
+        content: latestDraft?.content ?? '',
+        rating: latestDraft?.rating ?? 0,
+        photos: nextPhotos,
+        photoUrls: nextPhotos.map((photo) => photo.downloadUrl),
+        saved: latestDraft?.saved ?? false,
+        ...(latestDraft?.reviewId ? { reviewId: latestDraft.reviewId } : {}),
+      })
+      setPhotoStatuses((current) => ({
+        ...current,
+        [placeId]: { status: 'success', error: null },
+      }))
+    } catch (error: unknown) {
+      if (controller.signal.aborted) return
+      setPhotoStatuses((current) => ({
+        ...current,
+        [placeId]: { status: 'error', error: getTravelPhotoErrorMessage(error) },
+      }))
+    } finally {
+      if (photoControllersRef.current.get(placeId) === controller) {
+        photoControllersRef.current.delete(placeId)
+      }
+    }
+  }
 
   return (
-    <div className="flex flex-col flex-1 relative overflow-hidden">
-      {/* Top bar overlay */}
-      <div className="absolute top-0 left-0 right-0 z-40">
-        <div className="flex items-center justify-between px-4 py-3 bg-card-surface/95 backdrop-blur-sm border-b border-border">
-          <div>
-            <p className="text-[11px] text-warm-gray">여행 진행 중</p>
-            <p className="text-[15px] font-bold text-deep-brown">서울 성수 → 용산 코스</p>
-          </div>
-          <div className="flex items-center gap-1.5 text-sage-green">
-            <div className="w-2 h-2 rounded-full bg-sage-green animate-pulse" />
-            <span className="text-[12px] font-semibold">진행 중</span>
-          </div>
-        </div>
-      </div>
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-warm-beige">
+      <TopBar
+        title="여행 진행"
+        rightAction={
+          <span className="flex size-8 items-center justify-center" aria-label="여행 진행 중">
+            <span className="size-2.5 animate-pulse rounded-full bg-sage-green" />
+          </span>
+        }
+      />
 
-      {/* Map */}
-      <div className="absolute inset-0 bg-sky-blue/25">
-        {[0,1,2,3,4,5,6,7].map(i => (
-          <div key={i} className="absolute w-full h-px bg-white/25" style={{ top: `${i * 14}%` }} />
-        ))}
-        {[0,1,2,3,4,5,6].map(i => (
-          <div key={i} className="absolute h-full w-px bg-white/25" style={{ left: `${i * 17}%` }} />
-        ))}
-        <div className="absolute top-[35%] w-full h-3 bg-white/50 rounded" />
-        <div className="absolute left-[25%] h-full w-3 bg-white/50 rounded" />
-
-        {/* Route */}
-        <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }}>
-          <path
-            d="M 60,35% Q 100,42% 160,40% Q 200,38% 240,48% Q 290,58% 320,55%"
-            stroke="#6FAF8E"
-            strokeWidth="4"
-            fill="none"
-            strokeLinecap="round"
-            opacity="0.8"
-          />
-        </svg>
-
-        {/* Current position */}
-        <div className="absolute top-[38%] left-[38%] -translate-x-1/2 -translate-y-1/2">
-          <div className="w-5 h-5 rounded-full bg-sage-green border-3 border-white shadow-lg pulse-dot" />
-          <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-sage-green text-white text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap">
-            현재 위치
-          </div>
-        </div>
-
-        {/* Stop markers */}
-        {[
-          { top: '36%', left: '30%', label: '1', done: true },
-          { top: '42%', left: '55%', label: '2', done: false },
-          { top: '50%', left: '75%', label: '3', done: false },
-        ].map((m, i) => (
-          <div
-            key={i}
-            className="absolute flex flex-col items-center -translate-x-1/2 -translate-y-1/2"
-            style={{ top: m.top, left: m.left }}
-          >
-            <div className={cn(
-              'w-7 h-7 rounded-full flex items-center justify-center shadow border-2 border-white',
-              m.done ? 'bg-warm-gray' : 'bg-soft-orange'
-            )}>
-              <span className="text-[11px] font-bold text-white">{m.label}</span>
-            </div>
-          </div>
-        ))}
-
-        {/* Destination */}
-        <div className="absolute top-[52%] left-[83%] -translate-x-1/2 -translate-y-1/2">
-          <div className="w-8 h-8 rounded-full bg-danger flex items-center justify-center shadow border-2 border-white">
-            <MapPin className="w-4 h-4 text-white" />
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom Panel */}
-      <div className="absolute bottom-0 left-0 right-0 z-40">
-        <div className="bg-card-surface rounded-t-[24px] shadow-xl px-4 pt-4 pb-8">
-          {/* Progress */}
-          <div className="mb-4">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[12px] font-semibold text-sage-green">진행률 {Math.round(progress)}%</span>
-              <span className="text-[12px] text-warm-gray">출발 10:23</span>
-            </div>
-            <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full bg-sage-green rounded-full transition-all duration-500"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Travel Progress Card */}
-          <div className="flex gap-3 mb-4">
-            <div className="flex-1 p-3 bg-muted rounded-xl text-center">
-              <p className="text-[11px] text-warm-gray mb-1">현재 위치</p>
-              <p className="text-[13px] font-semibold text-deep-brown truncate">이동 중</p>
-            </div>
-            <div className="flex-1 p-3 bg-muted rounded-xl text-center">
-              <p className="text-[11px] text-warm-gray mb-1">다음 장소</p>
-              <p className="text-[13px] font-semibold text-deep-brown truncate">{stops[currentStop - 1]}</p>
-            </div>
-            <div className="flex-1 p-3 bg-muted rounded-xl text-center">
-              <p className="text-[11px] text-warm-gray mb-1">이동 거리</p>
-              <p className="text-[13px] font-semibold text-deep-brown">3.2km</p>
-            </div>
-          </div>
-
-          {/* Pet info */}
-          <div className="flex items-center gap-2 mb-4">
-            <div className="relative w-8 h-8 rounded-full overflow-hidden border border-border">
-              <Image src="/images/dog-hero.png" alt="골든이" fill className="object-cover" />
-            </div>
-            <div>
-              <p className="text-[12px] font-semibold text-deep-brown">골든이와 함께</p>
-              <p className="text-[11px] text-warm-gray">골든 리트리버 · 3살</p>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <ModalActions>
-            <Button
-              onClick={() => setShowAbortConfirm(true)}
-              variant="outline"
-              size="sm"
-              className="h-11"
-            >
-              중도 종료
-            </Button>
-            <Button
-              onClick={() => setShowNoteSheet(true)}
-              variant="secondary"
-              size="sm"
-              className="h-11"
-            >
-              <BookOpen className="w-4 h-4" />
-              여행 노트
-            </Button>
-            <Button
-              onClick={onEndTrip}
-              size="sm"
-              className="h-11"
-            >
-              여행 완료
-            </Button>
-          </ModalActions>
-        </div>
-      </div>
-
-      {/* Overlays */}
-      {showNoteSheet && (
-        <TravelNoteSheet
-          placeName={stops[currentStop - 1]}
-          onClose={() => setShowNoteSheet(false)}
-          onSave={() => { setShowNoteSheet(false); if (currentStop < stops.length) setCurrentStop(c => c + 1) }}
+      <div className="relative z-0 flex-1 overflow-hidden bg-sky-blue/20">
+        <TmapMap
+          center={mapCenter}
+          locationLabel={position ? '현재 위치' : course.endLocation}
+          markers={mapMarkers}
+          routePath={routePath}
+          zoom={14}
         />
-      )}
+      </div>
+
+      <MapFlowDetailSheet
+        id="travel-details-sheet"
+        expanded={bottomExpanded}
+        onExpandedChange={setBottomExpanded}
+        expandLabel="여행 진행 상세 펼치기"
+        collapseLabel="여행 진행 상세 접기"
+        contentClassName="mobile-scroll px-4 pb-6"
+      >
+        <section className="mb-4">
+          <div className="mb-1.5 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold text-sage-green">여행 현황</p>
+              <h2 className="mt-0.5 text-[17px] font-bold text-deep-brown">
+                {displayPetName}와 여행 중
+              </h2>
+            </div>
+            <span className="flex shrink-0 items-center gap-1 text-[12px] text-warm-gray">
+              <Clock3 className="h-3.5 w-3.5" />
+              {formatLocationTime(position?.capturedAt)}
+            </span>
+          </div>
+          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-sage-green transition-all duration-500"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <div className="mt-2 flex items-center justify-between text-[11px] text-warm-gray">
+            <span>진행률 {Math.round(progress)}%</span>
+            <span>{visitedCount}/{places.length}곳 방문</span>
+          </div>
+        </section>
+
+        <section>
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-[13px] font-semibold text-warm-gray">여행 코스</h3>
+              <span className="text-[11px] text-warm-gray">장소를 눌러 후기를 작성해요</span>
+            </div>
+            <ol className="space-y-2">
+              {places.map((place) => {
+                const visited = visitedPlaceIdSet.has(place.id)
+                const current = nextPlace?.id === place.id
+                const expanded = expandedPlaceIds.includes(place.id)
+                const cachedDraft = noteDrafts.find((draft) => draft.waypointId === place.id)
+                const reviewDraft: TravelReviewDraft = {
+                  note: cachedDraft?.content ?? '',
+                  rating: cachedDraft?.rating ?? 0,
+                  saved: cachedDraft?.saved ?? false,
+                }
+                const photoStatus = photoStatuses[place.id] ?? {
+                  status: 'idle' as const,
+                  error: null,
+                }
+
+                return (
+                  <li key={place.id}>
+                    <TravelCoursePlaceCard
+                      place={place}
+                      visited={visited}
+                      current={current}
+                      distanceLabel={formatDistance(distanceToNext)}
+                      expanded={expanded}
+                      reviewDraft={reviewDraft}
+                      photos={cachedDraft?.photos ?? []}
+                      photoError={photoStatus.error}
+                      photoStatus={photoStatus.status}
+                      onToggle={() => togglePlaceDetails(place.id)}
+                      onReviewChange={(update) => updateReviewDraft(place.id, update)}
+                      onPhotosSelected={(files) => void savePhotos(place.id, files)}
+                      onSaveReview={() => saveReviewDraft(place.id)}
+                    />
+                  </li>
+                )
+              })}
+            </ol>
+        </section>
+
+        <section className="mt-4 flex items-center gap-3 rounded-xl border border-danger/20 bg-danger/5 p-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-danger/10 text-danger">
+              <AlertTriangle className="size-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[12px] font-semibold text-deep-brown">여행을 그만 진행할까요?</p>
+              <p className="mt-0.5 text-[10px] text-warm-gray">작성한 후기는 임시로 보관됩니다.</p>
+            </div>
+          <Button
+            onClick={() => setShowAbortConfirm(true)}
+            variant="outline"
+            size="sm"
+            className="border-danger/30 text-danger"
+          >
+            중도 종료
+          </Button>
+        </section>
+      </MapFlowDetailSheet>
+
+      <MapFlowBottomDock expanded={bottomExpanded} testId="travel-progress-dock">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <p className="min-w-0 truncate text-[15px] font-bold text-deep-brown">
+            {routeTitle}
+          </p>
+          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-sage-green-light px-3 py-1 text-[13px] font-semibold text-sage-green">
+            <span className="size-2 animate-pulse rounded-full bg-sage-green" />
+            진행 중
+          </span>
+        </div>
+        <div data-testid="travel-progress-stats" className="flex items-center gap-4">
+          <div className="flex items-center gap-1">
+            <MapPin className="size-4 text-warm-gray" />
+            <span className="whitespace-nowrap text-[12px] text-warm-gray">
+              방문 {visitedCount}/{places.length}
+            </span>
+          </div>
+          <div className="flex min-w-0 items-center gap-1">
+            <Clock3 className="size-4 shrink-0 text-warm-gray" />
+            <span className="truncate text-[12px] text-warm-gray">
+              {nextPlace ? `다음 장소까지 ${formatDistance(distanceToNext)}` : '모든 장소 방문 완료'}
+            </span>
+          </div>
+        </div>
+        <Button
+          onClick={nextPlace ? () => void handleCheckIn() : onEndTrip}
+          disabled={Boolean(nextPlace) && checkInStatus === 'loading'}
+          size="lg"
+          className="map-flow-dock-button"
+        >
+          {checkInStatus === 'loading' ? (
+            <><Loader2 className="animate-spin" /> 방문 기록 중</>
+          ) : nextPlace ? (
+            <><MapPin /> {nextPlace.name} 방문 체크인</>
+          ) : (
+            '여행 완료'
+          )}
+        </Button>
+      </MapFlowBottomDock>
+
       {showAbortConfirm && (
         <AbortConfirmSheet
-          onCancel={() => setShowAbortConfirm(false)}
-          onConfirm={onAbort}
+          error={courseCompletionError}
+          isCompleting={courseCompletionStatus === 'loading'}
+          onCancel={() => {
+            setCourseCompletionError(null)
+            setCourseCompletionStatus('idle')
+            setShowAbortConfirm(false)
+          }}
+          onConfirm={() => void handleAbort()}
+        />
+      )}
+      {checkInError && (
+        <VisitFailureDialog
+          message={checkInError}
+          onClose={() => {
+            setCheckInError(null)
+            setCheckInStatus('idle')
+          }}
         />
       )}
     </div>

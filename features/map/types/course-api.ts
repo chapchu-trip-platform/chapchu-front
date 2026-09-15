@@ -4,13 +4,36 @@ export interface CreateCourseRequestDto {
   startLocation: string
   startLat: number
   startLng: number
-  endLocation: string
-  endLat: number
-  endLng: number
-  intermediateStopCount: number
+  destination: RecommendedPlaceDto
   temperature?: number
   humidity?: number
   weatherStatus?: string
+}
+
+export interface RecommendedPlacesRequestDto {
+  petId: string
+  lat: number
+  lng: number
+  radiusMeters: number
+  limit: number
+  temperature?: number
+  humidity?: number
+  weatherStatus?: string
+}
+
+export interface RecommendedPlaceDto {
+  externalPlaceId: string
+  placeName: string
+  placeImageUrl: string | null
+  latitude: number
+  longitude: number
+  address: string
+  categoryLabel: string
+  indoorOutdoorType: string
+  allowedPetSize: string | null
+  leashRequired: boolean | null
+  carrierRequired: boolean | null
+  placeCaution: string | null
 }
 
 export interface CoursePlaceDto {
@@ -22,6 +45,7 @@ export interface CoursePlaceDto {
   longitude: number
   visitOrder: number
   finalPlace: boolean
+  reason?: string | null
   petPolicy: unknown
 }
 

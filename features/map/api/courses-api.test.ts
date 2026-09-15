@@ -1,15 +1,21 @@
-import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios'
+import { AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   buildCreateCourseRequest,
   createRecommendedCourse,
+  fetchActiveCourse,
   formatLocalTravelDate,
   getCourseRecommendationErrorMessage,
-  isNoPlacesFoundCourseError,
 } from '@/features/map/api/courses-api'
-import { apiClient } from '@/lib/api/client'
+import type { CreateCourseRequestDto } from '@/features/map/types/course-api'
+import {
+  apiClient,
+  sessionApiClient,
+} from '@/lib/api/client'
+import { useAuthStore } from '@/features/auth/stores/auth-store'
 
 const originalAdapter = apiClient.defaults.adapter
+const originalSessionAdapter = sessionApiClient.defaults.adapter
 
 function response(config: InternalAxiosRequestConfig, data: unknown): AxiosResponse {
   return { config, data, headers: {}, status: 201, statusText: 'Created' }
@@ -17,7 +23,53 @@ function response(config: InternalAxiosRequestConfig, data: unknown): AxiosRespo
 
 afterEach(() => {
   apiClient.defaults.adapter = originalAdapter
+  sessionApiClient.defaults.adapter = originalSessionAdapter
+  useAuthStore.setState({
+    accessToken: null,
+    authNotice: null,
+    registrationToken: null,
+    sessionEpoch: 0,
+    setupStage: null,
+    status: 'idle',
+  })
 })
+
+const destination = {
+  externalPlaceId: 'external-1',
+  name: ' 서울숲 ',
+  imageUrl: 'https://example.com/seoul-forest.jpg',
+  latitude: 37.5444,
+  longitude: 127.0374,
+  address: '서울 성동구 뚝섬로 273',
+  category: '관광지',
+  indoorOutdoorType: '실외',
+  allowedPetSize: 'ALL',
+  leashRequired: true,
+  carrierRequired: false,
+  caution: '목줄을 착용해주세요.',
+}
+
+const createCourseRequest: CreateCourseRequestDto = {
+  petId: 'pet-1',
+  travelDate: '2026-09-01',
+  startLocation: '서울역',
+  startLat: 37.5547,
+  startLng: 126.9706,
+  destination: {
+    externalPlaceId: 'external-1',
+    placeName: '서울숲',
+    placeImageUrl: 'https://example.com/seoul-forest.jpg',
+    latitude: 37.5444,
+    longitude: 127.0374,
+    address: '서울 성동구 뚝섬로 273',
+    categoryLabel: '관광지',
+    indoorOutdoorType: '실외',
+    allowedPetSize: 'ALL',
+    leashRequired: true,
+    carrierRequired: false,
+    placeCaution: '목줄을 착용해주세요.',
+  },
+}
 
 describe('courses API', () => {
   it('builds only the fields documented by POST /courses', () => {
@@ -32,14 +84,7 @@ describe('courses API', () => {
           latitude: 37.5547,
           longitude: 126.9706,
           },
-          destination: {
-            id: 'destination',
-            name: ' 서울숲 ',
-            address: '서울 성동구 뚝섬로 273',
-            latitude: 37.5444,
-            longitude: 127.0374,
-          },
-          intermediateStopCount: 2,
+          destination,
           weather: {
             temperature: 25,
             humidity: 60,
@@ -54,10 +99,7 @@ describe('courses API', () => {
       startLocation: '서울역',
       startLat: 37.5547,
       startLng: 126.9706,
-      endLocation: '서울숲',
-      endLat: 37.5444,
-      endLng: 127.0374,
-      intermediateStopCount: 2,
+      destination: createCourseRequest.destination,
       temperature: 25,
       humidity: 60,
       weatherStatus: '맑음',
@@ -93,17 +135,7 @@ describe('courses API', () => {
         ],
       })
     }
-    const request = {
-      petId: 'pet-1',
-      travelDate: '2026-09-01',
-      startLocation: '서울역',
-      startLat: 37.5547,
-      startLng: 126.9706,
-      endLocation: '서울숲',
-      endLat: 37.5444,
-      endLng: 127.0374,
-      intermediateStopCount: 2,
-    }
+    const request = createCourseRequest
 
     await expect(createRecommendedCourse(request, signal)).resolves.toMatchObject({
       id: 'course-1',
@@ -128,60 +160,92 @@ describe('courses API', () => {
 
     await expect(
       createRecommendedCourse({
-        petId: 'pet-1',
-        travelDate: '2026-09-01',
-        startLocation: '서울역',
-        startLat: 37.5547,
-        startLng: 126.9706,
-        endLocation: '서울숲',
-        endLat: 37.5444,
-        endLng: 127.0374,
-        intermediateStopCount: 2,
+        ...createCourseRequest,
       })
     ).rejects.toThrow('Course response was invalid.')
+  })
+
+  it('loads the newest incomplete course for resuming a trip', async () => {
+    useAuthStore.getState().setAccessToken('test-token')
+    const requestedUrls: string[] = []
+    apiClient.defaults.adapter = async (config) => {
+      requestedUrls.push(String(config.url))
+      if (config.url === '/users/me/courses') {
+        return response(config, [
+          {
+            courseId: 'completed-course',
+            travelDate: '2026-09-11',
+            startLocation: '부산역',
+            isCompleted: true,
+            placeCount: 1,
+          },
+          {
+            courseId: 'active-course',
+            travelDate: '2026-09-12',
+            startLocation: '서울역',
+            isCompleted: false,
+            placeCount: 1,
+          },
+        ])
+      }
+      return response(config, {
+        courseId: 'active-course',
+        travelDate: '2026-09-12',
+        startLocation: '서울역',
+        endLocation: '서울숲',
+        places: [
+          {
+            coursePlaceId: 'active-place',
+            externalPlaceId: 'external-1',
+            placeName: '서울숲',
+            placeImageUrl: null,
+            latitude: 37.5444,
+            longitude: 127.0374,
+            visitOrder: 1,
+            finalPlace: true,
+            petPolicy: null,
+          },
+        ],
+      })
+    }
+
+    await expect(fetchActiveCourse()).resolves.toMatchObject({
+      id: 'active-course',
+      places: [{ id: 'active-place', name: '서울숲' }],
+    })
+    expect(requestedUrls).toEqual(['/users/me/courses', '/courses/active-course'])
+  })
+
+  it('restores the access token before the resume lookup after a reload', async () => {
+    let authorization: string | undefined
+    sessionApiClient.defaults.adapter = async (config) =>
+      response(config, { access_token: 'restored-token' })
+    apiClient.defaults.adapter = async (config) => {
+      authorization = String(AxiosHeaders.from(config.headers).get('Authorization') ?? '')
+      return response(config, [])
+    }
+
+    await expect(fetchActiveCourse()).resolves.toBeNull()
+
+    expect(authorization).toBe('Bearer restored-token')
   })
 
   it('maps normalized failures to safe UI messages', () => {
     expect(getCourseRecommendationErrorMessage({ type: 'network' })).toContain('네트워크')
     expect(getCourseRecommendationErrorMessage({ type: 'timeout' })).toContain('시간이 초과')
     expect(getCourseRecommendationErrorMessage({ status: 401 })).toContain('로그인')
-    expect(getCourseRecommendationErrorMessage({ status: 400 })).toContain('반려동물과 경로')
+    expect(getCourseRecommendationErrorMessage({ status: 400 })).toContain('반려동물과 선택한 장소')
     expect(getCourseRecommendationErrorMessage({ type: 'server', status: 500 })).toContain(
       '서버에서'
     )
     expect(getCourseRecommendationErrorMessage(new Error('secret'))).not.toContain('secret')
   })
 
-  it('recognizes the backend no-places 404 without treating every 404 as empty', () => {
-    expect(
-      isNoPlacesFoundCourseError({
-        type: 'not-found',
-        status: 404,
-        message: '주변에 반려동물 동반 가능 장소가 없습니다.',
-      })
-    ).toBe(true)
-    expect(
-      isNoPlacesFoundCourseError({
-        type: 'not-found',
-        status: 404,
-        message: '다른 리소스를 찾을 수 없습니다.',
-      })
-    ).toBe(false)
-  })
-
   it('identifies a response that does not match the published contract', async () => {
     apiClient.defaults.adapter = async (config) => response(config, { courseId: 'course-1' })
 
     const error = await createRecommendedCourse({
-      petId: 'pet-1',
-      travelDate: '2026-09-01',
-      startLocation: '서울역',
-      startLat: 37.5547,
-      startLng: 126.9706,
-      endLocation: '서울숲',
-      endLat: 37.5444,
-      endLng: 127.0374,
-      intermediateStopCount: 2,
+      ...createCourseRequest,
     }).catch((caught: unknown) => caught)
 
     expect(getCourseRecommendationErrorMessage(error)).toContain('응답 형식')

@@ -30,6 +30,7 @@ describe('mapCourse', () => {
             longitude: 127.01,
             visitOrder: 1,
             finalPlace: false,
+            reason: '반려견 선호 활동과 가까운 카페예요.',
             petPolicy: null,
           },
         ],
@@ -49,6 +50,7 @@ describe('mapCourse', () => {
           longitude: 127.01,
           visitOrder: 1,
           isFinal: false,
+          reason: '반려견 선호 활동과 가까운 카페예요.',
           petPolicy: null,
         },
         {

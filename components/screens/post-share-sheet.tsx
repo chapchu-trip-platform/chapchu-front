@@ -2,48 +2,38 @@
 
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
-import { CheckCircle2, X, Image as ImageIcon, Lock } from 'lucide-react'
+import { CheckCircle2, X } from 'lucide-react'
 import {
   BottomSheetBackdrop,
   BottomSheetRoot,
   BottomSheetSurface,
 } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
-import { ChoiceChip } from '@/components/ui/choice-chip'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { ModalActions } from '@/components/ui/modal-actions'
 import { cn } from '@/lib/utils'
+import { formatPetName } from '@/lib/format-pet-name'
 
-type LocationPrivacy = 'precise' | 'approximate' | 'none'
-
-interface SharedPost {
+export interface SharedPost {
   title: string
   content: string
-  board: string
-  locationPrivacy: LocationPrivacy
   image: string
   pet: string
 }
 
 interface PostShareSheetProps {
   onClose: () => void
-  onShare: (post: SharedPost) => void
+  onShare: (post: SharedPost) => void | Promise<void>
   tripTitle: string
   tripImage: string
   petName: string
   tripReview: string
 }
 
-const boards = ['전체', '여행후기', '팁/정보', '장소리뷰', '포토']
 const BACKDROP_EXIT_MS = 80
 const SHEET_EXIT_MS = 320
 const SHARE_SUCCESS_DISPLAY_MS = 600
-const locationPrivacy: Array<{ value: LocationPrivacy; label: string; description: string }> = [
-  { value: 'precise', label: '정확한 위치 공개', description: '경로와 방문 장소 노출' },
-  { value: 'approximate', label: '대략적인 지역만 공개', description: '광역도시 단위로 표시' },
-  { value: 'none', label: '위치 비공개', description: '위치 정보 숨김' },
-]
 
 export default function PostShareSheet({
   onClose,
@@ -53,10 +43,10 @@ export default function PostShareSheet({
   petName,
   tripReview,
 }: PostShareSheetProps) {
+  const displayPetName = formatPetName(petName)
   const [title, setTitle] = useState(tripTitle || '')
-  const [selectedBoard, setSelectedBoard] = useState('여행후기')
-  const [selectedPrivacy, setSelectedPrivacy] = useState<LocationPrivacy>('approximate')
-  const [shareStatus, setShareStatus] = useState<'idle' | 'sharing' | 'success'>('idle')
+  const [shareStatus, setShareStatus] = useState<'idle' | 'sharing' | 'success' | 'error'>('idle')
+  const [shareError, setShareError] = useState<string | null>(null)
   const [isClosing, setIsClosing] = useState(false)
   const [isSheetClosing, setIsSheetClosing] = useState(false)
 
@@ -93,22 +83,22 @@ export default function PostShareSheet({
       return
     }
 
-    if (shareStatus !== 'idle') return
+    if (shareStatus === 'sharing' || shareStatus === 'success') return
 
     setShareStatus('sharing')
-    // Simulate API call
-    await new Promise((r) => setTimeout(r, 800))
-
-    onShare({
-      title,
-      content: tripReview,
-      board: selectedBoard,
-      locationPrivacy: selectedPrivacy,
-      image: tripImage,
-      pet: petName,
-    })
-
-    setShareStatus('success')
+    setShareError(null)
+    try {
+      await onShare({
+        title: title.trim(),
+        content: tripReview.trim(),
+        image: tripImage,
+        pet: petName,
+      })
+      setShareStatus('success')
+    } catch (error: unknown) {
+      setShareStatus('error')
+      setShareError(error instanceof Error ? error.message : '게시글을 공유하지 못했어요. 다시 시도해주세요.')
+    }
   }
 
   return (
@@ -156,16 +146,6 @@ export default function PostShareSheet({
                 fill
                 className="object-cover"
               />
-              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="rounded-full bg-white/90 text-deep-brown backdrop-blur-sm hover:bg-white/80"
-                >
-                  <ImageIcon className="w-4 h-4 text-deep-brown" />
-                  <span className="text-[12px] font-semibold text-deep-brown">변경</span>
-                </Button>
-              </div>
             </div>
           </div>
 
@@ -189,60 +169,21 @@ export default function PostShareSheet({
           <div className="mb-4">
             <p className="text-[12px] font-semibold text-warm-gray mb-2">동행한 반려동물</p>
             <div className="px-3 py-2.5 bg-card rounded-card border border-border text-[13px] text-deep-brown">
-              {petName}
+              {displayPetName}
             </div>
           </div>
 
-          {/* Board selection */}
-          <div className="mb-4">
-            <p className="text-[12px] font-semibold text-warm-gray mb-2">게시판</p>
-            <div className="flex flex-wrap gap-2">
-              {boards.map((board) => (
-                <ChoiceChip
-                  key={board}
-                  onClick={() => setSelectedBoard(board)}
-                  selected={selectedBoard === board}
-                  size="sm"
-                >
-                  {board}
-                </ChoiceChip>
-              ))}
-            </div>
-          </div>
-
-          {/* Location privacy */}
-          <div className="mb-6">
-            <p className="text-[12px] font-semibold text-warm-gray mb-3 flex items-center gap-1.5">
-              <Lock className="w-4 h-4" />
-              위치 공개 범위
+          <div className="mb-6 rounded-card border border-sage-green/20 bg-sage-green/5 p-3">
+            <p className="text-[12px] font-semibold text-deep-brown">여행 후기 게시글</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-warm-gray">
+              전체 후기와 이번 여행 코스가 함께 연결되어 공유됩니다.
             </p>
-            <div className="space-y-2">
-              {locationPrivacy.map((opt) => (
-                <label
-                  key={opt.value}
-                  className={cn(
-                    'flex items-center gap-3 p-3 rounded-card border cursor-pointer transition-all',
-                    selectedPrivacy === opt.value
-                      ? 'bg-sage-green/10 border-sage-green'
-                      : 'bg-card border-border hover:bg-muted'
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="privacy"
-                    value={opt.value}
-                    checked={selectedPrivacy === opt.value}
-                    onChange={(e) => setSelectedPrivacy(e.target.value as LocationPrivacy)}
-                    className="w-4 h-4"
-                  />
-                  <div>
-                    <p className="text-[13px] font-medium text-deep-brown">{opt.label}</p>
-                    <p className="text-[11px] text-warm-gray">{opt.description}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
           </div>
+          {shareError && (
+            <p className="mb-4 text-[12px] leading-relaxed text-danger" role="alert">
+              {shareError}
+            </p>
+          )}
         </div>
 
         {/* Actions */}
@@ -256,7 +197,7 @@ export default function PostShareSheet({
           </Button>
           <Button
             onClick={handleShare}
-            disabled={shareStatus !== 'idle'}
+            disabled={shareStatus === 'sharing' || shareStatus === 'success'}
             size="lg"
             aria-live="polite"
           >
