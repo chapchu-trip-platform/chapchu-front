@@ -27,6 +27,14 @@ export interface DevicePosition {
   source: LocationSource
 }
 
+export interface SearchableLocation {
+  id: string
+  name: string
+  address: string
+  latitude: number
+  longitude: number
+}
+
 export type LocationResult =
   | { ok: true; position: DevicePosition }
   | { ok: false; code: LocationFailureCode }

@@ -11,6 +11,16 @@ import {
   recordApiResponse,
 } from '@/features/devtools/lib/dev-diagnostics'
 
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    replayAfterAuthRefresh?: boolean
+  }
+
+  interface InternalAxiosRequestConfig {
+    replayAfterAuthRefresh?: boolean
+  }
+}
+
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim()
 
 function requireApiBaseUrl() {
@@ -123,7 +133,10 @@ export function refreshAccessToken() {
 type RetryableConfig = InternalAxiosRequestConfig & { _authRetry?: boolean }
 
 function canReplayRequest(config: RetryableConfig) {
-  return ['get', 'head', 'options'].includes(config.method?.toLowerCase() ?? '')
+  return (
+    config.replayAfterAuthRefresh === true ||
+    ['get', 'head', 'options'].includes(config.method?.toLowerCase() ?? '')
+  )
 }
 
 apiClient.interceptors.response.use(
