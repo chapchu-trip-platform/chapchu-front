@@ -48,9 +48,13 @@ function isBoundedString(value: unknown): value is string {
   )
 }
 
-function isCoursePlaceDto(value: unknown): value is CoursePlaceDto {
+function isCoursePlaceDto(
+  value: unknown,
+  options?: { allowLegacyFields?: boolean }
+): value is CoursePlaceDto {
   if (!value || typeof value !== 'object') return false
   const place = value as Partial<CoursePlaceDto>
+  const allowLegacyFields = options?.allowLegacyFields === true
   return (
     isBoundedString(place.coursePlaceId) &&
     isBoundedString(place.externalPlaceId) &&
@@ -69,15 +73,19 @@ function isCoursePlaceDto(value: unknown): value is CoursePlaceDto {
     typeof place.visitOrder === 'number' &&
     Number.isInteger(place.visitOrder) &&
     place.visitOrder > 0 &&
-    typeof place.finalPlace === 'boolean' &&
+    (typeof place.finalPlace === 'boolean' ||
+      (allowLegacyFields && place.finalPlace === undefined)) &&
     (place.reason === undefined ||
       place.reason === null ||
       isBoundedString(place.reason)) &&
-    Object.hasOwn(place, 'petPolicy')
+    (Object.hasOwn(place, 'petPolicy') || allowLegacyFields)
   )
 }
 
-function isCourseDto(value: unknown): value is CourseDto {
+function isCourseDto(
+  value: unknown,
+  options?: { allowLegacyFields?: boolean }
+): value is CourseDto {
   if (!value || typeof value !== 'object') return false
   const course = value as Partial<CourseDto>
   return (
@@ -87,7 +95,7 @@ function isCourseDto(value: unknown): value is CourseDto {
     isBoundedString(course.endLocation) &&
     Array.isArray(course.places) &&
     course.places.length <= MAX_COURSE_PLACES &&
-    course.places.every(isCoursePlaceDto)
+    course.places.every((place) => isCoursePlaceDto(place, options))
   )
 }
 
@@ -181,7 +189,8 @@ export async function createRecommendedCourse(
 
 export async function fetchCourseById(
   courseId: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  options?: { allowLegacyFields?: boolean }
 ): Promise<RecommendedCourse> {
   const normalizedCourseId = courseId.trim()
   if (!normalizedCourseId) throw new Error('Course ID is required.')
@@ -190,7 +199,7 @@ export async function fetchCourseById(
     API_ENDPOINTS.courses.detail(normalizedCourseId),
     { signal }
   )
-  if (!isCourseDto(data)) throw new InvalidCourseResponseError()
+  if (!isCourseDto(data, options)) throw new InvalidCourseResponseError()
   return mapCourse(data)
 }
 

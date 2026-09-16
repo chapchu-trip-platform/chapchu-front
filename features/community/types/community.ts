@@ -4,6 +4,9 @@ export interface PostPhoto {
   downloadUrl: string | null
 }
 
+export const POST_CATEGORIES = ['FREE', 'TRAVEL_REVIEW'] as const
+export type PostCategory = (typeof POST_CATEGORIES)[number]
+
 export interface Post {
   id: string
   petId: string | null
@@ -21,6 +24,7 @@ export interface Post {
   bookmarked: boolean
   commentCount: number
   createdAt: string | null
+  category?: PostCategory | null
 }
 
 export interface PostSummary {
@@ -33,6 +37,7 @@ export interface PostSummary {
   commentCount: number
   photoUrl: string | null
   createdAt: string | null
+  category?: PostCategory | null
 }
 
 export interface PostPage {
@@ -57,6 +62,7 @@ export interface PostInput {
   title: string
   content: string
   photos?: PostPhotoInput[]
+  category?: PostCategory
 }
 
 export type UpdatePostInput = Pick<PostInput, 'title' | 'content'> & {

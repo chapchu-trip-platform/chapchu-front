@@ -1,12 +1,16 @@
 'use client'
 
 import { isDemoSessionActive } from '@/features/auth/stores/auth-store'
+import {
+  ImageMetadataSanitizationError,
+  isSupportedMetadataSafeImage,
+  sanitizeImageFiles,
+} from '@/features/photos/lib/sanitize-image-file'
 import { apiClient } from '@/lib/api/client'
 import { API_ENDPOINTS } from '@/lib/api/endpoints'
 
 const MAX_PHOTOS_PER_REVIEW = 10
 const MAX_STRING_LENGTH = 2_048
-
 interface UploadUrlDto {
   uploadUrl: string
   photoKey: string
@@ -55,6 +59,10 @@ function isSafeUploadUrl(value: string) {
   } catch {
     return false
   }
+}
+
+export function isSupportedTravelImage(file: Pick<File, 'name' | 'type'>) {
+  return isSupportedMetadataSafeImage(file)
 }
 
 function isUploadUrlDto(value: unknown): value is UploadUrlDto {
@@ -110,31 +118,35 @@ export async function uploadCoursePlacePhotos(
   if (files.length === 0 || files.length > MAX_PHOTOS_PER_REVIEW) {
     throw new Error(`Travel photos must contain between 1 and ${MAX_PHOTOS_PER_REVIEW} files.`)
   }
-  if (files.some((file) => !file.type.startsWith('image/'))) {
-    throw new Error('Only image files can be uploaded as travel photos.')
+  if (files.some((file) => !isSupportedTravelImage(file))) {
+    throw new Error(
+      'Only image files in PNG, JPEG, WEBP, GIF, HEIC, HEIF, or AVIF format can be uploaded as travel photos.'
+    )
   }
+  const sanitizedFiles = await sanitizeImageFiles(files, signal)
+  const uploadDate = formatLocalDate(Date.now())
 
   if (isDemoSessionActive()) {
-    return files.map((file, index) => ({
+    return sanitizedFiles.map((file, index) => ({
       photoId: `demo-photo-${Date.now()}-${index}`,
       downloadUrl:
         typeof URL.createObjectURL === 'function'
           ? URL.createObjectURL(file)
           : '/images/album-cover.png',
-      takenAt: formatLocalDate(file.lastModified),
+      takenAt: uploadDate,
     }))
   }
 
   const { data: uploadUrls }: { data: unknown } = await apiClient.post(
     API_ENDPOINTS.photos.uploadUrl,
     {
-      files: files.map((file) => ({ type: 'REVIEW', fileName: file.name })),
+      files: sanitizedFiles.map((file) => ({ type: 'REVIEW', fileName: file.name })),
     },
     { signal }
   )
   if (
     !Array.isArray(uploadUrls) ||
-    uploadUrls.length !== files.length ||
+    uploadUrls.length !== sanitizedFiles.length ||
     !uploadUrls.every(isUploadUrlDto)
   ) {
     throw new Error('Photo upload URL response was invalid.')
@@ -144,7 +156,7 @@ export async function uploadCoursePlacePhotos(
     uploadUrls.map(async (upload, index) => {
       const response = await fetch(upload.uploadUrl, {
         method: 'PUT',
-        body: files[index],
+        body: sanitizedFiles[index],
         signal,
       })
       if (!response.ok) throw new Error('Photo object upload failed.')
@@ -154,17 +166,17 @@ export async function uploadCoursePlacePhotos(
   const { data: savedPhotos }: { data: unknown } = await apiClient.post(
     API_ENDPOINTS.photos.create,
     {
-      photos: uploadUrls.map((upload, index) => ({
+      photos: uploadUrls.map((upload) => ({
         coursePlaceId: normalizedCoursePlaceId,
         photoKey: upload.photoKey,
-        takenAt: formatLocalDate(files[index].lastModified),
+        takenAt: uploadDate,
       })),
     },
     { signal }
   )
   if (
     !Array.isArray(savedPhotos) ||
-    savedPhotos.length !== files.length ||
+    savedPhotos.length !== sanitizedFiles.length ||
     !savedPhotos.every(isSavedPhotoDto)
   ) {
     throw new Error('Saved photo response was invalid.')
@@ -189,6 +201,9 @@ export async function uploadCoursePlacePhotos(
 }
 
 export function getTravelPhotoErrorMessage(error: unknown) {
+  if (error instanceof ImageMetadataSanitizationError) {
+    return '사진의 위치·촬영 정보 등 개인정보를 안전하게 제거하지 못했어요. 다른 사진을 선택해주세요.'
+  }
   if (!error || typeof error !== 'object') return '사진을 저장하지 못했어요. 다시 시도해주세요.'
   const normalized = error as { status?: unknown; type?: unknown }
   if (normalized.status === 401) return '로그인이 만료되었습니다. 다시 로그인해주세요.'

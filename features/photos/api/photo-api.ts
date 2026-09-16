@@ -3,6 +3,7 @@
 import { apiClient } from '@/lib/api/client'
 import { API_ENDPOINTS } from '@/lib/api/endpoints'
 import { publishDiagnosticEvent } from '@/features/devtools/lib/dev-diagnostics'
+import { sanitizeImageFiles } from '@/features/photos/lib/sanitize-image-file'
 import {
   PHOTO_PURPOSES,
   type PhotoDownload,
@@ -18,7 +19,7 @@ const MAX_PHOTO_UPLOAD_TIMEOUT_MS = 9 * 60_000
 const ASSUMED_MIN_UPLOAD_BYTES_PER_SECOND = 512 * 1024
 let photoUploadSequence = 0
 
-export type PhotoUploadFailureStage = 'upload-ticket' | 'object-storage'
+export type PhotoUploadFailureStage = 'metadata-sanitization' | 'upload-ticket' | 'object-storage'
 export type PhotoUploadFailureReason =
   | 'connection-or-cors'
   | 'contract'
@@ -44,7 +45,9 @@ export class PhotoUploadError extends Error {
     readonly failedPhotoIndexes?: number[]
   ) {
     super(
-      stage === 'upload-ticket'
+      stage === 'metadata-sanitization'
+        ? 'Photo metadata could not be removed.'
+        : stage === 'upload-ticket'
         ? 'Photo upload ticket request failed.'
         : reason === 'timeout'
           ? 'Photo upload timed out.'
@@ -183,22 +186,61 @@ export async function uploadPhotoFile(
   signal?: AbortSignal,
   onStatusChange?: (event: PhotoUploadStatusEvent) => void
 ) {
-  return putPhotoFile(ticket, file, signal, {
-    operationId: nextPhotoUploadId(),
+  const operationId = nextPhotoUploadId()
+  const [sanitizedFile] = await sanitizeFilesForUpload([file], signal, operationId)
+  return putPhotoFile(ticket, sanitizedFile, signal, {
+    operationId,
     photoIndex: 0,
     photoCount: 1,
+    sourceFileSize: file.size,
   }, onStatusChange)
+}
+
+async function sanitizeFilesForUpload(
+  files: File[],
+  signal: AbortSignal | undefined,
+  operationId: string
+) {
+  recordPhotoUploadStage(operationId, 'PHOTO_UPLOAD metadata sanitization started', {
+    phase: 'request',
+    stage: 'metadata-sanitization',
+    photoCount: files.length,
+  })
+  try {
+    const sanitizedFiles = await sanitizeImageFiles(files, signal)
+    recordPhotoUploadStage(operationId, 'PHOTO_UPLOAD metadata sanitization completed', {
+      phase: 'response',
+      stage: 'metadata-sanitization',
+      photoCount: files.length,
+    })
+    return sanitizedFiles
+  } catch (error) {
+    if (signal?.aborted || isAbortError(error)) throw error
+    const failure = new PhotoUploadError(
+      'metadata-sanitization',
+      'contract',
+      undefined,
+      { cause: error }
+    )
+    recordPhotoUploadStage(
+      operationId,
+      'PHOTO_UPLOAD metadata sanitization failed',
+      {
+        phase: 'error',
+        stage: failure.stage,
+        reason: failure.reason,
+        photoCount: files.length,
+      },
+      true
+    )
+    throw failure
+  }
 }
 
 export interface PhotoUploadStatusEvent {
   photoIndex: number
   photoCount: number
   status: 'uploading' | 'success'
-}
-
-export interface SuccessfulPhotoUpload {
-  photoKey: string
-  fileName: string
 }
 
 function notifyUploadStatus(
@@ -221,7 +263,12 @@ async function putPhotoFile(
   ticket: PhotoUploadTicket,
   file: File,
   signal: AbortSignal | undefined,
-  context: { operationId: string; photoIndex: number; photoCount: number },
+  context: {
+    operationId: string
+    photoIndex: number
+    photoCount: number
+    sourceFileSize: number
+  },
   onStatusChange?: (event: PhotoUploadStatusEvent) => void
 ) {
   const uploadUrl = safeHttpsUrl(ticket.uploadUrl)
@@ -254,7 +301,7 @@ async function putPhotoFile(
   const timeoutId = window.setTimeout(() => {
     timedOut = true
     uploadController.abort()
-  }, photoUploadTimeoutMs(file.size))
+  }, photoUploadTimeoutMs(Math.max(file.size, context.sourceFileSize)))
 
   try {
     const response = await fetch(uploadUrl, {
@@ -344,6 +391,7 @@ export async function uploadPhotoFiles(
   onStatusChange?: (event: PhotoUploadStatusEvent) => void
 ) {
   const operationId = nextPhotoUploadId()
+  const sanitizedFiles = await sanitizeFilesForUpload(files, signal, operationId)
   recordPhotoUploadStage(operationId, 'PHOTO_UPLOAD ticket request started', {
     phase: 'request',
     stage: 'upload-ticket',
@@ -354,7 +402,7 @@ export async function uploadPhotoFiles(
   let tickets: PhotoUploadTicket[]
   try {
     tickets = await requestPhotoUploadUrls(
-      files.map((file) => ({ type, fileName: file.name })),
+      sanitizedFiles.map((file) => ({ type, fileName: file.name })),
       signal
     )
     recordPhotoUploadStage(operationId, 'PHOTO_UPLOAD ticket request completed', {
@@ -396,10 +444,11 @@ export async function uploadPhotoFiles(
   }
   const uploads = await Promise.allSettled(
     tickets.map((ticket, index) =>
-      putPhotoFile(ticket, files[index], signal, {
+      putPhotoFile(ticket, sanitizedFiles[index], signal, {
         operationId,
         photoIndex: index,
         photoCount: files.length,
+        sourceFileSize: files[index].size,
       }, onStatusChange)
     )
   )

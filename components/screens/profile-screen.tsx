@@ -28,6 +28,10 @@ import { InteractiveCard } from '@/components/ui/interactive-card'
 import { MenuRow } from '@/components/ui/menu-row'
 import { ModalActions } from '@/components/ui/modal-actions'
 import { cn } from '@/lib/utils'
+import {
+  isSupportedMetadataSafeImage,
+  METADATA_SAFE_IMAGE_ACCEPT,
+} from '@/features/photos/lib/sanitize-image-file'
 import { getProfileErrorMessage } from '@/features/profile/api/profile-api'
 import type {
   PetMutationInput,
@@ -698,7 +702,7 @@ function ProfilePhotoEditor({
 
   const save = async (file: File | null) => {
     if (isSaving) return
-    if (file && !file.type.startsWith('image/')) {
+    if (file && !isSupportedMetadataSafeImage(file)) {
       setErrorMessage('이미지 파일만 선택할 수 있어요.')
       return
     }
@@ -747,7 +751,7 @@ function ProfilePhotoEditor({
         <input
           ref={inputRef}
           type="file"
-          accept="image/*"
+          accept={METADATA_SAFE_IMAGE_ACCEPT}
           className="sr-only"
           aria-label="새 프로필 사진 선택"
           disabled={isSaving}

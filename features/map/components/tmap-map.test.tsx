@@ -128,6 +128,41 @@ describe('TmapMap', () => {
     expect(mapInstance.setCenter).toHaveBeenCalledTimes(2)
   })
 
+  it('updates the current-position marker without forcing the camera back to it', async () => {
+    const mapInstance = { destroy: vi.fn(), remove: vi.fn(), setCenter: vi.fn() }
+    const markerInstance = { setMap: vi.fn(), setPosition: vi.fn() }
+    const Marker = vi.fn(function MarkerConstructor() {
+      return markerInstance
+    })
+    vi.mocked(loadTmapSdk).mockResolvedValue({
+      LatLng: vi.fn(function LatLng() {}),
+      Map: vi.fn(function MapConstructor() {
+        return mapInstance
+      }),
+      Marker,
+    } as unknown as Tmapv2Namespace)
+
+    const { rerender } = render(
+      <TmapMap
+        center={{ lat: 37.5, lng: 127 }}
+        showMarker
+        recenterOnCenterChange={false}
+      />
+    )
+    await waitFor(() => expect(Marker).toHaveBeenCalledOnce())
+
+    rerender(
+      <TmapMap
+        center={{ lat: 37.51, lng: 127.01 }}
+        showMarker
+        recenterOnCenterChange={false}
+      />
+    )
+
+    await waitFor(() => expect(markerInstance.setPosition).toHaveBeenCalled())
+    expect(mapInstance.setCenter).not.toHaveBeenCalled()
+  })
+
   it('renders route markers and cleans them up on unmount', async () => {
     const mapInstance = { destroy: vi.fn(), remove: vi.fn(), setCenter: vi.fn() }
     const originMarker = { setMap: vi.fn(), setPosition: vi.fn() }

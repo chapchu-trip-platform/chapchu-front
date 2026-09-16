@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as api from '@/features/community/api/community-api'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
 import { usePostRecommendationStore } from '@/features/community/stores/post-recommendation-store'
-import { commentFixture, postFixture, reviewFixture } from '@/test/fixtures/community'
+import { commentFixture, postFixture } from '@/test/fixtures/community'
 import { mockRouter } from '@/test/mocks/next-navigation'
 import type { PostPage } from '@/features/community/types/community'
 import CommunityBoard from './community-board'
@@ -34,8 +34,6 @@ beforeEach(() => {
   vi.mocked(api.fetchPost).mockResolvedValue(postFixture)
   vi.mocked(api.fetchMyBookmarks).mockResolvedValue([])
   vi.mocked(api.fetchMyPosts).mockResolvedValue([])
-  vi.mocked(api.fetchMyReviews).mockResolvedValue([reviewFixture])
-  vi.mocked(api.fetchPlaceReviews).mockResolvedValue([reviewFixture])
   vi.mocked(api.createComment).mockResolvedValue(commentFixture)
   vi.mocked(api.fetchComments).mockResolvedValue([])
 })
@@ -159,21 +157,23 @@ describe('live community board', () => {
     expect(screen.getByRole('heading', { name: postFixture.title })).toBeInTheDocument()
   })
 
-  it('offers writing only on the free board, reserves companion info for reviews, and replaces sharing with bookmarking', async () => {
+  it('offers writing only on the free board and keeps place reviews out of the travel review board', async () => {
     const user = userEvent.setup()
     const { unmount } = render(<CommunityBoard />)
     await screen.findByText(postFixture.title)
     expect(api.fetchPosts).toHaveBeenCalledWith('popular', undefined, expect.any(AbortSignal))
     expect(screen.queryByRole('link', { name: '글쓰기' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '자유게시판' }))
-    await waitFor(() => expect(api.fetchPosts).toHaveBeenCalledWith('latest', undefined, expect.any(AbortSignal)))
+    await waitFor(() => expect(api.fetchPosts).toHaveBeenCalledWith('latest', undefined, expect.any(AbortSignal), 'FREE'))
     expect(screen.getByRole('link', { name: '글쓰기' })).toHaveAttribute('href', '/community/write')
     expect(screen.queryByText('동행 반려동물')).not.toBeInTheDocument()
     expect(screen.queryByText('코스 정보')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '여행 리뷰' }))
-    await screen.findByText(reviewFixture.contents)
-    expect(screen.getByText('동행 반려동물')).toBeInTheDocument()
-    expect(screen.getByText('코스 정보')).toBeInTheDocument()
+    await screen.findByRole('heading', { name: '여행 후기 게시글' })
+    expect(api.fetchMyReviews).not.toHaveBeenCalled()
+    expect(api.fetchPlaceReviews).not.toHaveBeenCalled()
+    expect(screen.queryByRole('heading', { name: '내가 작성한 여행 리뷰' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '이 장소 리뷰 보기' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: '글쓰기' })).not.toBeInTheDocument()
     unmount()
     render(<CommunityBoard initialPostId="post-1" />)
@@ -192,6 +192,22 @@ describe('live community board', () => {
     expect(await screen.findByRole('button', { name: '북마크' })).toHaveAttribute('aria-pressed', 'false')
   })
 
+  it('loads travel review posts through the travel review category feed', async () => {
+    const travelPost = { ...postFixture, category: 'TRAVEL_REVIEW' as const, title: '서울숲 여행 리뷰 게시글' }
+    vi.mocked(api.fetchPosts).mockImplementation(async (_sort, _cursor, _signal, category) => ({
+      posts: category === 'TRAVEL_REVIEW' ? [travelPost] : [postFixture],
+      nextCursor: null,
+    }))
+    const user = userEvent.setup()
+
+    render(<CommunityBoard />)
+    await user.click(screen.getByRole('button', { name: '여행 리뷰' }))
+
+    expect(await screen.findByRole('heading', { name: '여행 후기 게시글' })).toBeInTheDocument()
+    expect(screen.getByText('서울숲 여행 리뷰 게시글')).toBeInTheDocument()
+    expect(api.fetchPosts).toHaveBeenCalledWith('latest', undefined, expect.any(AbortSignal), 'TRAVEL_REVIEW')
+  })
+
   it('orders HOT posts by recommendation count without changing the server order for the free board', async () => {
     const user = userEvent.setup()
     const low = { ...postFixture, id: 'post-low', title: '추천 1개', recommendationCount: 1 }
@@ -206,7 +222,7 @@ describe('live community board', () => {
     ])
 
     await user.click(screen.getByRole('button', { name: '자유게시판' }))
-    await waitFor(() => expect(api.fetchPosts).toHaveBeenCalledWith('latest', undefined, expect.any(AbortSignal)))
+    await waitFor(() => expect(api.fetchPosts).toHaveBeenCalledWith('latest', undefined, expect.any(AbortSignal), 'FREE'))
     expect(screen.getAllByRole('heading', { level: 3 }).map(heading => heading.textContent)).toEqual([
       low.title, high.title, middle.title,
     ])
@@ -358,7 +374,7 @@ describe('live community board', () => {
     await user.click(await screen.findByRole('button', { name: new RegExp(postFixture.title) }))
     expect(mockRouter.push).toHaveBeenCalledWith('/community?post=post-1')
     await user.click(screen.getByRole('button', { name: '자유게시판' }))
-    await waitFor(() => expect(api.fetchPosts).toHaveBeenLastCalledWith('latest', undefined, expect.any(AbortSignal)))
+    await waitFor(() => expect(api.fetchPosts).toHaveBeenLastCalledWith('latest', undefined, expect.any(AbortSignal), 'FREE'))
   })
   it('returns from detail to the free tab after entering from the editor', async () => {
     const user = userEvent.setup()
@@ -372,7 +388,7 @@ describe('live community board', () => {
     rerender(<CommunityBoard initialTab="free" />)
     await screen.findByText(postFixture.title)
     expect(screen.getByRole('button', { name: '자유게시판' })).toHaveAttribute('aria-pressed', 'true')
-    expect(api.fetchPosts).toHaveBeenLastCalledWith('latest', undefined, expect.any(AbortSignal))
+    expect(api.fetchPosts).toHaveBeenLastCalledWith('latest', undefined, expect.any(AbortSignal), 'FREE')
   })
   it('returns a directly opened post through browser history', async () => {
     const user = userEvent.setup()
@@ -528,22 +544,6 @@ describe('live community board', () => {
     expect(screen.getByRole('textbox', { name: '신고 상세 내용' })).toHaveFocus()
     expect(screen.queryByRole('textbox', { name: '댓글 내용' })).not.toBeInTheDocument()
   })
-  it('cancels own review deletion and retains the review on failed delete before retry', async () => {
-    vi.mocked(api.deleteReview).mockRejectedValueOnce({ type: 'forbidden' }).mockResolvedValueOnce(undefined)
-    const user = userEvent.setup()
-    render(<CommunityBoard />)
-    await user.click(screen.getByRole('button', { name: '여행 리뷰' }))
-    await user.click(await screen.findByRole('button', { name: '리뷰 삭제' }))
-    await user.click(screen.getByRole('button', { name: '취소' }))
-    expect(api.deleteReview).not.toHaveBeenCalled()
-    await user.click(screen.getByRole('button', { name: '리뷰 삭제' }))
-    await user.click(screen.getByRole('button', { name: '리뷰 삭제 확인' }))
-    expect(await screen.findByRole('dialog')).toHaveTextContent('권한')
-    await closeNotice(user)
-    expect(screen.getByText(reviewFixture.contents)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: '리뷰 삭제 확인' }))
-    expect(await screen.findByText('아직 작성한 여행 리뷰가 없어요.')).toBeInTheDocument()
-  })
   it('shows direct edit and delete actions in the header only for owned posts', async () => {
     vi.mocked(api.fetchMyPosts).mockResolvedValue([postFixture])
     vi.mocked(api.deletePost).mockResolvedValue(undefined)
@@ -583,18 +583,6 @@ describe('live community board', () => {
     expect(await screen.findByText('신고가 접수되었어요.')).toBeInTheDocument()
     expect(api.reportPost).toHaveBeenLastCalledWith('post-1', '광고성 게시글')
     expect(screen.queryByRole('textbox', { name: '신고 상세 내용' })).not.toBeInTheDocument()
-  })
-  it('labels the limited review feed, queries its place and never exposes delete for others', async () => {
-    vi.mocked(api.fetchPlaceReviews).mockResolvedValue([reviewFixture, { ...reviewFixture, id: 'other-review', contents: '다른 여행자의 후기' }])
-    const user = userEvent.setup()
-    render(<CommunityBoard />)
-    await user.click(screen.getByRole('button', { name: '여행 리뷰' }))
-    expect(await screen.findByText(reviewFixture.contents)).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '내가 작성한 여행 리뷰' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: '이 장소 리뷰 보기' }))
-    expect(await screen.findByText('다른 여행자의 후기')).toBeInTheDocument()
-    expect(api.fetchPlaceReviews).toHaveBeenCalledWith('place-1', expect.any(AbortSignal))
-    expect(screen.getAllByRole('button', { name: '리뷰 삭제' })).toHaveLength(1)
   })
   it('shows a neutral image fallback after remote photo failure', () => {
     render(<CommunityPhoto title="여행 사진" url="https://example.com/photo.jpg" className="h-36" />)

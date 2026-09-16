@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils'
 
 interface CommunityScreenProps {
   initialPostId?: string
-  initialTab?: 'free'
+  initialTab?: 'free' | 'review'
 }
 
 const tabs = ['HOT', '자유게시판', '여행 리뷰']
@@ -229,7 +229,9 @@ function PostDetailView({ post, onBack }: { post: typeof posts[0]; onBack: () =>
 
 export default function CommunityScreen({ initialPostId, initialTab }: CommunityScreenProps) {
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState(initialTab === 'free' ? 1 : 0)
+  const [activeTab, setActiveTab] = useState(
+    initialTab === 'free' ? 1 : initialTab === 'review' ? 2 : 0
+  )
   const selectedPost = posts.find((post) => String(post.id) === initialPostId) ?? null
   if (selectedPost) {
     return (
@@ -271,14 +273,19 @@ export default function CommunityScreen({ initialPostId, initialTab }: Community
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
         {activeTab === 1 && <div className="flex justify-end px-4 pt-3"><Link href="/community/write" className="inline-flex items-center gap-2 rounded-full bg-sage-green px-4 py-2 text-[13px] font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-green focus-visible:ring-offset-2"><PenLine className="h-4 w-4" />글쓰기</Link></div>}
         <div className="flex flex-col gap-3 p-4">
-          {filteredPosts.map((post, i) => (
-            <InteractiveCard
+          {filteredPosts.map((post, i) => {
+            const isTravelReview = post.tab === '여행 리뷰'
+            return <InteractiveCard
               key={post.id}
-              onClick={() => router.push(`/community?post=${encodeURIComponent(post.id)}${activeTab === 1 ? '&tab=free' : ''}`)}
+              onClick={() => router.push(
+                `/community?post=${encodeURIComponent(post.id)}${
+                  activeTab === 1 ? '&tab=free' : activeTab === 2 ? '&tab=review' : ''
+                }`
+              )}
               padding="none"
-              className="overflow-hidden"
+              className={cn('overflow-hidden', isTravelReview && 'border-soft-orange/25 bg-soft-orange/[0.025]')}
             >
-              <div className="relative h-36">
+              <div className={cn('relative', isTravelReview ? 'h-44' : 'h-36')}>
                 <Image src={post.image} alt={post.title} fill className="object-cover" />
                 {activeTab === 0 && i === 0 && (
                   <div className="absolute top-3 left-3 bg-soft-orange px-2.5 py-1 rounded-full">
@@ -287,6 +294,7 @@ export default function CommunityScreen({ initialPostId, initialTab }: Community
                 )}
               </div>
               <div className="p-3">
+                {isTravelReview && <span className="mb-1.5 inline-flex rounded-full bg-sage-green-light px-2 py-0.5 text-[10px] font-semibold text-sage-green">여행 리뷰</span>}
                 <h3 className="text-[14px] font-semibold text-deep-brown leading-snug line-clamp-2 text-balance mb-2">
                   {post.title}
                 </h3>
@@ -324,8 +332,8 @@ export default function CommunityScreen({ initialPostId, initialTab }: Community
                   </div>
                 </div>
               </div>
-            </InteractiveCard>
-          ))}
+              </InteractiveCard>
+          })}
         </div>
       </div>
     </div>
