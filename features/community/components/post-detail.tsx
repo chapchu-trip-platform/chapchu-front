@@ -3,25 +3,27 @@
 import { useCallback, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Dialog } from '@base-ui/react/dialog'
-import { Bookmark, ChevronLeft, Flag, MessageCircle, PenLine, RefreshCw, ThumbsUp, Trash2 } from 'lucide-react'
+import { Bookmark, CalendarDays, ChevronLeft, Flag, MessageCircle, PawPrint, PenLine, RefreshCw, Route, ThumbsUp, Trash2 } from 'lucide-react'
 import { motion } from 'motion/react'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { ModalActions } from '@/components/ui/modal-actions'
 import { PhotoImage } from '@/components/common/photo-image'
 import { deletePost, fetchMyPosts, fetchPost, reportPost, setPostBookmark } from '@/features/community/api/community-api'
+import { fetchCourseById } from '@/features/map/api/courses-api'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
 import { useCommunityAction, useCommunityQuery } from '@/features/community/hooks/use-community-request'
 import { usePrefersReducedMotion } from '@/features/community/hooks/use-prefers-reduced-motion'
 import { formatCommunityDate, postReactionErrorMessage } from '@/features/community/lib/community-model'
 import { usePostRecommendationStore } from '@/features/community/stores/post-recommendation-store'
 import type { Post } from '@/features/community/types/community'
+import type { RecommendedCourse } from '@/features/map/types/course'
 import { cn } from '@/lib/utils'
 import { CommunityPhotoGallery, communityTextAreaClass, QueryFeedback } from './community-shared'
 import { CommunityNoticeProvider } from './community-notice-provider'
 import { PostComments } from './post-comments'
 
-export function PostDetail({ postId, onBack }: { postId: string; onBack: () => void }) {
+export function PostDetail({ postId, onBack, travelReview = false }: { postId: string; onBack: () => void; travelReview?: boolean }) {
   const request = useCallback(async (signal: AbortSignal) => {
     const expected = usePostRecommendationStore.getState().byPost[postId]
     const epoch = useAuthStore.getState().sessionEpoch
@@ -36,10 +38,51 @@ export function PostDetail({ postId, onBack }: { postId: string; onBack: () => v
     <IconButton onClick={onBack} aria-label="뒤로가기"><ChevronLeft /></IconButton>
     <QueryFeedback loading={query.loading} error={query.error} onRetry={query.reload} />
   </div>
+  if (travelReview || query.data.category === 'TRAVEL_REVIEW') {
+    return <TravelReviewPostDetail initialPost={query.data} onBack={onBack} />
+  }
   return <CommunityNoticeProvider key={query.data.id}><LoadedPost initialPost={query.data} onBack={onBack} /></CommunityNoticeProvider>
 }
 
-function LoadedPost({ initialPost, onBack }: { initialPost: Post; onBack: () => void }) {
+function TravelReviewPostDetail({ initialPost, onBack }: { initialPost: Post; onBack: () => void }) {
+  const courseQuery = useCommunityQuery(
+    useCallback(
+      (signal: AbortSignal) => initialPost.courseId
+        ? fetchCourseById(initialPost.courseId, signal, { allowLegacyFields: true })
+        : Promise.resolve(null),
+      [initialPost.courseId]
+    )
+  )
+  return <CommunityNoticeProvider key={`${initialPost.id}:travel-review`}><LoadedPost initialPost={initialPost} onBack={onBack} travelReview course={courseQuery.data} /></CommunityNoticeProvider>
+}
+
+function TravelReviewCourseSummary({ course }: { course?: RecommendedCourse | null }) {
+  if (!course) {
+    return <section aria-label="여행 리뷰 코스 정보" className="my-4 rounded-[22px] border border-soft-orange/20 bg-soft-orange/5 p-4">
+      <p className="text-[12px] font-semibold text-deep-brown">연결된 여행 코스 정보가 없어요.</p>
+    </section>
+  }
+
+  const places = [...course.places].sort((left, right) => left.visitOrder - right.visitOrder)
+  return <section aria-label="여행 리뷰 코스 정보" className="my-4 rounded-[22px] border border-soft-orange/20 bg-soft-orange/5 p-4">
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="flex items-center gap-1.5 text-[11px] font-semibold text-soft-orange"><Route className="size-3.5" />여행 리뷰 코스</p>
+        <h2 className="mt-1 break-words text-[16px] font-bold text-deep-brown">{course.startLocation} → {course.endLocation}</h2>
+      </div>
+      <PawPrint className="size-5 shrink-0 text-soft-orange" />
+    </div>
+    <p className="mt-2 flex items-center gap-1.5 text-[11px] text-warm-gray"><CalendarDays className="size-3.5" />{course.travelDate.replaceAll('-', '.')}</p>
+    {places.length > 0 && <ol aria-label="여행 리뷰 경유지" className="mt-3 space-y-2 border-t border-soft-orange/15 pt-3">
+      {places.map((place, index) => <li key={place.id} className="flex items-center gap-2.5 text-[12px] text-deep-brown">
+        <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-soft-orange text-[9px] font-bold text-white">{index + 1}</span>
+        <span className="truncate">{place.name}</span>
+      </li>)}
+    </ol>}
+  </section>
+}
+
+function LoadedPost({ initialPost, onBack, travelReview = false, course }: { initialPost: Post; onBack: () => void; travelReview?: boolean; course?: RecommendedCourse | null }) {
   const router = useRouter()
   const prefersReducedMotion = usePrefersReducedMotion()
   const [post, setPost] = useState(initialPost)
@@ -136,7 +179,7 @@ function LoadedPost({ initialPost, onBack }: { initialPost: Post; onBack: () => 
         <CommunityPhotoGallery post={post} onReload={reloadPhotos} />
       </motion.div>
       <motion.div initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ ...reveal, delay: prefersReducedMotion ? 0 : 0.05 }} className="space-y-3 px-4 pt-4">
-        <span className="rounded-full bg-sage-green px-2 py-0.5 text-[11px] font-semibold text-white">자유게시판</span>
+        <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-semibold text-white', travelReview ? 'bg-soft-orange' : 'bg-sage-green')}>{travelReview ? '여행 리뷰' : '자유게시판'}</span>
         <h1 className="break-words text-balance text-[20px] font-bold leading-snug text-deep-brown">{post.title}</h1>
         <div className="flex items-center gap-2 border-b border-border py-3">
           <PhotoImage
@@ -150,6 +193,7 @@ function LoadedPost({ initialPost, onBack }: { initialPost: Post; onBack: () => 
           <div><p className="text-[13px] font-semibold text-deep-brown">{post.nickname || '작성자'}</p><p className="text-[11px] text-warm-gray">{formatCommunityDate(post.createdAt)} · 조회 {post.viewCount.toLocaleString()}</p></div>
         </div>
         <p className="whitespace-pre-wrap break-words border-b border-border py-4 text-[14px] leading-relaxed text-deep-brown">{post.content}</p>
+        {travelReview && <TravelReviewCourseSummary course={course} />}
         <div className="flex flex-wrap gap-3 py-3">
           <motion.div whileTap={prefersReducedMotion || busy || recommendationPending ? undefined : { scale: 0.94 }}><Button variant="ghost" size="sm" aria-label={recommendation ? '추천 취소' : '게시글 추천'} aria-pressed={recommendation} disabled={busy || recommendationPending} className={cn('px-0', recommendation ? 'text-sage-green' : 'text-warm-gray')} onClick={() => recommend(recommendation !== true)}><ThumbsUp className={recommendation ? 'fill-sage-green' : ''} /><motion.span key={post.recommendationCount} initial={prefersReducedMotion ? false : { opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} transition={reveal}>{post.recommendationCount}</motion.span></Button></motion.div>
           <motion.div whileTap={prefersReducedMotion ? undefined : { scale: 0.94 }}><Button variant="ghost" size="sm" aria-label="댓글로 이동" className="px-0" onClick={() => document.getElementById('community-comments')?.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' })}><MessageCircle />{post.commentCount}</Button></motion.div>

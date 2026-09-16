@@ -614,6 +614,28 @@ describe('ProfileRoute', () => {
     expect(nav).not.toHaveAttribute('aria-hidden')
   })
 
+  it('restores background isolation after replacing an open editor with deletion', async () => {
+    const user = userEvent.setup()
+    render(<><ProfileRoute /><nav data-bottom-nav aria-label="하단 메뉴"><button>다른 화면</button></nav></>)
+    const nav = screen.getByRole('navigation')
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: /반려동물 관리.*추가 · 수정 · 삭제/ }))
+    await user.click(await screen.findByRole('button', { name: '초코 수정' }))
+    expect(await screen.findByRole('dialog', { name: '반려견 정보 수정' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '초코 삭제', hidden: true }))
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(screen.getByRole('dialog', { name: '초코 삭제' })).toBeInTheDocument()
+    expect(nav).toHaveAttribute('inert')
+
+    await user.click(screen.getByRole('button', { name: '취소' }))
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(nav).not.toHaveAttribute('inert')
+      expect(nav).not.toHaveAttribute('aria-hidden')
+    })
+  })
+
   it('requires explicit breed and age values before pet registration', async () => {
     const user = userEvent.setup()
     render(<ProfileRoute />)

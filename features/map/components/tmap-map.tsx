@@ -37,6 +37,7 @@ interface TmapMapProps {
   locationLabel?: string
   showMarker?: boolean
   showZoomControl?: boolean
+  recenterOnCenterChange?: boolean
   interactive?: boolean
   markerVariant?: TmapMarkerVariant
   markers?: TmapMapMarker[]
@@ -51,6 +52,7 @@ export default function TmapMap({
   locationLabel = '서울 시청 기준',
   showMarker = false,
   showZoomControl = true,
+  recenterOnCenterChange = true,
   interactive = true,
   markerVariant = 'default',
   markers = [],
@@ -124,7 +126,9 @@ export default function TmapMap({
     if (!Tmapv2 || !mapInstance) return
 
     const nextCenter = new Tmapv2.LatLng(center.lat, center.lng)
-    mapInstance.setCenter?.(nextCenter)
+    if (recenterOnCenterChange) {
+      mapInstance.setCenter?.(nextCenter)
+    }
 
     if (!showMarker || markerVariant === 'profile') {
       markerInstanceRef.current?.setMap?.(null)
@@ -142,7 +146,7 @@ export default function TmapMap({
       map: mapInstance,
       title: locationLabel,
     })
-  }, [center.lat, center.lng, locationLabel, markerVariant, showMarker, status])
+  }, [center.lat, center.lng, locationLabel, markerVariant, recenterOnCenterChange, showMarker, status])
 
   useEffect(() => {
     if (status !== 'ready') return

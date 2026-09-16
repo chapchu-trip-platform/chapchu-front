@@ -7,6 +7,7 @@ import {
   uploadPhotoFile,
   uploadPhotoFiles,
 } from '@/features/photos/api/photo-api'
+import { jpegFileWithMetadata } from '@/test/fixtures/images'
 
 const originalAdapter = apiClient.defaults.adapter
 
@@ -33,7 +34,7 @@ describe('photo API', () => {
     }
     const put = vi.fn().mockResolvedValue(new Response(null, { status: 200 }))
     vi.stubGlobal('fetch', put)
-    const file = new File(['photo'], 'photo.jpg', { type: 'image/jpeg' })
+    const file = jpegFileWithMetadata('photo.jpg')
 
     const tickets = await uploadPhotoFiles([file], 'POST')
 
@@ -44,13 +45,17 @@ describe('photo API', () => {
       'https://bucket.example/upload?signature=test',
       expect.objectContaining({
         method: 'PUT',
-        body: file,
+        body: expect.any(File),
         credentials: 'omit',
         referrerPolicy: 'no-referrer',
         redirect: 'error',
       })
     )
     expect(tickets[0].photoKey).toBe('post/user/photo.jpg')
+    const uploadedFile = put.mock.calls[0][1].body as File
+    expect(uploadedFile).not.toBe(file)
+    expect(await uploadedFile.text()).not.toContain('GPS=')
+    expect(await uploadedFile.text()).not.toContain('IPTC private caption')
   })
 
   it('reports per-photo upload start and completion without exposing signed request data', async () => {
@@ -63,7 +68,7 @@ describe('photo API', () => {
     const progress = vi.fn()
 
     await uploadPhotoFiles(
-      [new File(['photo'], 'photo.jpg', { type: 'image/jpeg' })],
+      [jpegFileWithMetadata('photo.jpg')],
       'POST',
       undefined,
       progress,
@@ -84,7 +89,7 @@ describe('photo API', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
 
     await expect(uploadPhotoFiles(
-      [new File(['photo'], 'photo.jpg', { type: 'image/jpeg' })],
+      [jpegFileWithMetadata('photo.jpg')],
       'POST',
       undefined,
       () => { throw new Error('UI listener failed') },
@@ -109,8 +114,8 @@ describe('photo API', () => {
       .mockResolvedValueOnce(new Response(null, { status: 200 }))
       .mockRejectedValueOnce(new TypeError('Failed to fetch')))
     const files = [
-      new File(['one'], 'one.jpg', { type: 'image/jpeg' }),
-      new File(['two'], 'two.jpg', { type: 'image/jpeg' }),
+      jpegFileWithMetadata('one.jpg'),
+      jpegFileWithMetadata('two.jpg'),
     ]
 
     const failure = await uploadPhotoFiles(files, 'POST').catch(error => error)
@@ -157,7 +162,7 @@ describe('photo API', () => {
       photoKey: 'post/user/photo.jpg',
       fileName: 'different.jpg',
     }], 201)
-    const file = new File(['photo'], 'photo.jpg', { type: 'image/jpeg' })
+    const file = jpegFileWithMetadata('photo.jpg')
 
     await expect(uploadPhotoFiles([file], 'POST')).rejects.toMatchObject({
       name: 'PhotoUploadError',
@@ -166,12 +171,30 @@ describe('photo API', () => {
     })
   })
 
+  it('blocks malformed images before requesting an upload ticket', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const adapter = vi.fn()
+    apiClient.defaults.adapter = adapter
+    const put = vi.fn()
+    vi.stubGlobal('fetch', put)
+
+    await expect(uploadPhotoFiles([
+      new File(['not a jpeg'], 'disguised.jpg', { type: 'image/jpeg' }),
+    ], 'POST')).rejects.toMatchObject({
+      name: 'PhotoUploadError',
+      stage: 'metadata-sanitization',
+      reason: 'contract',
+    })
+    expect(adapter).not.toHaveBeenCalled()
+    expect(put).not.toHaveBeenCalled()
+  })
+
   it('classifies upload-ticket network failure separately from storage CORS candidates', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     apiClient.defaults.adapter = async (config) => {
       throw new AxiosError('Network Error', 'ERR_NETWORK', config)
     }
-    const file = new File(['photo'], 'photo.jpg', { type: 'image/jpeg' })
+    const file = jpegFileWithMetadata('photo.jpg')
 
     await expect(uploadPhotoFiles([file], 'POST')).rejects.toMatchObject({
       name: 'PhotoUploadError',
@@ -196,7 +219,7 @@ describe('photo API', () => {
       })
     )
     vi.stubGlobal('fetch', put)
-    const file = new File(['photo'], 'photo.jpg', { type: 'image/jpeg' })
+    const file = jpegFileWithMetadata('photo.jpg')
     const uploadExpectation = expect(uploadPhotoFile({
       uploadUrl: 'https://bucket.example/upload?signature=test',
       photoKey: 'post/user/photo.jpg',
@@ -228,7 +251,7 @@ describe('photo API', () => {
         })
       })
     ))
-    const file = new File(['photo'], 'large.jpg', { type: 'image/jpeg' })
+    const file = jpegFileWithMetadata('large.jpg')
     Object.defineProperty(file, 'size', { configurable: true, value: 250 * 1024 * 1024 })
     const uploadExpectation = expect(uploadPhotoFile({
       uploadUrl: 'https://bucket.example/upload?signature=test',
@@ -247,7 +270,7 @@ describe('photo API', () => {
   it('tracks a likely CORS failure without logging the signed URL or file name', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch signed-secret')))
-    const file = new File(['photo'], 'private-name.jpg', { type: 'image/jpeg' })
+    const file = jpegFileWithMetadata('private-name.jpg')
 
     await expect(uploadPhotoFile({
       uploadUrl: 'https://bucket.example/upload?signature=signed-secret',

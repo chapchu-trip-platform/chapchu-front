@@ -460,7 +460,10 @@ interface ProfileApiError {
 }
 
 export function getProfileErrorMessage(error: unknown) {
-  const apiError = error as ProfileApiError
+  const apiError = error as ProfileApiError & { name?: string; stage?: string }
+  if (apiError.name === 'PhotoUploadError' && apiError.stage === 'metadata-sanitization') {
+    return '사진의 위치·촬영 정보 등 개인정보를 안전하게 제거하지 못했어요. 다른 사진을 선택해주세요.'
+  }
   if (apiError.status === 409) return '이미 사용 중인 닉네임입니다.'
   if (apiError.type === 'network') return '네트워크 연결을 확인해주세요.'
   if (apiError.type === 'timeout' || (apiError.status ?? 0) >= 500) {

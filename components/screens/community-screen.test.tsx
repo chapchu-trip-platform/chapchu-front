@@ -36,6 +36,19 @@ describe('CommunityScreen', () => {
     expect(within(route).getByText('월평 아왜낭목 쉼터')).toBeInTheDocument()
   })
 
+  it('uses a distinct travel review card in the HOT feed and keeps it out of the free tab', async () => {
+    const user = userEvent.setup()
+    render(<CommunityScreen />)
+
+    const travelPost = screen.getByRole('button', { name: /제주 올레길 강아지와 4박 5일 코스 완전정복/ })
+    expect(within(travelPost).getByText('여행 리뷰')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '자유게시판' }))
+
+    expect(screen.queryByText('제주 올레길 강아지와 4박 5일 코스 완전정복')).not.toBeInTheDocument()
+    expect(screen.getByText('성수동 애견 카페 TOP 5 모음')).toBeInTheDocument()
+  })
+
   it('hides companion cards on free posts and uses bookmarking instead of sharing', async () => {
     const user = userEvent.setup()
     render(<CommunityScreen initialPostId="3" />)

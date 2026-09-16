@@ -13,6 +13,6 @@ export default async function CommunityPage({ searchParams }: CommunityPageProps
 
   return <CommunityRoute
     initialPostId={postParam}
-    initialTab={params.tab === 'free' ? 'free' : undefined}
+    initialTab={params.tab === 'free' ? 'free' : params.tab === 'review' ? 'review' : undefined}
   />
 }

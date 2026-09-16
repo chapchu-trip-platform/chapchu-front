@@ -75,6 +75,7 @@ export async function createTripPost(
     {
       title,
       content,
+      category: 'TRAVEL_REVIEW',
       ...(petId ? { petId } : {}),
       ...(courseId ? { courseId } : {}),
       ...(photos ? { photos } : {}),

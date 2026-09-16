@@ -7,12 +7,16 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  LockKeyhole,
+  Minus,
   Star,
+  Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Textarea } from '@/components/ui/input'
 import type { RecommendedCoursePlace } from '@/features/map/types/course'
+import { METADATA_SAFE_IMAGE_ACCEPT } from '@/features/photos/lib/sanitize-image-file'
 import type { TravelDraftPhoto } from '@/features/travel/stores/travel-store'
 import { cn } from '@/lib/utils'
 
@@ -28,13 +32,16 @@ interface TravelCoursePlaceCardProps {
   expanded: boolean
   onReviewChange: (update: Partial<Pick<TravelReviewDraft, 'note' | 'rating'>>) => void
   onPhotosSelected: (files: File[]) => void
+  onRemovePhoto: (photoId: string) => void
   onSaveReview: () => void
   onToggle: () => void
   place: RecommendedCoursePlace
   reviewDraft: TravelReviewDraft
+  reviewEnabled: boolean
   photos: TravelDraftPhoto[]
   photoError: string | null
   photoStatus: 'idle' | 'loading' | 'success' | 'error'
+  skipped: boolean
   visited: boolean
 }
 
@@ -44,13 +51,16 @@ export default function TravelCoursePlaceCard({
   expanded,
   onReviewChange,
   onPhotosSelected,
+  onRemovePhoto,
   onSaveReview,
   onToggle,
   place,
   reviewDraft,
+  reviewEnabled,
   photos,
   photoError,
   photoStatus,
+  skipped,
   visited,
 }: TravelCoursePlaceCardProps) {
   const reviewPanelId = `travel-place-review-${place.id}`
@@ -61,6 +71,8 @@ export default function TravelCoursePlaceCard({
         'isolate overflow-hidden rounded-xl border transition-[border-color,background-color,box-shadow] duration-300 motion-reduce:duration-0',
         current
           ? 'border-sage-green/40 bg-sage-green-light/50 shadow-sm'
+          : skipped
+            ? 'border-border bg-muted/35'
           : 'border-border bg-card-surface'
       )}
     >
@@ -77,12 +89,18 @@ export default function TravelCoursePlaceCard({
             'flex size-8 shrink-0 items-center justify-center rounded-full text-[12px] font-bold',
             visited
               ? 'bg-sage-green text-white'
+              : skipped
+                ? 'bg-warm-gray/20 text-warm-gray'
               : current
                 ? 'bg-soft-orange text-white'
                 : 'bg-muted text-warm-gray'
           )}
         >
-          {visited ? <CheckCircle2 className="size-4" /> : place.visitOrder}
+          {visited
+            ? <CheckCircle2 className="size-4" />
+            : skipped
+              ? <Minus className="size-4" />
+              : place.visitOrder}
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[14px] font-semibold text-deep-brown">
@@ -91,6 +109,8 @@ export default function TravelCoursePlaceCard({
           <p className="mt-0.5 text-[11px] text-warm-gray">
             {visited
               ? '방문 완료'
+              : skipped
+                ? '방문 생략'
               : current
                 ? `다음 방문지 · ${distanceLabel}`
                 : '방문 예정'}
@@ -124,26 +144,43 @@ export default function TravelCoursePlaceCard({
       >
         <div className="min-h-0 overflow-hidden">
           <div className="border-t border-sage-green/20 px-3 pb-3 pt-3">
-            <p className="text-[12px] font-semibold text-deep-brown">여행 후기</p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[12px] font-semibold text-deep-brown">여행 후기</p>
+              {!reviewEnabled && (
+                <span className="flex items-center gap-1 text-[10px] font-semibold text-warm-gray">
+                  <LockKeyhole className="size-3" />
+                  {skipped ? '방문 생략한 장소' : '방문 인증 후 작성 가능'}
+                </span>
+              )}
+            </div>
             <Textarea
               value={reviewDraft.note}
               onChange={(event) => onReviewChange({ note: event.target.value })}
-              placeholder="이 장소에서의 기억을 남겨보세요..."
+              placeholder={
+                reviewEnabled
+                  ? '이 장소에서의 기억을 남겨보세요...'
+                  : skipped
+                    ? '방문을 생략한 장소에는 후기를 작성할 수 없어요.'
+                    : '먼저 이 장소의 방문 인증을 진행해주세요.'
+              }
               rows={3}
               aria-label={`${place.name} 간단 후기`}
-              className="mt-2 rounded-xl border-0 bg-muted px-3 py-2.5"
+              disabled={!reviewEnabled}
+              className="mt-2 rounded-xl border-0 bg-muted px-3 py-2.5 disabled:cursor-not-allowed disabled:opacity-60"
             />
             <div className="mt-3">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-[12px] font-semibold text-deep-brown">여행 사진</p>
                 <span className="text-[10px] text-warm-gray">{photos.length}/10장</span>
               </div>
-              <div className="mt-2 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+              <div className="mt-2 flex touch-pan-x gap-2 overflow-x-auto pb-1 no-scrollbar">
                 <label
                   className={cn(
                     'flex size-20 shrink-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-border bg-muted text-warm-gray',
-                    (photoStatus === 'loading' || photos.length >= 10) && 'cursor-not-allowed opacity-50'
+                    (!reviewEnabled || photoStatus === 'loading' || photos.length >= 10) &&
+                      'cursor-not-allowed opacity-50'
                   )}
+                  aria-disabled={!reviewEnabled}
                 >
                   <Camera className="size-5" />
                   <span className="text-[10px]">
@@ -151,11 +188,11 @@ export default function TravelCoursePlaceCard({
                   </span>
                   <input
                     type="file"
-                    accept="image/*"
+                    accept={METADATA_SAFE_IMAGE_ACCEPT}
                     multiple
                     className="sr-only"
                     aria-label={`${place.name} 사진 추가`}
-                    disabled={photoStatus === 'loading' || photos.length >= 10}
+                    disabled={!reviewEnabled || photoStatus === 'loading' || photos.length >= 10}
                     onChange={(event) => {
                       const files = Array.from(event.target.files ?? []).slice(0, 10 - photos.length)
                       if (files.length > 0) onPhotosSelected(files)
@@ -174,9 +211,25 @@ export default function TravelCoursePlaceCard({
                       fill
                       className="object-cover"
                     />
+                    <button
+                      type="button"
+                      onClick={() => onRemovePhoto(photo.photoId)}
+                      className="absolute right-1 top-1 flex size-7 items-center justify-center rounded-full bg-black/55 text-white shadow-sm transition-colors hover:bg-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                      aria-label={`${place.name} 여행 사진 삭제`}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
                   </div>
                 ))}
               </div>
+              {!reviewEnabled && (
+                <p className="mt-1 flex items-center gap-1 text-[11px] text-warm-gray">
+                  <LockKeyhole className="size-3" />
+                  {skipped
+                    ? '방문을 생략한 장소에는 사진을 추가할 수 없어요.'
+                    : '방문 인증 후 사진을 추가할 수 있어요.'}
+                </p>
+              )}
               {photoError && (
                 <p className="mt-1 text-[11px] leading-relaxed text-danger" role="alert">
                   {photoError}
@@ -184,7 +237,7 @@ export default function TravelCoursePlaceCard({
               )}
               {photoStatus === 'success' && !photoError && (
                 <p className="mt-1 text-[11px] text-sage-green" role="status">
-                  사진이 앨범에 저장됐어요.
+                  여행 사진에 추가했어요.
                 </p>
               )}
             </div>
@@ -195,6 +248,7 @@ export default function TravelCoursePlaceCard({
                     key={value}
                     type="button"
                     onClick={() => onReviewChange({ rating: value })}
+                    disabled={!reviewEnabled}
                     aria-label={`${place.name} ${value}점`}
                     size="sm"
                   >
@@ -213,13 +267,13 @@ export default function TravelCoursePlaceCard({
                 type="button"
                 size="sm"
                 onClick={onSaveReview}
-                disabled={!reviewDraft.note.trim() || reviewDraft.rating < 1}
+                disabled={!reviewEnabled || !reviewDraft.note.trim() || reviewDraft.rating < 1}
                 aria-label={reviewDraft.saved ? '저장 완료' : '후기 저장'}
               >
                 {reviewDraft.saved ? (
                   <><Check className="size-3.5" /> 저장 완료</>
                 ) : (
-                  <><BookOpen className="size-3.5" /> 임시 저장</>
+                  <><BookOpen className="size-3.5" /> 후기 저장</>
                 )}
               </Button>
             </div>

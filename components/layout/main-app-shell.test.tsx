@@ -96,4 +96,22 @@ describe('MainAppShell auth gate', () => {
     expect(screen.getByText('post editor')).toBeInTheDocument()
     expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
   })
+
+  it('scrolls the album screen to the top when the active album tab is pressed', async () => {
+    setMockPathname('/album')
+    useAuthStore.getState().startDemoSession()
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
+
+    render(
+      <MainAppShell>
+        <p>album content</p>
+      </MainAppShell>
+    )
+
+    await screen.findByRole('button', { name: '앨범' }).then((button) => button.click())
+
+    expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({ type: 'album-scroll-top' }))
+    expect(mockRouter.push).not.toHaveBeenCalled()
+    dispatchSpy.mockRestore()
+  })
 })

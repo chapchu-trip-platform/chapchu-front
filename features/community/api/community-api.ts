@@ -3,12 +3,20 @@
 import { apiClient, publicApiClient } from '@/lib/api/client'
 import { API_ENDPOINTS } from '@/lib/api/endpoints'
 import { parseComment, parseComments, parsePost, parsePostPage, parsePosts, parseReview, parseReviews } from '@/features/community/lib/community-model'
-import type { PostInput, ReviewInput, UpdatePostInput } from '@/features/community/types/community'
+import type { PostCategory, PostInput, ReviewInput, UpdatePostInput } from '@/features/community/types/community'
 
 const endpoints = API_ENDPOINTS.community
 
-export async function fetchPosts(sort: 'latest' | 'popular', cursor?: string, signal?: AbortSignal) {
-  const { data } = await apiClient.get<unknown>(endpoints.posts, { params: { sort, size: 20, ...(cursor ? { cursor } : {}) }, signal })
+export async function fetchPosts(
+  sort: 'latest' | 'popular',
+  cursor?: string,
+  signal?: AbortSignal,
+  category?: PostCategory
+) {
+  const { data } = await apiClient.get<unknown>(endpoints.posts, {
+    params: { sort, size: 20, ...(cursor ? { cursor } : {}), ...(category ? { category } : {}) },
+    signal,
+  })
   return parsePostPage(data)
 }
 
