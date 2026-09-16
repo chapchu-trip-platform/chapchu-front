@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, m, useIsPresent, useReducedMotion } from 'motion/react'
 import {
   AlertTriangle,
@@ -71,6 +71,44 @@ const sizeLabel: Record<PetSize, string> = {
 
 const PROFILE_MOTION_EASE = [0.22, 1, 0.36, 1] as const
 
+interface ModalIsolationState {
+  count: number
+  inert: string | null
+  hidden: string | null
+}
+
+const modalIsolationStates = new WeakMap<HTMLElement, ModalIsolationState>()
+
+function isolateModalBackground(element: HTMLElement) {
+  const current = modalIsolationStates.get(element)
+  if (current) {
+    current.count += 1
+    return
+  }
+
+  modalIsolationStates.set(element, {
+    count: 1,
+    inert: element.getAttribute('inert'),
+    hidden: element.getAttribute('aria-hidden'),
+  })
+  element.setAttribute('inert', '')
+  element.setAttribute('aria-hidden', 'true')
+}
+
+function restoreModalBackground(element: HTMLElement) {
+  const current = modalIsolationStates.get(element)
+  if (!current) return
+
+  current.count -= 1
+  if (current.count > 0) return
+
+  if (current.inert === null) element.removeAttribute('inert')
+  else element.setAttribute('inert', current.inert)
+  if (current.hidden === null) element.removeAttribute('aria-hidden')
+  else element.setAttribute('aria-hidden', current.hidden)
+  modalIsolationStates.delete(element)
+}
+
 function ProfileLoadingBar({
   className,
   prefersReducedMotion,
@@ -129,7 +167,7 @@ function useModalFocus(onClose: () => void, isBlocked = false) {
     isBlockedRef.current = isBlocked
   }, [isBlocked, onClose])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const dialog = dialogRef.current
     const previouslyFocused = document.activeElement as HTMLElement | null
     if (!dialog) return
@@ -143,16 +181,15 @@ function useModalFocus(onClose: () => void, isBlocked = false) {
 
     // Isolate the overlay, not just the focusable dialog. The backdrop stays
     // clickable while ancestor siblings (including navigation) become inert.
-    const isolated: Array<{ element: HTMLElement; inert: string | null; hidden: string | null }> = []
+    const isolated: HTMLElement[] = []
     let overlay = dialog.parentElement
     while (overlay && overlay !== document.body) {
       const parent = overlay.parentElement
       if (!parent) break
       for (const sibling of parent.children) {
         if (sibling === overlay || !(sibling instanceof HTMLElement)) continue
-        isolated.push({ element: sibling, inert: sibling.getAttribute('inert'), hidden: sibling.getAttribute('aria-hidden') })
-        sibling.setAttribute('inert', '')
-        sibling.setAttribute('aria-hidden', 'true')
+        isolated.push(sibling)
+        isolateModalBackground(sibling)
       }
       overlay = parent
     }
@@ -185,11 +222,8 @@ function useModalFocus(onClose: () => void, isBlocked = false) {
     document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
-      for (const { element, inert, hidden } of isolated) {
-        if (inert === null) element.removeAttribute('inert')
-        else element.setAttribute('inert', inert)
-        if (hidden === null) element.removeAttribute('aria-hidden')
-        else element.setAttribute('aria-hidden', hidden)
+      for (const element of isolated) {
+        restoreModalBackground(element)
       }
       previouslyFocused?.focus()
     }
