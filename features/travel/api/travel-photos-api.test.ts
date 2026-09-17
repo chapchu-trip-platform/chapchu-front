@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { uploadCoursePlacePhotos } from '@/features/travel/api/travel-photos-api'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
 import { apiClient } from '@/lib/api/client'
+import { jpegFileWithMetadata } from '@/test/fixtures/images'
 
 const originalAdapter = apiClient.defaults.adapter
 
@@ -14,10 +15,13 @@ afterEach(() => {
   apiClient.defaults.adapter = originalAdapter
   useAuthStore.setState({ status: 'idle' })
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
 describe('travel photo API', () => {
   it('uploads to the presigned URL, saves metadata, and returns a display URL', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 8, 15, 12))
     const requests: InternalAxiosRequestConfig[] = []
     apiClient.defaults.adapter = async (config) => {
       requests.push(config)
@@ -45,9 +49,9 @@ describe('travel photo API', () => {
     }
     const upload = vi.fn().mockResolvedValue(new Response(null, { status: 200 }))
     vi.stubGlobal('fetch', upload)
-    const file = new File(['image'], '산책.jpg', {
-      type: 'image/jpeg',
+    const file = jpegFileWithMetadata('산책.jpg', {
       lastModified: new Date(2026, 8, 15).getTime(),
+      metadata: 'Exif\0\0GPS=37.5444,127.0374',
     })
 
     await expect(uploadCoursePlacePhotos('course-place-1', [file])).resolves.toEqual([
@@ -74,8 +78,11 @@ describe('travel photo API', () => {
     })
     expect(upload).toHaveBeenCalledWith(
       'https://bucket.example/review/photo.jpg?signature=one',
-      expect.objectContaining({ method: 'PUT', body: file })
+      expect.objectContaining({ method: 'PUT', body: expect.any(File) })
     )
+    const uploadedFile = upload.mock.calls[0][1].body as File
+    expect(uploadedFile).not.toBe(file)
+    expect(await uploadedFile.text()).not.toContain('GPS=')
   })
 
   it('rejects non-image files before requesting an upload URL', async () => {
@@ -89,5 +96,40 @@ describe('travel photo API', () => {
       uploadCoursePlacePhotos('course-place-1', [new File(['text'], 'memo.txt', { type: 'text/plain' })])
     ).rejects.toThrow('Only image files')
     expect(requested).toBe(false)
+  })
+
+  it('rejects unsupported or disguised image formats before upload', async () => {
+    let requested = false
+    apiClient.defaults.adapter = async (config) => {
+      requested = true
+      return response(config, [])
+    }
+
+    await expect(
+      uploadCoursePlacePhotos(
+        'course-place-1',
+        [new File(['<svg/>'], 'illustration.svg', { type: 'image/svg+xml' })]
+      )
+    ).rejects.toThrow('Only image files')
+    await expect(
+      uploadCoursePlacePhotos(
+        'course-place-1',
+        [new File(['text'], 'disguised.jpg', { type: 'text/plain' })]
+      )
+    ).rejects.toThrow('Only image files')
+    expect(requested).toBe(false)
+  })
+
+  it('rejects malformed image bytes before requesting an upload URL', async () => {
+    const adapter = vi.fn()
+    apiClient.defaults.adapter = adapter
+    const upload = vi.fn()
+    vi.stubGlobal('fetch', upload)
+
+    await expect(uploadCoursePlacePhotos('course-place-1', [
+      new File(['not a jpeg'], 'disguised.jpg', { type: 'image/jpeg' }),
+    ])).rejects.toThrow('JPEG signature was invalid.')
+    expect(adapter).not.toHaveBeenCalled()
+    expect(upload).not.toHaveBeenCalled()
   })
 })

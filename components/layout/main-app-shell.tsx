@@ -60,7 +60,13 @@ export default function MainAppShell({ children }: { children: React.ReactNode }
       {showBottomNav && (
         <BottomNav
           active={activeTab}
-          onChange={(tab) => router.push(routeByTab[tab])}
+          onChange={(tab) => {
+            if (tab === 'album' && activeTab === 'album') {
+              window.dispatchEvent(new Event('album-scroll-top'))
+              return
+            }
+            router.push(routeByTab[tab])
+          }}
         />
       )}
     </MobileShell>

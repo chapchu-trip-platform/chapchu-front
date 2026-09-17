@@ -136,6 +136,15 @@
   left: 1rem;
 }
 
+.map-flow-dock-actions {
+  position: absolute;
+  right: 1rem;
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  left: 1rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
 .safe-bottom-onboarding {
   padding-bottom: max(2.5rem, env(safe-area-inset-bottom));
 }

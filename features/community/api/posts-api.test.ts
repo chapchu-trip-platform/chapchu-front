@@ -34,6 +34,7 @@ describe('trip post API', () => {
     expect(JSON.parse(String(captured.data))).toEqual({
       title: '서울숲 여행',
       content: '즐거운 하루였어요.',
+      category: 'TRAVEL_REVIEW',
       petId: 'pet-1',
       courseId: 'course-1',
     })

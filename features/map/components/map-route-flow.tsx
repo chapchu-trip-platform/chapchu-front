@@ -10,7 +10,7 @@ import MapPlaceSelectionScreen from '@/components/screens/map-place-selection-sc
 import MapRouteScreen from '@/components/screens/map-route-screen'
 import TravelProgressScreen from '@/components/screens/travel-progress-screen'
 import TripEndScreen from '@/components/screens/trip-end-screen'
-import PostShareSheet from '@/components/screens/post-share-sheet'
+import PostShareSheet, { type SharedPost } from '@/components/screens/post-share-sheet'
 import ErrorScreen from '@/components/screens/error-screen'
 import { fetchCourseWeather } from '@/features/map/api/course-weather-api'
 import {
@@ -48,11 +48,15 @@ import {
   createTripPost,
   getTripPostErrorMessage,
 } from '@/features/community/api/posts-api'
-import { completeCourse } from '@/features/travel/api/course-completion-api'
+import {
+  completeCourse,
+  getCourseCompletionErrorMessage,
+} from '@/features/travel/api/course-completion-api'
 import { useTravelStore } from '@/features/travel/stores/travel-store'
 import { useLocationStore } from '@/features/location/stores/location-store'
 import type { ErrorType } from '@/types'
 import MapFlowPageTransition from '@/features/map/components/map-flow-page-transition'
+import { saveAlbumCoverPreference } from '@/features/album/lib/album-cover-preference'
 
 type MapStep = 'setup' | 'options' | 'places' | 'route' | 'progress' | 'end'
 
@@ -65,6 +69,9 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
   const [step, setStep] = useState<MapStep>('setup')
   const [showShareSheet, setShowShareSheet] = useState(false)
   const [shareReview, setShareReview] = useState('')
+  const [shareTitle, setShareTitle] = useState('')
+  const [shareCoverPhotoId, setShareCoverPhotoId] = useState<string | null>(null)
+  const [boardShared, setBoardShared] = useState(false)
   const [recommendationStatus, setRecommendationStatus] =
     useState<PlaceRecommendationStatus>('idle')
   const [recommendationError, setRecommendationError] = useState<string | null>(null)
@@ -95,8 +102,8 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
   const pedestrianRouteRequestRef = useRef<AbortController | null>(null)
   const {
     draftTripTitle,
-    draftTripImage,
     noteDrafts,
+    visitedPlaceIds,
     overallReview,
     recommendedCourse,
     routeDestination,
@@ -309,6 +316,7 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
       if (controller.signal.aborted) return
       setRecommendedCourse(serverCourse)
       beginTravelDrafts(serverCourse.id)
+      setBoardShared(false)
       setCourseCreationStatus('idle')
       setStep('route')
 
@@ -538,16 +546,14 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
     )
   }
 
-  const saveAlbum = async (review: string) => {
+  const saveAlbum = async (review: string, coverPhotoId: string | null) => {
     if (!recommendedCourse || !selectedPetId) {
       throw new Error('여행 코스와 반려동물 정보를 확인하지 못했습니다.')
     }
-    if (!noteDrafts.some((draft) => (draft.photos?.length ?? 0) > 0)) {
-      throw new Error('앨범을 만들려면 여행 사진을 한 장 이상 저장해주세요.')
-    }
-
+    const visitedPlaceIdSet = new Set(visitedPlaceIds)
     const incompleteDraft = noteDrafts.find(
       (draft) =>
+        visitedPlaceIdSet.has(draft.waypointId) &&
         !draft.reviewId &&
         (draft.content.trim() || (draft.rating ?? 0) > 0) &&
         (!draft.content.trim() || (draft.rating ?? 0) < 1)
@@ -557,10 +563,10 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
     }
 
     try {
-      await completeCourse(recommendedCourse.id)
       for (const draft of noteDrafts) {
         if (
           draft.reviewId ||
+          !visitedPlaceIdSet.has(draft.waypointId) ||
           !draft.externalPlaceId ||
           !draft.content.trim() ||
           (draft.rating ?? 0) < 1
@@ -577,28 +583,47 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
         })
         markReviewSaved(draft.waypointId, created.reviewId)
       }
-      setOverallReview(review)
-      router.push('/album')
     } catch (error: unknown) {
       throw new Error(getTravelReviewErrorMessage(error))
     }
+
+    try {
+      // Complete only after every place review has been persisted. This keeps
+      // a partially failed save recoverable instead of closing the course first.
+      await completeCourse(recommendedCourse.id)
+    } catch (error: unknown) {
+      throw new Error(getCourseCompletionErrorMessage(error))
+    }
+
+    setOverallReview(review)
+    const availablePhotoIds = new Set(
+      noteDrafts.flatMap((draft) => (draft.photos ?? []).map((photo) => photo.photoId))
+    )
+    saveAlbumCoverPreference(
+      recommendedCourse.id,
+      coverPhotoId && availablePhotoIds.has(coverPhotoId) ? coverPhotoId : null
+    )
+    router.push('/album')
   }
 
-  const shareCoverPhoto = noteDrafts.find(
-    (draft) => (draft.photos?.length ?? 0) > 0
-  )?.photos?.[0]?.downloadUrl
-  const tripImage = shareCoverPhoto ?? draftTripImage
+  const sharePhotos = noteDrafts.flatMap((draft) => {
+    const placeName = recommendedCourse?.places.find(
+      (place) => place.id === draft.waypointId
+    )?.name ?? '여행 장소'
+    return (draft.photos ?? []).map((photo) => ({ ...photo, placeName }))
+  })
 
-  const shareTripReview = async (post: { title: string; content: string }) => {
+  const shareTripReview = async (post: SharedPost) => {
     try {
       await createTripPost({
         title: post.title,
         content: post.content,
         petId: selectedPetId,
         courseId: recommendedCourse?.id,
-        coverPhotoUrl: shareCoverPhoto,
+        coverPhotoUrl: post.image,
         takenAt: recommendedCourse?.travelDate,
       })
+      setBoardShared(true)
     } catch (error: unknown) {
       throw new Error(getTripPostErrorMessage(error))
     }
@@ -611,12 +636,16 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
           course={recommendedCourse}
           petName={selectedPetName}
           noteDrafts={noteDrafts}
+          weather={courseWeather}
           initialReview={overallReview}
+          isBoardShared={boardShared}
           onReviewChange={setOverallReview}
           onSave={saveAlbum}
-          onShare={(review) => {
+          onShare={(review, coverPhotoId, title) => {
             setOverallReview(review)
             setShareReview(review)
+            setShareTitle(title)
+            setShareCoverPhotoId(coverPhotoId)
             setShowShareSheet(true)
           }}
         />
@@ -624,10 +653,14 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
           <PostShareSheet
             onClose={() => setShowShareSheet(false)}
             onShare={shareTripReview}
-            tripTitle={draftTripTitle}
-            tripImage={tripImage}
+            tripTitle={shareTitle || draftTripTitle}
+            photos={sharePhotos}
+            initialPhotoId={shareCoverPhotoId}
             petName={selectedPetName}
             tripReview={shareReview}
+            variant="travel-review"
+            course={recommendedCourse}
+            weather={courseWeather}
           />
         )}
       </div>

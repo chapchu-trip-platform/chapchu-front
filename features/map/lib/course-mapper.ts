@@ -17,9 +17,12 @@ export function mapCourse(dto: CourseDto): RecommendedCourse {
         latitude: place.latitude,
         longitude: place.longitude,
         visitOrder: place.visitOrder,
-        isFinal: place.finalPlace,
+        // Album detail can read courses created before these optional fields
+        // were persisted. The last ordered stop is marked as the destination
+        // by the detail screen, so a missing flag safely behaves as false.
+        isFinal: place.finalPlace === true,
         ...(place.reason !== undefined ? { reason: place.reason } : {}),
-        petPolicy: place.petPolicy,
+        petPolicy: place.petPolicy ?? null,
       })),
   }
 }

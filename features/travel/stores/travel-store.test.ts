@@ -1,10 +1,17 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { useTravelStore } from '@/features/travel/stores/travel-store'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  TRAVEL_DRAFT_CACHE_TTL_MS,
+  useTravelStore,
+} from '@/features/travel/stores/travel-store'
 
 describe('useTravelStore', () => {
   beforeEach(() => {
     useTravelStore.getState().resetTravel()
+    localStorage.clear()
+    sessionStorage.clear()
   })
+
+  afterEach(() => vi.useRealTimers())
 
   it('starts with idle travel state', () => {
     const state = useTravelStore.getState()
@@ -16,6 +23,8 @@ describe('useTravelStore', () => {
     expect(state.recommendedCourse).toBeNull()
     expect(state.selectedWaypoints).toEqual([])
     expect(state.noteDrafts).toEqual([])
+    expect(state.visitedPlaceIds).toEqual([])
+    expect(state.skippedPlaceIds).toEqual([])
   })
 
   it('updates selected pet and travel stage', () => {
@@ -140,9 +149,12 @@ describe('useTravelStore', () => {
     expect(localStorage.getItem('chapchu.travel-session')).toBeNull()
   })
 
-  it('caches in-progress review drafts in session storage for the same course', () => {
-    sessionStorage.clear()
+  it('keeps in-progress review drafts in local storage for 24 hours', () => {
+    const now = new Date('2026-09-16T00:00:00.000Z')
+    vi.useFakeTimers()
+    vi.setSystemTime(now)
     useTravelStore.getState().beginTravelDrafts('course-1')
+    useTravelStore.getState().markPlaceVisited('course-place-1')
     useTravelStore.getState().upsertNoteDraft({
       waypointId: 'course-place-1',
       externalPlaceId: 'place-1',
@@ -153,12 +165,17 @@ describe('useTravelStore', () => {
       saved: true,
     })
 
-    expect(sessionStorage.getItem('chapchu.travel-drafts')).toContain('함께 걷기 좋았어요.')
+    const serialized = localStorage.getItem('chapchu.travel-drafts')
+    expect(serialized).toContain('함께 걷기 좋았어요.')
+    expect(JSON.parse(serialized ?? '{}').expiresAt).toBe(
+      now.getTime() + TRAVEL_DRAFT_CACHE_TTL_MS
+    )
 
     useTravelStore.setState({
       draftCourseId: null,
       noteDrafts: [],
       overallReview: '',
+      visitedPlaceIds: [],
     })
     useTravelStore.getState().hydrateTravelDrafts('course-1')
 
@@ -166,6 +183,62 @@ describe('useTravelStore', () => {
       waypointId: 'course-place-1',
       rating: 5,
       saved: true,
+    })
+    expect(useTravelStore.getState().visitedPlaceIds).toEqual(['course-place-1'])
+  })
+
+  it('persists skipped places without treating them as visited', () => {
+    useTravelStore.getState().beginTravelDrafts('course-1')
+    useTravelStore.getState().markPlaceSkipped('course-place-1')
+
+    expect(useTravelStore.getState().skippedPlaceIds).toEqual(['course-place-1'])
+    expect(useTravelStore.getState().visitedPlaceIds).toEqual([])
+
+    useTravelStore.setState({
+      draftCourseId: null,
+      skippedPlaceIds: [],
+      visitedPlaceIds: [],
+    })
+    useTravelStore.getState().hydrateTravelDrafts('course-1')
+
+    expect(useTravelStore.getState().skippedPlaceIds).toEqual(['course-place-1'])
+    expect(useTravelStore.getState().visitedPlaceIds).toEqual([])
+  })
+
+  it('discards an expired review cache', () => {
+    useTravelStore.getState().beginTravelDrafts('course-1')
+    const cache = JSON.parse(localStorage.getItem('chapchu.travel-drafts') ?? '{}')
+    localStorage.setItem(
+      'chapchu.travel-drafts',
+      JSON.stringify({ ...cache, expiresAt: Date.now() - 1 })
+    )
+    useTravelStore.setState({ draftCourseId: null, noteDrafts: [], visitedPlaceIds: [] })
+
+    useTravelStore.getState().hydrateTravelDrafts('course-1')
+
+    expect(useTravelStore.getState().draftCourseId).toBeNull()
+    expect(localStorage.getItem('chapchu.travel-drafts')).toBeNull()
+  })
+
+  it('removes a temporary travel photo from its cached draft', () => {
+    useTravelStore.getState().beginTravelDrafts('course-1')
+    useTravelStore.getState().upsertNoteDraft({
+      waypointId: 'course-place-1',
+      content: '후기',
+      photoUrls: ['/images/photo-1.jpg', '/images/photo-2.jpg'],
+      photos: [
+        { photoId: 'photo-1', downloadUrl: '/images/photo-1.jpg', takenAt: null },
+        { photoId: 'photo-2', downloadUrl: '/images/photo-2.jpg', takenAt: null },
+      ],
+      saved: true,
+    })
+
+    useTravelStore.getState().removeDraftPhoto('course-place-1', 'photo-1')
+
+    expect(useTravelStore.getState().noteDrafts[0]).toMatchObject({
+      photos: [{ photoId: 'photo-2' }],
+      photoUrls: ['/images/photo-2.jpg'],
+      saved: false,
     })
   })
 })

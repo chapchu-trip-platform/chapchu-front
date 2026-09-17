@@ -6,7 +6,7 @@ import { useAuthStore } from '@/features/auth/stores/auth-store'
 
 interface CommunityRouteProps {
   initialPostId?: string
-  initialTab?: 'free'
+  initialTab?: 'free' | 'review'
 }
 
 export default function CommunityRoute({ initialPostId, initialTab }: CommunityRouteProps) {
