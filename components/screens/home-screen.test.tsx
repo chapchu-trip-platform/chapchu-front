@@ -1,7 +1,7 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import HomeScreen from '@/components/screens/home-screen'
-import type { HotPost, NearbyPlace } from '@/features/home/types/home'
+import type { HotPost } from '@/features/home/types/home'
 
 vi.mock('@/features/map/components/tmap-map', () => ({
   default: ({
@@ -47,12 +47,6 @@ const hotPosts: HotPost[] = [
   },
 ]
 
-const nearbyPlaces: NearbyPlace[] = [
-  { id: 'place-1', name: '반려견 공원', imageUrl: null, address: '대구 수성구', rating: 4.5, reviewCount: 12, distanceMeters: 300, hasPetPolicy: true },
-  { id: 'place-2', name: '반려견 카페', imageUrl: null, address: '대구 수성구', rating: 4.2, reviewCount: 8, distanceMeters: 700, hasPetPolicy: true },
-  { id: 'place-3', name: '산책로', imageUrl: null, address: '대구 수성구', rating: 4, reviewCount: 3, distanceMeters: 1_400, hasPetPolicy: false },
-]
-
 const defaultProps = {
   onStartTrip: vi.fn(),
   onViewAllPosts: vi.fn(),
@@ -61,9 +55,6 @@ const defaultProps = {
   locationStatus: 'success' as const,
   petNames: ['루이'],
   petNamesStatus: 'success' as const,
-  nearbyPlaces,
-  nearbyPlacesStatus: 'success' as const,
-  onRetryNearbyPlaces: vi.fn(),
   hotPosts,
   hotPostsStatus: 'success' as const,
   onRetryHotPosts: vi.fn(),
@@ -102,28 +93,10 @@ describe('HomeScreen', () => {
     expect(screen.getByText('42')).toBeInTheDocument()
     expect(screen.getByText('멍멍이아빠')).toBeInTheDocument()
     expect(screen.getByLabelText('댓글 7개')).toHaveTextContent('7')
-    expect(screen.getByText('주변 추천 장소')).toBeInTheDocument()
-    expect(screen.getByText('현재 위치 반경 1.5km 안의 반려동물 동반 장소예요.')).toBeInTheDocument()
+    expect(screen.queryByText('주변 추천 장소')).not.toBeInTheDocument()
     const hotBadge = screen.getByText('HOT').parentElement
     expect(hotBadge).toHaveClass('items-center', 'justify-center')
     expect(screen.getByText('HOT')).toHaveClass('leading-none')
-  })
-
-  it('keeps nearby places in a native free-scroll carousel', () => {
-    render(<HomeScreen {...defaultProps} />)
-
-    const carousel = screen.getByTestId('nearby-place-carousel')
-    expect(carousel).toHaveClass(
-      'overflow-x-auto',
-      'overscroll-x-contain',
-      'px-4'
-    )
-    expect(carousel).not.toHaveClass('scroll-smooth', 'snap-x', 'snap-mandatory')
-    expect(carousel).toHaveStyle({ touchAction: 'auto' })
-    expect(carousel.querySelectorAll('article')).toHaveLength(3)
-    const distanceBadge = screen.getByText('300m').parentElement
-    expect(distanceBadge).toHaveClass('flex', 'items-center', 'justify-center')
-    expect(screen.getByText('300m')).toHaveClass('leading-none')
   })
 
   it('applies Motion transitions only to the Home content sections', () => {
@@ -132,52 +105,8 @@ describe('HomeScreen', () => {
     expect(document.querySelector('[data-motion-section="map"]')).toBeInTheDocument()
     expect(document.querySelector('[data-motion-section="weather"]')).toBeInTheDocument()
     expect(document.querySelector('[data-motion-section="trip-cta"]')).toBeInTheDocument()
-    expect(document.querySelector('[data-motion-section="nearby"]')).toBeInTheDocument()
+    expect(document.querySelector('[data-motion-section="nearby"]')).not.toBeInTheDocument()
     expect(document.querySelector('[data-motion-section="hot-posts"]')).toBeInTheDocument()
-  })
-
-  it('moves the recommendation carousel when a pointer drags horizontally', () => {
-    render(<HomeScreen {...defaultProps} />)
-
-    const carousel = screen.getByTestId('nearby-place-carousel')
-    fireEvent.pointerDown(carousel, {
-      button: 0,
-      clientX: 280,
-      clientY: 100,
-      pointerId: 1,
-      pointerType: 'mouse',
-    })
-    fireEvent.pointerMove(carousel, {
-      clientX: 100,
-      clientY: 104,
-      pointerId: 1,
-      pointerType: 'mouse',
-    })
-    fireEvent.pointerUp(carousel, { pointerId: 1, pointerType: 'mouse' })
-
-    expect(carousel.scrollLeft).toBe(180)
-  })
-
-  it('leaves touch gestures to native overflow scrolling on mobile', () => {
-    render(<HomeScreen {...defaultProps} />)
-
-    const carousel = screen.getByTestId('nearby-place-carousel')
-    fireEvent.pointerDown(carousel, {
-      clientX: 280,
-      clientY: 100,
-      pointerId: 2,
-      pointerType: 'touch',
-    })
-    fireEvent.pointerMove(carousel, {
-      clientX: 100,
-      clientY: 104,
-      pointerId: 2,
-      pointerType: 'touch',
-    })
-    fireEvent.pointerUp(carousel, { pointerId: 2, pointerType: 'touch' })
-
-    expect(carousel).toHaveStyle({ touchAction: 'auto' })
-    expect(carousel.scrollLeft).toBe(0)
   })
 
   it('does not place a second service-consent action over the Home map', () => {

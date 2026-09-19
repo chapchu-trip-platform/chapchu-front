@@ -42,11 +42,6 @@ export const Default: Story = {
     locationStatus: 'success',
     petNames: ['루이', '바다'],
     petNamesStatus: 'success',
-    nearbyPlaces: [
-      { id: 'place-1', name: '수성못 산책로', imageUrl: '/images/place-park.png', address: '대구광역시 수성구', rating: 4.7, reviewCount: 32, distanceMeters: 420, hasPetPolicy: true },
-    ],
-    nearbyPlacesStatus: 'success',
-    onRetryNearbyPlaces: () => undefined,
     hotPosts: [
       {
         id: 'post-1',

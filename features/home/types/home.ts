@@ -15,17 +15,6 @@ export interface HotPost {
   photoUrl: string | null
 }
 
-export interface NearbyPlace {
-  id: string
-  name: string
-  imageUrl: string | null
-  address: string
-  rating: number
-  reviewCount: number
-  distanceMeters: number
-  hasPetPolicy: boolean
-}
-
 export function formatPetCompanion(petNames: string[]) {
   const names = petNames.map((name) => name.trim()).filter(Boolean)
   if (names.length === 0) return '반려동물과 함께'
