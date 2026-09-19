@@ -52,7 +52,6 @@ const stamps: TravelStamp[] = ['강원', '경기', '제주', '경북', '전남',
   (stampName, index) => ({
     stampId: `stamp-${stampName}`,
     stampName,
-    imageUrl: null,
     acquired: true,
     stampCount: index + 1,
     firstAcquiredAt: `2026-09-${String(18 - index).padStart(2, '0')}T10:00:00+09:00`,
@@ -69,7 +68,7 @@ const defaultProps = {
   petNamesStatus: 'success' as const,
   stamps,
   acquiredStampCount: 6,
-  totalStampCount: 9,
+  totalStampCount: 17,
   hotPosts,
   hotPostsStatus: 'success' as const,
   onRetryHotPosts: vi.fn(),
@@ -118,7 +117,7 @@ describe('HomeScreen', () => {
     render(<HomeScreen {...defaultProps} />)
 
     const stampRegion = screen.getByRole('region', { name: '여행 스탬프' })
-    expect(within(stampRegion).getByLabelText('전체 9개 중 6개 획득')).toHaveTextContent('6/9')
+    expect(within(stampRegion).getByLabelText('전체 17개 중 6개 획득')).toHaveTextContent('6/17')
     expect(within(stampRegion).getAllByRole('listitem')).toHaveLength(5)
     expect(within(stampRegion).getByText('강원')).toBeInTheDocument()
     expect(within(stampRegion).queryByText('충남')).not.toBeInTheDocument()

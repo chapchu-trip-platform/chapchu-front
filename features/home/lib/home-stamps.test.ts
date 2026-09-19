@@ -10,7 +10,6 @@ function stamp(
   return {
     stampId: `stamp-${stampName}`,
     stampName,
-    imageUrl: null,
     acquired,
     stampCount: acquired ? 1 : 0,
     firstAcquiredAt,
