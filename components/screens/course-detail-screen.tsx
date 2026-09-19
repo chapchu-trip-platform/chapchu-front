@@ -1,342 +1,293 @@
 'use client'
 
 import Image from 'next/image'
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  Navigation, Clock, CloudSun, Thermometer, Camera,
-  Star, MapPin, ChevronDown, ChevronUp, Car, Footprints, ThumbsUp,
+  BookOpen,
+  CalendarDays,
+  Camera,
+  ChevronDown,
+  ChevronUp,
+  Cloud,
+  CloudRain,
+  CloudSun,
+  MapPin,
+  PawPrint,
+  Snowflake,
+  Sun,
 } from 'lucide-react'
+import { useReducedMotion } from 'motion/react'
+import { PhotoViewerDialog } from '@/components/common/photo-viewer-dialog'
 import TopBar from '@/components/top-bar'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface WaypointData {
-  order: number
-  name: string
-  address: string
-  arrival: string
-  departure: string
-  note: string
-  rating: number
-  petFriendlyScore: number
-  image: string
-  photos: { id: string; url: string }[]
-}
+import { DEFAULT_ALBUM_COVER_URL } from '@/features/album/constants'
+import type { AlbumDetail, AlbumStop } from '@/features/album/types/album'
+import { formatPetName } from '@/lib/format-pet-name'
 
 interface CourseDetailScreenProps {
-  albumTitle: string
-  albumImage: string
-  pet: string
-  from: string
-  to: string
-  distance: string
-  duration: string
-  transport: string
-  weather: string
-  temperature: number
-  overallRating: number
-  totalPhotos: number
-  waypoints: WaypointData[]
+  detail: AlbumDetail
+  petName: string
+  overallReview?: string
   onBack: () => void
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function StatChip({
-  icon: Icon,
-  label,
-  value,
-  iconClass,
-}: {
-  icon: React.ElementType
-  label: string
-  value: string
-  iconClass?: string
-}) {
-  return (
-    <div className="flex flex-col items-center gap-1 flex-1 p-3 bg-warm-beige rounded-card">
-      <Icon className={cn('w-4 h-4', iconClass ?? 'text-soft-orange')} />
-      <p className="text-[12px] font-bold text-deep-brown leading-tight">{value}</p>
-      <p className="text-[10px] text-warm-gray">{label}</p>
-    </div>
-  )
+function formatDate(value: string | null) {
+  if (!value) return '여행 날짜 미정'
+  const [year, month, day] = value.split('-')
+  return year && month && day ? `${year}.${month}.${day}` : value
 }
 
-function StarRow({ rating, size = 'sm' }: { rating: number; size?: 'sm' | 'md' }) {
-  const sz = size === 'md' ? 'w-4 h-4' : 'w-3 h-3'
-  return (
-    <div className="flex items-center gap-0.5">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Star
-          key={i}
-          className={cn(sz, i < rating ? 'text-soft-orange fill-soft-orange' : 'text-border fill-border')}
-        />
-      ))}
-    </div>
-  )
+const weatherDetails = {
+  SUNNY: { label: '맑음', Icon: Sun },
+  CLOUDY: { label: '흐림', Icon: Cloud },
+  RAINY: { label: '비', Icon: CloudRain },
+  SNOWY: { label: '눈', Icon: Snowflake },
+} as const
+
+function getWeatherDetail(weather: string | null) {
+  if (!weather) return { label: '기록 없음', Icon: CloudSun }
+  return weatherDetails[weather as keyof typeof weatherDetails] ?? { label: weather, Icon: CloudSun }
 }
 
-function WaypointCard({ stop, isLast }: { stop: WaypointData; isLast: boolean }) {
+function StopPhotoGallery({ stop }: { stop: AlbumStop }) {
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const [zoom, setZoom] = useState(1)
+  const viewerHistoryRef = useRef(false)
+  const reducedMotion = Boolean(useReducedMotion())
+  const photoCount = stop.photos.length
+  const activePhoto = stop.photos[activeIndex] ?? null
   const [expanded, setExpanded] = useState(false)
+  const visiblePhotos = expanded ? stop.photos : stop.photos.slice(0, 3)
+  const hiddenPhotoCount = photoCount - visiblePhotos.length
 
+  const move = useCallback((direction: 1 | -1) => {
+    setActiveIndex((current) => (current + direction + photoCount) % photoCount)
+    setZoom(1)
+  }, [photoCount])
+
+  const openViewer = (index: number) => {
+    setActiveIndex(index)
+    setZoom(1)
+    viewerHistoryRef.current = true
+    window.history.pushState(
+      { ...window.history.state, chapchuPhotoViewer: true },
+      '',
+      window.location.href
+    )
+    setViewerOpen(true)
+  }
+
+  const closeViewer = useCallback(() => {
+    if (viewerHistoryRef.current) {
+      viewerHistoryRef.current = false
+      setViewerOpen(false)
+      window.history.back()
+      return
+    }
+    setViewerOpen(false)
+  }, [])
+
+  useEffect(() => {
+    if (!viewerOpen) return
+    const handlePopState = () => {
+      viewerHistoryRef.current = false
+      setViewerOpen(false)
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [viewerOpen])
+
+  return (
+    <>
+      <div
+        className="grid grid-cols-3 gap-1.5 p-2"
+        aria-label={`${stop.placeName}에서 촬영한 사진 ${photoCount}장`}
+      >
+        {visiblePhotos.map((photo, index) => {
+          return (
+            <button
+            key={photo.photoId}
+            type="button"
+            className={`relative cursor-zoom-in overflow-hidden rounded-xl bg-muted outline-none focus-visible:ring-2 focus-visible:ring-sage-green/70 ${
+              photoCount === 1 ? 'col-span-3 aspect-video' : 'aspect-square'
+            }`}
+              aria-label={`${stop.placeName} 사진 ${index + 1} 자세히 보기`}
+              onClick={() => openViewer(index)}
+            >
+              <Image
+                src={photo.downloadUrl}
+                alt={`${stop.placeName} 사진 ${index + 1}`}
+                fill
+                sizes={photoCount === 1 ? '(max-width: 430px) 90vw, 360px' : '(max-width: 430px) 30vw, 120px'}
+                className="object-cover transition-transform duration-200 hover:scale-[1.03]"
+              />
+            </button>
+          )
+        })}
+      </div>
+      {photoCount > 3 && (
+        <button
+          type="button"
+          className="flex w-full items-center justify-center gap-1 border-t border-border px-3 py-2.5 text-[11px] font-semibold text-sage-green outline-none transition-colors hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sage-green/70"
+          aria-expanded={expanded}
+          aria-label={expanded ? '사진 접기' : `사진 ${hiddenPhotoCount}장 더 보기`}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? '사진 접기' : `사진 ${hiddenPhotoCount}장 더 보기`}
+          {expanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+        </button>
+      )}
+      <PhotoViewerDialog
+        open={viewerOpen}
+        title={stop.placeName}
+        url={activePhoto?.downloadUrl ?? null}
+        activeIndex={activeIndex}
+        photoCount={photoCount}
+        zoom={zoom}
+        reducedMotion={reducedMotion}
+        onOpenChange={(open) => { if (!open) closeViewer() }}
+        onMove={move}
+        onZoom={setZoom}
+        onImageError={closeViewer}
+      />
+    </>
+  )
+}
+
+function StopCard({ stop, isLast }: { stop: AlbumStop; isLast: boolean }) {
   return (
     <div className="flex gap-3">
-      {/* Timeline spine */}
-      <div className="flex flex-col items-center flex-shrink-0 pt-1">
-        <div className="w-7 h-7 rounded-full bg-sage-green flex items-center justify-center shadow-sm z-10">
-          <span className="text-[11px] font-bold text-white">{stop.order}</span>
+      <div className="flex shrink-0 flex-col items-center pt-1">
+        <div className="z-10 flex size-7 items-center justify-center rounded-full bg-sage-green shadow-sm">
+          <span className="text-[11px] font-bold text-white">{stop.visitOrder}</span>
         </div>
-        {!isLast && <div className="w-0.5 flex-1 bg-sage-green/25 mt-1 min-h-[2rem]" />}
+        {!isLast && <div className="mt-1 min-h-8 w-0.5 flex-1 bg-sage-green/25" />}
       </div>
 
-      {/* Card */}
       <div className="flex-1 pb-4">
-        <div
-          className={cn(
-            'bg-card-surface rounded-card border border-border overflow-hidden',
-            'transition-shadow active:opacity-90',
-          )}
-        >
-          {/* Place image + name */}
-          <div className="relative h-28">
-            <Image src={stop.image} alt={stop.name} fill className="object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/55 to-transparent" />
-            <div className="absolute bottom-0 left-0 right-0 px-3 pb-2.5">
-              <p className="text-white text-[13px] font-bold leading-tight">{stop.name}</p>
-              <div className="flex items-center gap-1 mt-0.5">
-                <MapPin className="w-3 h-3 text-white/70 flex-shrink-0" />
-                <p className="text-white/70 text-[10px] truncate">{stop.address}</p>
-              </div>
+        <article className="overflow-hidden rounded-2xl border border-border bg-card-surface">
+          <div className="flex items-center gap-2 px-3 pb-2 pt-3">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[14px] font-bold text-deep-brown">{stop.placeName}</p>
+              <p className="mt-0.5 flex items-center gap-1 text-[10px] text-warm-gray">
+                <Camera className="size-3" /> 촬영한 사진 {stop.photos.length}장
+              </p>
             </div>
+            {isLast && (
+              <span className="shrink-0 rounded-full bg-sage-green-light px-2 py-1 text-[9px] font-semibold text-sage-green">
+                도착
+              </span>
+            )}
           </div>
 
-          {/* Arrival / departure / pet score row */}
-          <div className="flex items-center gap-0 border-b border-border">
-            <div className="flex-1 flex flex-col items-center py-2.5 border-r border-border">
-              <p className="text-[9px] font-semibold text-warm-gray tracking-wide uppercase">도착</p>
-              <p className="text-[13px] font-bold text-deep-brown mt-0.5">{stop.arrival}</p>
-            </div>
-            <div className="flex-1 flex flex-col items-center py-2.5 border-r border-border">
-              <p className="text-[9px] font-semibold text-warm-gray tracking-wide uppercase">출발</p>
-              <p className="text-[13px] font-bold text-deep-brown mt-0.5">{stop.departure}</p>
-            </div>
-            <div className="flex-1 flex flex-col items-center py-2.5">
-              <p className="text-[9px] font-semibold text-warm-gray tracking-wide uppercase">반려견</p>
-              <div className="flex items-center gap-0.5 mt-0.5">
-                <ThumbsUp className="w-3 h-3 text-sage-green" />
-                <p className="text-[13px] font-bold text-sage-green">{stop.petFriendlyScore}%</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Note + rating */}
-          <div className="px-3 pt-2.5 pb-2">
-            <div className="flex items-center justify-between mb-1.5">
-              <StarRow rating={stop.rating} />
-              <Button
-                onClick={() => setExpanded((v) => !v)}
-                variant="ghost"
-                size="sm"
-                className="h-auto gap-0.5 p-0 text-[11px] text-warm-gray"
-                aria-label={expanded ? '접기' : '메모 더 보기'}
-              >
-                {expanded ? '접기' : '더보기'}
-                {expanded ? (
-                  <ChevronUp className="w-3.5 h-3.5" />
-                ) : (
-                  <ChevronDown className="w-3.5 h-3.5" />
-                )}
-              </Button>
-            </div>
-            <p className={cn('text-[12px] text-warm-gray leading-relaxed', !expanded && 'line-clamp-2')}>
-              {stop.note}
-            </p>
-          </div>
-
-          {/* Photo strip — shown when expanded */}
-          {expanded && stop.photos.length > 0 && (
-            <div className="px-3 pb-3">
-              <div className="flex gap-2 overflow-x-auto no-scrollbar">
-                {stop.photos.map((ph) => (
-                  <div
-                    key={ph.id}
-                    className="relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 border border-border"
-                  >
-                    <Image src={ph.url} alt="" fill className="object-cover" />
-                  </div>
-                ))}
-              </div>
+          {stop.photos.length > 0 ? (
+            <StopPhotoGallery stop={stop} />
+          ) : (
+            <div className="mx-2 mb-2 flex h-20 items-center justify-center rounded-xl bg-muted/55 text-[11px] text-warm-gray">
+              이 장소에서 촬영한 사진이 없어요.
             </div>
           )}
-        </div>
+        </article>
       </div>
     </div>
   )
 }
 
-// ─── Route Map SVG ────────────────────────────────────────────────────────────
-
-function RouteMapSVG({ stopCount }: { stopCount: number }) {
-  // Fixed control-point path for up to 5 stops
-  const paths = [
-    'M 24,72 C 70,40 140,72 200,48 C 255,24 310,56 346,36',
-    'M 24,72 C 60,44 110,68 165,52 C 215,36 265,60 315,44 C 340,36 355,30 366,24',
-  ]
-  const path = stopCount <= 3 ? paths[0] : paths[1]
-
-  const stops = Array.from({ length: stopCount }, (_, i) => {
-    const t = i / (stopCount - 1)
-    // Approximate positions along the bezier
-    const positions = [
-      { cx: 24, cy: 72 },
-      { cx: 110, cy: 54 },
-      { cx: 200, cy: 48 },
-      { cx: 290, cy: 40 },
-      { cx: 366, cy: 24 },
-    ]
-    return positions[Math.round(t * (stopCount - 1))] ?? { cx: 24 + t * 342, cy: 72 - t * 48 }
-  })
+export default function CourseDetailScreen({ detail, petName, overallReview, onBack }: CourseDetailScreenProps) {
+  const { course, summary, stops } = detail
+  const coverImage = summary.photos[0]?.downloadUrl ?? DEFAULT_ALBUM_COVER_URL
+  const companionName = formatPetName(petName)
+  const title = `${companionName}와의 ${course.endLocation} 여행`
+  const orderedStops = [...stops].sort((left, right) => left.visitOrder - right.visitOrder)
+  const recordedWeather = orderedStops.find((stop) => stop.review?.weather)?.review?.weather ?? null
+  const weather = getWeatherDetail(recordedWeather)
+  const WeatherIcon = weather.Icon
 
   return (
-    <div className="mx-4 mt-3 rounded-card overflow-hidden bg-sky-blue/15 border border-sky-blue/30">
-      <svg viewBox="0 0 390 96" className="w-full h-24" aria-hidden="true">
-        {/* Grid lines */}
-        {[24, 48, 72].map((y) => (
-          <line key={y} x1="0" y1={y} x2="390" y2={y} stroke="#8ECAE6" strokeWidth="0.5" strokeDasharray="4,6" />
-        ))}
-        {/* Route path */}
-        <path d={path} stroke="#6FAF8E" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6,3" />
-        {/* Stop dots */}
-        {stops.map((s, i) => (
-          <g key={i}>
-            <circle cx={s.cx} cy={s.cy} r="6" fill="white" stroke="#6FAF8E" strokeWidth="2" />
-            <circle
-              cx={s.cx}
-              cy={s.cy}
-              r="3"
-              fill={i === 0 ? '#6FAF8E' : i === stops.length - 1 ? '#E76F51' : '#F4A261'}
-            />
-          </g>
-        ))}
-      </svg>
-      <div className="flex items-center justify-between px-4 pb-2 -mt-1">
-        <p className="text-[10px] text-warm-gray font-medium truncate max-w-[120px]">출발</p>
-        <div className="flex gap-3">
-          {[
-            { color: 'bg-sage-green', label: '출발' },
-            { color: 'bg-soft-orange', label: '경유' },
-            { color: 'bg-danger', label: '도착' },
-          ].map((l) => (
-            <div key={l.label} className="flex items-center gap-1">
-              <div className={cn('w-2 h-2 rounded-full', l.color)} />
-              <span className="text-[9px] text-warm-gray">{l.label}</span>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-warm-beige">
+      <TopBar title="앨범 상세" showBack onBack={onBack} />
+
+      <div
+        role="region"
+        aria-label="앨범 상세 내용"
+        className="min-h-0 flex-1 overflow-y-auto pb-16 no-scrollbar"
+      >
+        <div className="relative mx-4 mt-4 h-44 overflow-hidden rounded-2xl bg-muted shadow-sm">
+          <Image src={coverImage} alt={title} fill className="object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+          <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-black/35 px-2.5 py-1 text-[10px] font-semibold text-white backdrop-blur-sm">
+            <Camera className="size-3" /> 사진 {summary.photos.length}장
+          </div>
+          <div className="absolute inset-x-0 bottom-0 p-4">
+            <h2 className="text-balance text-[17px] font-bold leading-snug text-white">{title}</h2>
+          </div>
+        </div>
+
+        <section
+          aria-label="여행 정보"
+          className="mx-4 mt-3 grid grid-cols-3 divide-x divide-border rounded-2xl border border-border bg-card-surface px-1.5 py-3"
+        >
+          <div className="min-w-0 px-2 text-center">
+            <PawPrint className="mx-auto size-4 text-sage-green" />
+            <p className="mt-1.5 text-[9px] font-semibold text-warm-gray">함께한 반려견</p>
+            <p className="mt-0.5 truncate text-[12px] font-bold text-deep-brown">{companionName}</p>
+          </div>
+          <div className="min-w-0 px-2 text-center">
+            <CalendarDays className="mx-auto size-4 text-soft-orange" />
+            <p className="mt-1.5 text-[9px] font-semibold text-warm-gray">여행 날짜</p>
+            <p className="mt-0.5 truncate text-[12px] font-bold text-deep-brown">{formatDate(summary.travelDate)}</p>
+          </div>
+          <div className="min-w-0 px-2 text-center">
+            <WeatherIcon className="mx-auto size-4 text-sky-blue" />
+            <p className="mt-1.5 text-[9px] font-semibold text-warm-gray">당시 날씨</p>
+            <p className="mt-0.5 truncate text-[12px] font-bold text-deep-brown">{weather.label}</p>
+          </div>
+        </section>
+
+        <section
+          aria-label="여행 완료 일기"
+          className="mx-4 mt-3 rounded-2xl border border-border bg-card-surface px-4 py-3"
+        >
+          <div className="flex items-center gap-2">
+            <span className="flex size-7 items-center justify-center rounded-full bg-soft-orange/10">
+              <BookOpen className="size-3.5 text-soft-orange" />
+            </span>
+            <h3 className="text-[14px] font-bold text-deep-brown">여행 완료 일기</h3>
+          </div>
+          <p className="mt-2 min-h-4 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-warm-gray">
+            {overallReview?.trim() ?? ''}
+          </p>
+        </section>
+
+        <div className="mx-4 mt-4">
+          <div className="mb-3 flex items-center justify-between gap-3 px-0.5">
+            <div>
+              <h3 className="text-[15px] font-bold text-deep-brown">이동 흐름</h3>
+              <p className="mt-0.5 text-[10px] text-warm-gray">출발부터 도착까지 방문한 순서예요.</p>
             </div>
+            <span className="shrink-0 text-[11px] font-medium text-sage-green">{orderedStops.length}곳 방문</span>
+          </div>
+
+          <div className="flex gap-3">
+            <div className="flex shrink-0 flex-col items-center pt-1">
+              <div className="z-10 flex size-7 items-center justify-center rounded-full border-2 border-sage-green bg-card-surface">
+                <MapPin className="size-3.5 text-sage-green" />
+              </div>
+              {orderedStops.length > 0 && <div className="mt-1 min-h-8 w-0.5 flex-1 bg-sage-green/25" />}
+            </div>
+            <div className="min-w-0 flex-1 pb-4 pt-0.5">
+              <div className="rounded-xl border border-sage-green/10 bg-sage-green-light/55 px-3 py-2.5">
+                <p className="text-[9px] font-bold text-sage-green">출발</p>
+                <p className="mt-0.5 truncate text-[13px] font-semibold text-deep-brown">{course.startLocation}</p>
+              </div>
+            </div>
+          </div>
+
+          {orderedStops.map((stop, index) => (
+            <StopCard key={stop.coursePlaceId} stop={stop} isLast={index === orderedStops.length - 1} />
           ))}
         </div>
-        <p className="text-[10px] text-warm-gray font-medium truncate max-w-[120px] text-right">도착</p>
-      </div>
-    </div>
-  )
-}
-
-// ─── Main component ───────────────────────────────────────────────────────────
-
-export default function CourseDetailScreen({
-  albumTitle,
-  albumImage,
-  pet,
-  from,
-  to,
-  distance,
-  duration,
-  transport,
-  weather,
-  temperature,
-  overallRating,
-  totalPhotos,
-  waypoints,
-  onBack,
-}: CourseDetailScreenProps) {
-  const TransportIcon = transport.includes('도보') ? Footprints : Car
-
-  return (
-    <div className="flex flex-col flex-1 bg-warm-beige overflow-hidden">
-      <TopBar title="코스 상세" showBack onBack={onBack} />
-
-      <div className="flex-1 overflow-y-auto no-scrollbar">
-        {/* Hero */}
-        <div className="relative h-52 mx-4 mt-4 rounded-card overflow-hidden">
-          <Image src={albumImage} alt={albumTitle} fill className="object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
-          <div className="absolute bottom-0 left-0 right-0 p-4">
-            <h2 className="text-white text-[16px] font-bold text-balance leading-snug">{albumTitle}</h2>
-            <p className="text-white/75 text-[12px] mt-1">{pet}</p>
-          </div>
-          {/* Overall rating badge */}
-          <div className="absolute top-3 right-3 flex items-center gap-1 bg-black/40 backdrop-blur-sm rounded-full px-2.5 py-1">
-            <Star className="w-3.5 h-3.5 text-soft-orange fill-soft-orange" />
-            <span className="text-white text-[12px] font-bold">{overallRating}.0</span>
-          </div>
-        </div>
-
-        {/* Route header */}
-        <div className="mx-4 mt-3 p-4 bg-card-surface rounded-card border border-border">
-          {/* From → To */}
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex-1 min-w-0">
-              <p className="text-[9px] font-semibold text-warm-gray uppercase tracking-wide mb-0.5">출발지</p>
-              <p className="text-[12px] font-semibold text-deep-brown truncate">{from}</p>
-            </div>
-            <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
-              <div className="w-2.5 h-2.5 rounded-full bg-sage-green border-2 border-white shadow-sm" />
-              <div className="w-px h-5 bg-sage-green/30" />
-              <TransportIcon className="w-4 h-4 text-soft-orange" />
-              <div className="w-px h-5 bg-danger/30" />
-              <div className="w-2.5 h-2.5 rounded-full bg-danger border-2 border-white shadow-sm" />
-            </div>
-            <div className="flex-1 min-w-0 text-right">
-              <p className="text-[9px] font-semibold text-warm-gray uppercase tracking-wide mb-0.5">도착지</p>
-              <p className="text-[12px] font-semibold text-deep-brown truncate">{to}</p>
-            </div>
-          </div>
-
-          {/* 5-chip stat row */}
-          <div className="flex gap-2">
-            <StatChip icon={Navigation} label="거리" value={distance} iconClass="text-soft-orange" />
-            <StatChip icon={Clock} label="소요시간" value={duration} iconClass="text-soft-orange" />
-            <StatChip icon={CloudSun} label="날씨" value={weather} iconClass="text-sky-blue" />
-            <StatChip icon={Thermometer} label="기온" value={`${temperature}°`} iconClass="text-danger" />
-            <StatChip icon={Camera} label="사진" value={`${totalPhotos}장`} iconClass="text-sage-green" />
-          </div>
-        </div>
-
-        {/* Route map */}
-        <RouteMapSVG stopCount={waypoints.length} />
-
-        {/* Overall rating row */}
-        <div className="mx-4 mt-3 flex items-center justify-between px-4 py-3 bg-card-surface rounded-card border border-border">
-          <p className="text-[13px] font-semibold text-deep-brown">전체 만족도</p>
-          <div className="flex items-center gap-2">
-            <StarRow rating={overallRating} size="md" />
-            <span className="text-[13px] font-bold text-soft-orange">{overallRating}.0</span>
-          </div>
-        </div>
-
-        {/* Waypoint timeline */}
-        <div className="mx-4 mt-4 mb-2">
-          <p className="text-[13px] font-bold text-deep-brown mb-3">
-            방문 코스 <span className="text-warm-gray font-normal">({waypoints.length}곳)</span>
-          </p>
-          <div>
-            {waypoints.map((stop, i) => (
-              <WaypointCard key={stop.order} stop={stop} isLast={i === waypoints.length - 1} />
-            ))}
-          </div>
-        </div>
-
-        <div className="pb-10" />
+        <div className="pb-4" />
       </div>
     </div>
   )

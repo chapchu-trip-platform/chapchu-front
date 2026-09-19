@@ -26,6 +26,17 @@ describe('community API requests', () => {
     await api.fetchPosts('latest')
     expect(apiClient.get).toHaveBeenLastCalledWith('/posts', { params: { sort: 'latest', size: 20 }, signal: undefined })
   })
+
+  it('requests only travel review posts for the travel review board', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ data: { posts: [], nextCursor: null } })
+
+    await api.fetchPosts('latest', undefined, undefined, 'TRAVEL_REVIEW')
+
+    expect(apiClient.get).toHaveBeenCalledWith('/posts', {
+      params: { sort: 'latest', size: 20, category: 'TRAVEL_REVIEW' },
+      signal: undefined,
+    })
+  })
   it('loads detail independently and encodes a path segment', async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ data: postFixture })
     await api.fetchPost('post/?#')

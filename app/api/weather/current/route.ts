@@ -17,8 +17,7 @@ const ERROR_HEADERS = {
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-function parseLocation(request?: Request): KmaWeatherLocation | undefined {
-  if (!request) return undefined
+function parseLocation(request: Request): KmaWeatherLocation | undefined {
   const url = new URL(request.url)
   const nxValue = url.searchParams.get('nx')
   const nyValue = url.searchParams.get('ny')
@@ -41,7 +40,7 @@ function parseLocation(request?: Request): KmaWeatherLocation | undefined {
   return { name: '현재 위치 주변', gridX, gridY }
 }
 
-export async function GET(request?: Request) {
+export async function GET(request: Request) {
   const serviceKey = process.env.KMA_SERVICE_KEY?.trim()
 
   if (!serviceKey) {

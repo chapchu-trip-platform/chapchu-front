@@ -10,6 +10,10 @@ import { Input } from '@/components/ui/input'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
 import { createPost, fetchMyPosts, fetchPost, updatePost } from '@/features/community/api/community-api'
 import { uploadPhotoFiles, type SuccessfulPhotoUpload } from '@/features/photos/api/photo-api'
+import {
+  isSupportedMetadataSafeImage,
+  METADATA_SAFE_IMAGE_ACCEPT,
+} from '@/features/photos/lib/sanitize-image-file'
 import { useCommunityAction, useCommunityQuery } from '@/features/community/hooks/use-community-request'
 import { communityErrorMessage } from '@/features/community/lib/community-model'
 import { publishDiagnosticEvent } from '@/features/devtools/lib/dev-diagnostics'
@@ -90,6 +94,9 @@ function postPublishErrorMessage(error: unknown) {
     return `사진 업로드는 완료됐지만 게시글 등록에 실패했어요. 초안과 선택한 사진은 유지했어요. ${communityErrorMessage(failure.cause)}`
   }
   if (failure?.name !== 'PhotoUploadError') return communityErrorMessage(error)
+  if (failure.stage === 'metadata-sanitization') {
+    return '사진의 위치·촬영 정보 등 개인정보를 안전하게 제거하지 못했어요. 다른 사진을 선택해 주세요.'
+  }
   if (failure.stage === 'upload-ticket') {
     if (failure.reason === 'contract') {
       return '사진 업로드 준비 응답을 확인하지 못했어요. 개발 진단 화면에서 응답 계약 기록을 확인해 주세요.'
@@ -407,7 +414,7 @@ function Editor({ initialPost, returnToPrevious = false }: { initialPost?: Post;
   const selectPhotos = (files: FileList | null) => {
     if (!files) return
     const candidates = Array.from(files)
-    const images = candidates.filter((file) => file.type.startsWith('image/'))
+    const images = candidates.filter(isSupportedMetadataSafeImage)
     if (images.length !== candidates.length) {
       setPhotoError('이미지 파일만 첨부할 수 있어요.')
       return
@@ -544,7 +551,7 @@ function Editor({ initialPost, returnToPrevious = false }: { initialPost?: Post;
             <input
               ref={photoInputRef}
               type="file"
-              accept="image/*"
+              accept={METADATA_SAFE_IMAGE_ACCEPT}
               multiple
               className="sr-only"
               aria-label="게시글 사진 선택"

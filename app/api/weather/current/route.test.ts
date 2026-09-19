@@ -2,6 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GET } from '@/app/api/weather/current/route'
 import { clearKmaWeatherCache } from '@/app/api/weather/current/kma-weather.server'
 
+function weatherRequest() {
+  return new Request('http://localhost/api/weather/current')
+}
+
 function kmaResponse<T>(items: T[]) {
   return new Response(
     JSON.stringify({
@@ -40,7 +44,7 @@ describe('/api/weather/current route', () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
 
-    const response = await GET()
+    const response = await GET(weatherRequest())
     const body = await response.text()
 
     expect(response.status).toBe(503)
@@ -75,7 +79,7 @@ describe('/api/weather/current route', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const response = await GET()
+    const response = await GET(weatherRequest())
     const body = await response.text()
     const data = JSON.parse(body) as Record<string, unknown>
 
@@ -106,8 +110,8 @@ describe('/api/weather/current route', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const firstResponse = await GET()
-    const secondResponse = await GET()
+    const firstResponse = await GET(weatherRequest())
+    const secondResponse = await GET(weatherRequest())
 
     expect(firstResponse.status).toBe(200)
     expect(secondResponse.status).toBe(200)
@@ -211,7 +215,7 @@ describe('/api/weather/current route', () => {
   it('returns a generic error without leaking the key when KMA is unavailable', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network failed')))
 
-    const response = await GET()
+    const response = await GET(weatherRequest())
     const body = await response.text()
 
     expect(response.status).toBe(502)

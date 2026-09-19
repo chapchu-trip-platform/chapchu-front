@@ -57,6 +57,14 @@ describe('community contract adapters', () => {
       nextCursor: null,
     })
   })
+  it('preserves the travel review category when the server returns it', () => {
+    const summary = {
+      id: 'travel-summary', title: '여행 기록', nickname: '작성자', recommendationCount: 0, commentCount: 0,
+      thumbnail: null, category: 'TRAVEL_REVIEW', createdAt: null,
+    }
+    expect(parsePostSummary(summary).category).toBe('TRAVEL_REVIEW')
+    expect(parsePost({ ...postFixture, category: 'TRAVEL_REVIEW' }).category).toBe('TRAVEL_REVIEW')
+  })
   it('does not treat an opaque thumbnail photo key as a browser URL', () => {
     const summary = {
       id: 'summary-1', title: '요약 게시글', nickname: '작성자', recommendationCount: 0, commentCount: 0,

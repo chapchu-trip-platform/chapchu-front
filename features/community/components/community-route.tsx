@@ -4,7 +4,7 @@ import CommunityScreen from '@/components/screens/community-screen'
 
 interface CommunityRouteProps {
   initialPostId?: string
-  initialTab?: 'free'
+  initialTab?: 'free' | 'review'
 }
 
 export default function CommunityRoute({ initialPostId, initialTab }: CommunityRouteProps) {

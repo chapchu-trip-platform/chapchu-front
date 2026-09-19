@@ -1,4 +1,4 @@
-import { REVIEW_WEATHER, type Comment, type PhotoDownload, type Post, type PostPage, type PostPhoto, type PostSummary, type Review } from '@/features/community/types/community'
+import { POST_CATEGORIES, REVIEW_WEATHER, type Comment, type PhotoDownload, type Post, type PostCategory, type PostPage, type PostPhoto, type PostSummary, type Review } from '@/features/community/types/community'
 
 const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 const text = (value: unknown, max = 20_000): value is string => typeof value === 'string' && value.length <= max
@@ -6,6 +6,7 @@ const id = (value: unknown): value is string => text(value, 200) && value.trim()
 const nullableId = (value: unknown): value is string | null => value === null || id(value)
 const count = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
 const date = (value: unknown): value is string | null => value === null || (text(value, 100) && Number.isFinite(Date.parse(value)))
+const postCategory = (value: unknown): value is PostCategory => typeof value === 'string' && POST_CATEGORIES.includes(value as PostCategory)
 
 /** Remote photos are rendered by the browser, never fetched by a server-side proxy. */
 export function safePhotoUrl(value: string | null): string | null {
@@ -29,12 +30,16 @@ export function parsePost(value: unknown): Post {
       typeof value.recommended !== 'boolean' || typeof value.bookmarked !== 'boolean' || !photos) {
     throw new Error('Invalid community post response.')
   }
-  return {
+  const parsed: Post = {
     ...(value as unknown as Post),
     authorProfilePhotoUrl: safePhotoUrl((value.authorProfilePhotoUrl as string | null | undefined) ?? null),
     photoUrl: safePhotoUrl(value.photoUrl as string | null),
     photos,
   }
+  if (value.category !== undefined && value.category !== null && !postCategory(value.category)) {
+    throw new Error('Invalid community post category.')
+  }
+  return parsed
 }
 
 function parsePostPhoto(value: unknown): PostPhoto {
@@ -71,7 +76,7 @@ export function parsePostSummary(value: unknown): PostSummary {
   }
 
   // photoKey is always opaque storage metadata; only the photo read API may return a URL.
-  return {
+  const parsed: PostSummary = {
     id: value.id,
     photoId: record(thumbnail) && typeof thumbnail.photoKey === 'string' && thumbnail.photoKey.trim()
       ? thumbnail.photoId as string
@@ -86,6 +91,11 @@ export function parsePostSummary(value: unknown): PostSummary {
       : null,
     createdAt: value.createdAt,
   }
+  if (value.category !== undefined && value.category !== null) {
+    if (!postCategory(value.category)) throw new Error('Invalid community post category.')
+    parsed.category = value.category
+  }
+  return parsed
 }
 
 export function parsePostSummaries(value: unknown): PostSummary[] {
