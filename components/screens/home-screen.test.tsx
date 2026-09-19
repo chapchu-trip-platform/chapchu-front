@@ -1,7 +1,8 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import HomeScreen from '@/components/screens/home-screen'
 import type { HotPost } from '@/features/home/types/home'
+import type { TravelStamp } from '@/features/stamps/types/stamp'
 
 vi.mock('@/features/map/components/tmap-map', () => ({
   default: ({
@@ -47,6 +48,17 @@ const hotPosts: HotPost[] = [
   },
 ]
 
+const stamps: TravelStamp[] = ['강원', '경기', '제주', '경북', '전남', '충남'].map(
+  (stampName, index) => ({
+    stampId: `stamp-${stampName}`,
+    stampName,
+    imageUrl: null,
+    acquired: true,
+    stampCount: index + 1,
+    firstAcquiredAt: `2026-09-${String(18 - index).padStart(2, '0')}T10:00:00+09:00`,
+  })
+)
+
 const defaultProps = {
   onStartTrip: vi.fn(),
   onViewAllPosts: vi.fn(),
@@ -55,6 +67,9 @@ const defaultProps = {
   locationStatus: 'success' as const,
   petNames: ['루이'],
   petNamesStatus: 'success' as const,
+  stamps,
+  acquiredStampCount: 6,
+  totalStampCount: 9,
   hotPosts,
   hotPostsStatus: 'success' as const,
   onRetryHotPosts: vi.fn(),
@@ -99,11 +114,27 @@ describe('HomeScreen', () => {
     expect(screen.getByText('HOT')).toHaveClass('leading-none')
   })
 
+  it('shows at most five acquired stamps immediately above the trip CTA', () => {
+    render(<HomeScreen {...defaultProps} />)
+
+    const stampRegion = screen.getByRole('region', { name: '여행 스탬프' })
+    expect(within(stampRegion).getByLabelText('전체 9개 중 6개 획득')).toHaveTextContent('6/9')
+    expect(within(stampRegion).getAllByRole('listitem')).toHaveLength(5)
+    expect(within(stampRegion).getByText('강원')).toBeInTheDocument()
+    expect(within(stampRegion).queryByText('충남')).not.toBeInTheDocument()
+
+    const sections = Array.from(document.querySelectorAll('[data-motion-section]')).map(
+      (section) => section.getAttribute('data-motion-section')
+    )
+    expect(sections).toEqual(['map', 'weather', 'stamps', 'trip-cta', 'hot-posts'])
+  })
+
   it('applies Motion transitions only to the Home content sections', () => {
     render(<HomeScreen {...defaultProps} />)
 
     expect(document.querySelector('[data-motion-section="map"]')).toBeInTheDocument()
     expect(document.querySelector('[data-motion-section="weather"]')).toBeInTheDocument()
+    expect(document.querySelector('[data-motion-section="stamps"]')).toBeInTheDocument()
     expect(document.querySelector('[data-motion-section="trip-cta"]')).toBeInTheDocument()
     expect(document.querySelector('[data-motion-section="nearby"]')).not.toBeInTheDocument()
     expect(document.querySelector('[data-motion-section="hot-posts"]')).toBeInTheDocument()

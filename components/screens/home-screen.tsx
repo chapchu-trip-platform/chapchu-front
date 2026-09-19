@@ -7,6 +7,7 @@ import { LazyMotion, domAnimation, m, useReducedMotion } from 'motion/react'
 import { Button } from '@/components/ui/button'
 import { PhotoImage } from '@/components/common/photo-image'
 import WeatherCard from '@/features/home/components/weather-card'
+import HomeStampSection from '@/features/home/components/home-stamp-section'
 import {
   formatPetCompanion,
   type HomeDataStatus,
@@ -14,6 +15,7 @@ import {
 } from '@/features/home/types/home'
 import TmapMap from '@/features/map/components/tmap-map'
 import type { LocationLoadStatus } from '@/features/location/stores/location-store'
+import type { TravelStamp } from '@/features/stamps/types/stamp'
 import type { CurrentWeather, WeatherLoadStatus } from '@/types/weather'
 
 interface HomeScreenProps {
@@ -24,6 +26,9 @@ interface HomeScreenProps {
   locationStatus: LocationLoadStatus
   petNames: string[]
   petNamesStatus: HomeDataStatus
+  stamps: TravelStamp[]
+  acquiredStampCount: number
+  totalStampCount: number
   hotPosts: HotPost[]
   hotPostsStatus: HomeDataStatus
   onRetryHotPosts: () => void
@@ -52,6 +57,9 @@ export default function HomeScreen({
   locationStatus,
   petNames,
   petNamesStatus,
+  stamps,
+  acquiredStampCount,
+  totalStampCount,
   hotPosts,
   hotPostsStatus,
   onRetryHotPosts,
@@ -120,12 +128,30 @@ export default function HomeScreen({
       <WeatherCard status={weatherStatus} weather={weather} onRetry={onRetryWeather} />
       </m.div>
 
+      {/* Recently Acquired Stamps */}
+      <m.div
+        initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          delay: prefersReducedMotion ? 0 : 0.16,
+          duration: prefersReducedMotion ? 0 : 0.38,
+          ease: HOME_MOTION_EASE,
+        }}
+        data-motion-section="stamps"
+      >
+        <HomeStampSection
+          stamps={stamps}
+          acquiredCount={acquiredStampCount}
+          totalCount={totalStampCount}
+        />
+      </m.div>
+
       {/* Travel Start CTA */}
       <m.div
         initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{
-          delay: prefersReducedMotion ? 0 : 0.16,
+          delay: prefersReducedMotion ? 0 : 0.22,
           duration: prefersReducedMotion ? 0 : 0.4,
           ease: HOME_MOTION_EASE,
         }}
@@ -168,7 +194,7 @@ export default function HomeScreen({
         initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{
-          delay: prefersReducedMotion ? 0 : 0.22,
+          delay: prefersReducedMotion ? 0 : 0.28,
           duration: prefersReducedMotion ? 0 : 0.42,
           ease: HOME_MOTION_EASE,
         }}

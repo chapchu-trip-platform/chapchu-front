@@ -109,6 +109,8 @@ describe('HomeRoute data and location flow', () => {
     expect(await screen.findByText('루이와 1마리')).toBeInTheDocument()
     expect(await screen.findByText('인기 여행기')).toBeInTheDocument()
     expect(await screen.findByText('27°C')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '여행 스탬프' })).toBeInTheDocument()
+    expect(screen.getAllByRole('listitem')).toHaveLength(5)
     expect(fetchHomeSummary).toHaveBeenCalledOnce()
     expect(fetchPopularPosts).toHaveBeenCalledOnce()
     expect(screen.getByTestId('home-map')).toHaveAttribute('data-lat', '35.8552083333333')

@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import HomeScreen from '@/components/screens/home-screen'
+import { mockStampCollection } from '@/data/mock/stamps'
 import { fetchHomeSummary, fetchPopularPosts } from '@/features/home/api/home-api'
 import { convertLatLngToKmaGrid } from '@/features/home/lib/kma-grid'
+import { selectHomeStamps } from '@/features/home/lib/home-stamps'
 import type {
   HomeDataStatus,
   HomeSummary,
@@ -17,6 +19,8 @@ const DEFAULT_HOME_LOCATION = {
   center: { lat: 35.8552083333333, lng: 128.632866666666 },
   label: '대구 수성구 기준 · 위치 확인 전',
 } as const
+
+const HOME_STAMPS = selectHomeStamps(mockStampCollection.stamps)
 
 const WEATHER_CONDITION_CODES = new Set([
   'CLEAR',
@@ -259,6 +263,9 @@ export default function HomeRoute() {
       locationStatus={locationStatus}
       petNames={summary?.petNames ?? []}
       petNamesStatus={summaryStatus}
+      stamps={HOME_STAMPS}
+      acquiredStampCount={mockStampCollection.acquiredCount}
+      totalStampCount={mockStampCollection.totalCount}
       hotPosts={hotPosts}
       hotPostsStatus={hotPostsStatus}
       onRetryHotPosts={retryHotPosts}
