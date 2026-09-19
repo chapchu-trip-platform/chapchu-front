@@ -17,7 +17,7 @@ afterEach(() => {
 })
 
 describe('pets API', () => {
-  it('uses a local pet for the development test account', async () => {
+  it('returns no local pet mock for the development test account', async () => {
     useAuthStore.getState().startDemoSession()
     let requestedBackend = false
     apiClient.defaults.adapter = async (config) => {
@@ -25,9 +25,7 @@ describe('pets API', () => {
       return response(config, [])
     }
 
-    await expect(fetchSelectablePets()).resolves.toEqual([
-      { id: 'demo-pet-1', name: '골든이' },
-    ])
+    await expect(fetchSelectablePets()).resolves.toEqual([])
     expect(requestedBackend).toBe(false)
   })
 

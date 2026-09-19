@@ -7,6 +7,7 @@ import {
   fetchMyAlbums,
 } from '@/features/album/api/albums-api'
 import type { AlbumSummary } from '@/features/album/types/album'
+import { useAuthStore } from '@/features/auth/stores/auth-store'
 import { apiClient } from '@/lib/api/client'
 import { hideTravelPhoto } from '@/features/travel/lib/hidden-travel-photos'
 
@@ -31,10 +32,24 @@ const summary: AlbumSummary = {
 
 afterEach(() => {
   apiClient.defaults.adapter = originalAdapter
+  useAuthStore.setState({ status: 'idle' })
   localStorage.clear()
+  sessionStorage.clear()
 })
 
 describe('album API', () => {
+  it('returns an empty album list for the development session without local mock data', async () => {
+    useAuthStore.getState().startDemoSession()
+    let requestedBackend = false
+    apiClient.defaults.adapter = async (config) => {
+      requestedBackend = true
+      return response(config, [])
+    }
+
+    await expect(fetchMyAlbums()).resolves.toEqual([])
+    expect(requestedBackend).toBe(false)
+  })
+
   it('loads the authenticated album groups from the documented endpoint', async () => {
     const captured: InternalAxiosRequestConfig[] = []
     apiClient.defaults.adapter = async (config) => {

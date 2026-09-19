@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
 import MobileShell from '@/components/layout/mobile-shell'
 import HomeScreen from '@/components/screens/home-screen'
+import { mockStampCollection } from '@/data/mock/stamps'
+import { selectHomeStamps } from '@/features/home/lib/home-stamps'
 
 const weather = {
   observedAt: '2026-08-22T12:00:00+09:00',
@@ -42,11 +44,9 @@ export const Default: Story = {
     locationStatus: 'success',
     petNames: ['루이', '바다'],
     petNamesStatus: 'success',
-    nearbyPlaces: [
-      { id: 'place-1', name: '수성못 산책로', imageUrl: '/images/place-park.png', address: '대구광역시 수성구', rating: 4.7, reviewCount: 32, distanceMeters: 420, hasPetPolicy: true },
-    ],
-    nearbyPlacesStatus: 'success',
-    onRetryNearbyPlaces: () => undefined,
+    stamps: selectHomeStamps(mockStampCollection.stamps),
+    acquiredStampCount: mockStampCollection.acquiredCount,
+    totalStampCount: mockStampCollection.totalCount,
     hotPosts: [
       {
         id: 'post-1',

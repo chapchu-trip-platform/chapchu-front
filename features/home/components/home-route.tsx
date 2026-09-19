@@ -3,17 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import HomeScreen from '@/components/screens/home-screen'
-import {
-  fetchHomeSummary,
-  fetchNearbyPlaces,
-  fetchPopularPosts,
-} from '@/features/home/api/home-api'
+import { mockStampCollection } from '@/data/mock/stamps'
+import { fetchHomeSummary, fetchPopularPosts } from '@/features/home/api/home-api'
 import { convertLatLngToKmaGrid } from '@/features/home/lib/kma-grid'
+import { selectHomeStamps } from '@/features/home/lib/home-stamps'
 import type {
   HomeDataStatus,
   HomeSummary,
   HotPost,
-  NearbyPlace,
 } from '@/features/home/types/home'
 import { useLocationStore } from '@/features/location/stores/location-store'
 import type { CurrentWeather, WeatherLoadStatus } from '@/types/weather'
@@ -22,6 +19,8 @@ const DEFAULT_HOME_LOCATION = {
   center: { lat: 35.8552083333333, lng: 128.632866666666 },
   label: '대구 수성구 기준 · 위치 확인 전',
 } as const
+
+const HOME_STAMPS = selectHomeStamps(mockStampCollection.stamps)
 
 const WEATHER_CONDITION_CODES = new Set([
   'CLEAR',
@@ -95,13 +94,10 @@ export default function HomeRoute() {
   const [summaryStatus, setSummaryStatus] = useState<HomeDataStatus>('loading')
   const [hotPosts, setHotPosts] = useState<HotPost[]>([])
   const [hotPostsStatus, setHotPostsStatus] = useState<HomeDataStatus>('loading')
-  const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([])
-  const [nearbyPlacesStatus, setNearbyPlacesStatus] = useState<HomeDataStatus>('loading')
   const [weather, setWeather] = useState<CurrentWeather | null>(null)
   const [weatherStatus, setWeatherStatus] = useState<WeatherLoadStatus>('loading')
   const weatherControllerRef = useRef<AbortController | null>(null)
   const postsControllerRef = useRef<AbortController | null>(null)
-  const nearbyControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     const summaryController = new AbortController()
@@ -146,8 +142,6 @@ export default function HomeRoute() {
       cancelLocationRequest()
       weatherControllerRef.current?.abort()
       weatherControllerRef.current = null
-      nearbyControllerRef.current?.abort()
-      nearbyControllerRef.current = null
     }
   }, [cancelLocationRequest, refreshLocation])
 
@@ -166,35 +160,6 @@ export default function HomeRoute() {
       : locationStatus === 'error'
         ? 'default'
         : null
-
-  const nearbyLatitude = locationPosition?.latitude ??
-    (locationStatus === 'error' ? DEFAULT_HOME_LOCATION.center.lat : null)
-  const nearbyLongitude = locationPosition?.longitude ??
-    (locationStatus === 'error' ? DEFAULT_HOME_LOCATION.center.lng : null)
-
-  useEffect(() => {
-    if (nearbyLatitude === null || nearbyLongitude === null) return
-    nearbyControllerRef.current?.abort()
-    const controller = new AbortController()
-    nearbyControllerRef.current = controller
-
-    void fetchNearbyPlaces(
-      { latitude: nearbyLatitude, longitude: nearbyLongitude },
-      controller.signal
-    )
-      .then((places) => {
-        if (nearbyControllerRef.current !== controller) return
-        setNearbyPlaces(places)
-        setNearbyPlacesStatus('success')
-      })
-      .catch((error: unknown) => {
-        if (isAbortError(error) || nearbyControllerRef.current !== controller) return
-        setNearbyPlaces([])
-        setNearbyPlacesStatus('error')
-      })
-
-    return () => controller.abort()
-  }, [nearbyLatitude, nearbyLongitude])
 
   useEffect(() => {
     if (weatherRequestKey === null) return
@@ -277,34 +242,6 @@ export default function HomeRoute() {
       })
   }
 
-  const retryNearbyPlaces = () => {
-    const latestLocation = useLocationStore.getState()
-    const center = latestLocation.position
-      ? {
-          latitude: latestLocation.position.latitude,
-          longitude: latestLocation.position.longitude,
-        }
-      : {
-          latitude: DEFAULT_HOME_LOCATION.center.lat,
-          longitude: DEFAULT_HOME_LOCATION.center.lng,
-        }
-    nearbyControllerRef.current?.abort()
-    const controller = new AbortController()
-    nearbyControllerRef.current = controller
-    setNearbyPlacesStatus('loading')
-    void fetchNearbyPlaces(center, controller.signal)
-      .then((places) => {
-        if (nearbyControllerRef.current !== controller) return
-        setNearbyPlaces(places)
-        setNearbyPlacesStatus('success')
-      })
-      .catch((error: unknown) => {
-        if (isAbortError(error) || nearbyControllerRef.current !== controller) return
-        setNearbyPlaces([])
-        setNearbyPlacesStatus('error')
-      })
-  }
-
   const mapCenter = locationPosition
     ? { lat: locationPosition.latitude, lng: locationPosition.longitude }
     : DEFAULT_HOME_LOCATION.center
@@ -326,9 +263,9 @@ export default function HomeRoute() {
       locationStatus={locationStatus}
       petNames={summary?.petNames ?? []}
       petNamesStatus={summaryStatus}
-      nearbyPlaces={nearbyPlaces}
-      nearbyPlacesStatus={nearbyPlacesStatus}
-      onRetryNearbyPlaces={retryNearbyPlaces}
+      stamps={HOME_STAMPS}
+      acquiredStampCount={mockStampCollection.acquiredCount}
+      totalStampCount={mockStampCollection.totalCount}
       hotPosts={hotPosts}
       hotPostsStatus={hotPostsStatus}
       onRetryHotPosts={retryHotPosts}

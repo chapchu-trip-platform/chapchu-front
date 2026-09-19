@@ -237,25 +237,8 @@ async function fetchCourseReviewStops(courseId: string, signal?: AbortSignal) {
   }
 }
 
-const DEMO_ALBUMS: AlbumSummary[] = [
-  {
-    courseId: 'demo-course-1',
-    travelDate: '2026-09-12',
-    petId: 'demo-pet-1',
-    photos: [
-      {
-        photoId: 'demo-photo-1',
-        downloadUrl: '/images/album-cover.png',
-        takenAt: '2026-09-12',
-        externalPlaceId: 'demo-place-1',
-        isPublic: false,
-      },
-    ],
-  },
-]
-
 export async function fetchMyAlbums(signal?: AbortSignal): Promise<AlbumSummary[]> {
-  if (isDemoSessionActive()) return DEMO_ALBUMS
+  if (isDemoSessionActive()) return []
 
   const [albumResponse, courseResponse] = await Promise.all([
     apiClient.get(API_ENDPOINTS.albums.mine, { signal }),
@@ -307,42 +290,6 @@ export async function fetchAlbumDetail(
   summary: AlbumSummary,
   signal?: AbortSignal
 ): Promise<AlbumDetail> {
-  if (isDemoSessionActive()) {
-    return {
-      summary,
-      course: {
-        id: summary.courseId,
-        travelDate: summary.travelDate ?? '',
-        startLocation: '서울역',
-        endLocation: '서울숲',
-        places: [
-          {
-            id: 'demo-course-place-1',
-            externalPlaceId: 'demo-place-1',
-            name: '서울숲',
-            imageUrl: '/images/place-park.png',
-            latitude: 37.5444,
-            longitude: 127.0374,
-            visitOrder: 1,
-            isFinal: true,
-            petPolicy: null,
-          },
-        ],
-      },
-      stops: [
-        {
-          coursePlaceId: 'demo-course-place-1',
-          externalPlaceId: 'demo-place-1',
-          placeName: '서울숲',
-          visitOrder: 1,
-          imageUrl: '/images/place-park.png',
-          review: null,
-          photos: sortAlbumPhotos(summary.photos),
-        },
-      ],
-    }
-  }
-
   const [course, reviewStops] = await Promise.all([
     fetchCourseById(summary.courseId, signal, { allowLegacyFields: true }),
     fetchCourseReviewStops(summary.courseId, signal),

@@ -1,10 +1,9 @@
 import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { afterEach, describe, expect, it } from 'vitest'
-import { fetchHomeSummary, fetchNearbyPlaces, fetchPopularPosts } from '@/features/home/api/home-api'
-import { apiClient, publicApiClient } from '@/lib/api/client'
+import { fetchHomeSummary, fetchPopularPosts } from '@/features/home/api/home-api'
+import { apiClient } from '@/lib/api/client'
 
 const originalAdapter = apiClient.defaults.adapter
-const originalPublicAdapter = publicApiClient.defaults.adapter
 
 function response(config: InternalAxiosRequestConfig, data: unknown): AxiosResponse {
   return { config, data, headers: {}, status: 200, statusText: 'OK' }
@@ -28,7 +27,6 @@ function post(recommendationCount: number) {
 
 afterEach(() => {
   apiClient.defaults.adapter = originalAdapter
-  publicApiClient.defaults.adapter = originalPublicAdapter
 })
 
 describe('Home API', () => {
@@ -80,31 +78,6 @@ describe('Home API', () => {
     expect(posts.map((post) => post.id)).toEqual(['post-4', 'post-3', 'post-2'])
     expect(posts[0].photoUrl).toBe('https://example.com/photo.jpg')
     expect(posts[0]).toMatchObject({ nickname: '작성자 4', commentCount: 5 })
-  })
-
-  it('requests nearby places within 1500 meters and maps them by distance', async () => {
-    let capturedConfig: InternalAxiosRequestConfig | undefined
-    publicApiClient.defaults.adapter = async (config) => {
-      capturedConfig = config
-      return response(config, [{
-        externalPlaceId: 'place-1',
-        placeName: '산책 공원',
-        placeImageUrl: 'https://example.com/place.jpg',
-        address: '대구 수성구',
-        latitude: 35.856,
-        longitude: 128.633,
-        rating: 4.5,
-        reviewNum: 8,
-        petPolicy: { leashRequired: true },
-      }])
-    }
-
-    const places = await fetchNearbyPlaces({ latitude: 35.8552, longitude: 128.6329 })
-
-    expect(capturedConfig?.url).toBe('/places/nearby')
-    expect(capturedConfig?.params).toMatchObject({ lat: 35.855, lng: 128.633, radiusMeters: 1500 })
-    expect(places[0]).toMatchObject({ id: 'place-1', name: '산책 공원', hasPetPolicy: true })
-    expect(places[0].distanceMeters).toBeLessThan(1500)
   })
 
   it('rejects an invalid post response instead of rendering partial data', async () => {

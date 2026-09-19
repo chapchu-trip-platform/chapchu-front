@@ -20,7 +20,6 @@ export const API_ENDPOINTS = {
     summary: '/home',
   },
   places: {
-    nearby: '/places/nearby',
     recommended: '/recommended-places',
     detail: (externalPlaceId: string) => `/places/${pathId(externalPlaceId)}`,
   },
