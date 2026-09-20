@@ -27,8 +27,10 @@ interface HomeScreenProps {
   petNames: string[]
   petNamesStatus: HomeDataStatus
   stamps: TravelStamp[]
+  stampsStatus: HomeDataStatus
   acquiredStampCount: number
   totalStampCount: number
+  onRetryStamps: () => void
   hotPosts: HotPost[]
   hotPostsStatus: HomeDataStatus
   onRetryHotPosts: () => void
@@ -58,8 +60,10 @@ export default function HomeScreen({
   petNames,
   petNamesStatus,
   stamps,
+  stampsStatus,
   acquiredStampCount,
   totalStampCount,
+  onRetryStamps,
   hotPosts,
   hotPostsStatus,
   onRetryHotPosts,
@@ -141,8 +145,10 @@ export default function HomeScreen({
       >
         <HomeStampSection
           stamps={stamps}
+          status={stampsStatus}
           acquiredCount={acquiredStampCount}
           totalCount={totalStampCount}
+          onRetry={onRetryStamps}
         />
       </m.div>
 

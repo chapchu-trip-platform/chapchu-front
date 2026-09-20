@@ -67,8 +67,10 @@ const defaultProps = {
   petNames: ['루이'],
   petNamesStatus: 'success' as const,
   stamps,
+  stampsStatus: 'success' as const,
   acquiredStampCount: 6,
   totalStampCount: 17,
+  onRetryStamps: vi.fn(),
   hotPosts,
   hotPostsStatus: 'success' as const,
   onRetryHotPosts: vi.fn(),
@@ -121,11 +123,24 @@ describe('HomeScreen', () => {
     expect(within(stampRegion).getAllByRole('listitem')).toHaveLength(5)
     expect(within(stampRegion).getByText('강원')).toBeInTheDocument()
     expect(within(stampRegion).queryByText('충남')).not.toBeInTheDocument()
+    expect(within(stampRegion).getByRole('img', { name: '강원 여행 스탬프' })).toHaveAttribute(
+      'src',
+      expect.stringContaining('/stamps/achieved/gangwon.png')
+    )
 
     const sections = Array.from(document.querySelectorAll('[data-motion-section]')).map(
       (section) => section.getAttribute('data-motion-section')
     )
     expect(sections).toEqual(['map', 'weather', 'stamps', 'trip-cta', 'hot-posts'])
+  })
+
+  it('explains when the user has not acquired a travel stamp yet', () => {
+    render(<HomeScreen {...defaultProps} stamps={[]} acquiredStampCount={0} />)
+
+    const stampRegion = screen.getByRole('region', { name: '여행 스탬프' })
+    expect(stampRegion).toHaveTextContent(
+      '아직 획득한 여행 스탬프가 없어요.여행을 완료하면 이곳에 표시돼요.'
+    )
   })
 
   it('applies Motion transitions only to the Home content sections', () => {
