@@ -26,13 +26,10 @@ export const API_ENDPOINTS = {
   courses: {
     create: '/courses',
     detail: (courseId: string) => `/courses/${pathId(courseId)}`,
+    delete: (courseId: string) => `/courses/${pathId(courseId)}`,
     reviews: (courseId: string) => `/courses/${pathId(courseId)}/reviews`,
     complete: (courseId: string) => `/courses/${pathId(courseId)}/complete`,
     mine: '/users/me/courses',
-  },
-  coursePlaces: {
-    visit: (coursePlaceId: string) =>
-      `/course-places/${pathId(coursePlaceId)}/visit`,
   },
   users: {
     me: '/users/me',

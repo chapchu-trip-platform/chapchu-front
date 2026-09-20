@@ -37,6 +37,16 @@ export interface TravelPhoto {
   takenAt: string | null
 }
 
+export interface CoursePlacePhotoUpload {
+  coursePlaceId: string
+  files: File[]
+}
+
+export interface UploadedCoursePlacePhotos {
+  coursePlaceId: string
+  photos: TravelPhoto[]
+}
+
 function isBoundedString(value: unknown, allowEmpty = false): value is string {
   return (
     typeof value === 'string' &&
@@ -113,27 +123,67 @@ export async function uploadCoursePlacePhotos(
   files: File[],
   signal?: AbortSignal
 ): Promise<TravelPhoto[]> {
-  const normalizedCoursePlaceId = coursePlaceId.trim()
-  if (!normalizedCoursePlaceId) throw new Error('Course place ID is required.')
-  if (files.length === 0 || files.length > MAX_PHOTOS_PER_REVIEW) {
-    throw new Error(`Travel photos must contain between 1 and ${MAX_PHOTOS_PER_REVIEW} files.`)
+  const [uploaded] = await uploadCoursePlacePhotoBatch(
+    [{ coursePlaceId, files }],
+    signal
+  )
+  return uploaded.photos
+}
+
+export async function uploadCoursePlacePhotoBatch(
+  uploads: CoursePlacePhotoUpload[],
+  signal?: AbortSignal
+): Promise<UploadedCoursePlacePhotos[]> {
+  if (uploads.length === 0) return []
+
+  const normalizedUploads = uploads.map((upload) => ({
+    coursePlaceId: upload.coursePlaceId.trim(),
+    files: upload.files,
+  }))
+  if (normalizedUploads.some((upload) => !upload.coursePlaceId)) {
+    throw new Error('Course place ID is required.')
   }
-  if (files.some((file) => !isSupportedTravelImage(file))) {
+  if (
+    normalizedUploads.some(
+      (upload) => upload.files.length === 0 || upload.files.length > MAX_PHOTOS_PER_REVIEW
+    )
+  ) {
+    throw new Error(
+      `Travel photos must contain between 1 and ${MAX_PHOTOS_PER_REVIEW} files per place.`
+    )
+  }
+
+  const pendingPhotos = normalizedUploads.flatMap((upload) =>
+    upload.files.map((file) => ({ coursePlaceId: upload.coursePlaceId, file }))
+  )
+  if (pendingPhotos.some(({ file }) => !isSupportedTravelImage(file))) {
     throw new Error(
       'Only image files in PNG, JPEG, WEBP, GIF, HEIC, HEIF, or AVIF format can be uploaded as travel photos.'
     )
   }
-  const sanitizedFiles = await sanitizeImageFiles(files, signal)
+  const sanitizedFiles = await sanitizeImageFiles(
+    pendingPhotos.map(({ file }) => file),
+    signal
+  )
   const uploadDate = formatLocalDate(Date.now())
 
   if (isDemoSessionActive()) {
-    return sanitizedFiles.map((file, index) => ({
-      photoId: `demo-photo-${Date.now()}-${index}`,
-      downloadUrl:
-        typeof URL.createObjectURL === 'function'
-          ? URL.createObjectURL(file)
-          : '/images/album-cover.png',
-      takenAt: uploadDate,
+    let photoIndex = 0
+    return normalizedUploads.map((upload) => ({
+      coursePlaceId: upload.coursePlaceId,
+      photos: upload.files.map(() => {
+        const file = sanitizedFiles[photoIndex]
+        const index = photoIndex
+        photoIndex += 1
+        return {
+          photoId: `demo-photo-${Date.now()}-${index}`,
+          downloadUrl:
+            typeof URL.createObjectURL === 'function'
+              ? URL.createObjectURL(file)
+              : '/images/album-cover.png',
+          takenAt: uploadDate,
+        }
+      }),
     }))
   }
 
@@ -166,8 +216,8 @@ export async function uploadCoursePlacePhotos(
   const { data: savedPhotos }: { data: unknown } = await apiClient.post(
     API_ENDPOINTS.photos.create,
     {
-      photos: uploadUrls.map((upload) => ({
-        coursePlaceId: normalizedCoursePlaceId,
+      photos: uploadUrls.map((upload, index) => ({
+        coursePlaceId: pendingPhotos[index].coursePlaceId,
         photoKey: upload.photoKey,
         takenAt: uploadDate,
       })),
@@ -182,8 +232,20 @@ export async function uploadCoursePlacePhotos(
     throw new Error('Saved photo response was invalid.')
   }
 
-  return Promise.all(
-    savedPhotos.map(async (savedPhoto) => {
+  const savedPhotosByKey = new Map(savedPhotos.map((photo) => [photo.photoKey, photo]))
+  const orderedSavedPhotos = uploadUrls.map((upload, index) => {
+    const savedPhoto = savedPhotosByKey.get(upload.photoKey)
+    return savedPhoto?.coursePlaceId === pendingPhotos[index].coursePlaceId
+      ? savedPhoto
+      : null
+  })
+  if (savedPhotosByKey.size !== savedPhotos.length || orderedSavedPhotos.some((photo) => !photo)) {
+    throw new Error('Saved photo response did not match the requested places.')
+  }
+
+  const savedPhotoDetails = await Promise.all(
+    orderedSavedPhotos.map(async (savedPhoto): Promise<TravelPhoto> => {
+      if (!savedPhoto) throw new Error('Saved photo response did not match the requested places.')
       const { data }: { data: unknown } = await apiClient.get(
         API_ENDPOINTS.photos.detail(savedPhoto.id),
         { signal }
@@ -198,6 +260,13 @@ export async function uploadCoursePlacePhotos(
       }
     })
   )
+
+  let photoIndex = 0
+  return normalizedUploads.map((upload) => {
+    const photos = savedPhotoDetails.slice(photoIndex, photoIndex + upload.files.length)
+    photoIndex += upload.files.length
+    return { coursePlaceId: upload.coursePlaceId, photos }
+  })
 }
 
 export function getTravelPhotoErrorMessage(error: unknown) {

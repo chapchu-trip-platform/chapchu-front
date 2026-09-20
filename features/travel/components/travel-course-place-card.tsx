@@ -2,9 +2,7 @@
 
 import Image from 'next/image'
 import {
-  BookOpen,
   Camera,
-  Check,
   CheckCircle2,
   ChevronDown,
   LockKeyhole,
@@ -12,7 +10,6 @@ import {
   Star,
   Trash2,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Textarea } from '@/components/ui/input'
 import type { RecommendedCoursePlace } from '@/features/map/types/course'
@@ -33,7 +30,6 @@ interface TravelCoursePlaceCardProps {
   onReviewChange: (update: Partial<Pick<TravelReviewDraft, 'note' | 'rating'>>) => void
   onPhotosSelected: (files: File[]) => void
   onRemovePhoto: (photoId: string) => void
-  onSaveReview: () => void
   onToggle: () => void
   place: RecommendedCoursePlace
   reviewDraft: TravelReviewDraft
@@ -52,7 +48,6 @@ export default function TravelCoursePlaceCard({
   onReviewChange,
   onPhotosSelected,
   onRemovePhoto,
-  onSaveReview,
   onToggle,
   place,
   reviewDraft,
@@ -118,7 +113,7 @@ export default function TravelCoursePlaceCard({
         </div>
         {reviewDraft.saved && (
           <span className="shrink-0 text-[10px] font-semibold text-sage-green">
-            후기 저장됨
+            메모리 저장됨
           </span>
         )}
         <ChevronDown
@@ -237,7 +232,7 @@ export default function TravelCoursePlaceCard({
               )}
               {photoStatus === 'success' && !photoError && (
                 <p className="mt-1 text-[11px] text-sage-green" role="status">
-                  여행 사진에 추가했어요.
+                  여행 완료 전까지 프론트 메모리에 임시 저장돼요.
                 </p>
               )}
             </div>
@@ -263,19 +258,11 @@ export default function TravelCoursePlaceCard({
                   </IconButton>
                 ))}
               </div>
-              <Button
-                type="button"
-                size="sm"
-                onClick={onSaveReview}
-                disabled={!reviewEnabled || !reviewDraft.note.trim() || reviewDraft.rating < 1}
-                aria-label={reviewDraft.saved ? '저장 완료' : '후기 저장'}
-              >
-                {reviewDraft.saved ? (
-                  <><Check className="size-3.5" /> 저장 완료</>
-                ) : (
-                  <><BookOpen className="size-3.5" /> 후기 저장</>
-                )}
-              </Button>
+              {reviewEnabled && (
+                <span className="text-right text-[10px] leading-relaxed text-sage-green" role="status">
+                  입력 즉시 메모리에 저장돼요
+                </span>
+              )}
             </div>
           </div>
         </div>

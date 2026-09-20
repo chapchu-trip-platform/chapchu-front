@@ -11,7 +11,6 @@ import {
   Clock3,
   Loader2,
   MapPin,
-  SkipForward,
 } from 'lucide-react'
 import TopBar from '@/components/top-bar'
 import { Button } from '@/components/ui/button'
@@ -22,19 +21,22 @@ import TmapMap, { type TmapMapMarker } from '@/features/map/components/tmap-map'
 import type { PedestrianRouteCoordinate } from '@/features/map/api/walking-time-api'
 import type { RecommendedCourse } from '@/features/map/types/course'
 import { useLocationStore } from '@/features/location/stores/location-store'
-import { visitCoursePlace } from '@/features/travel/api/course-place-visit-api'
 import {
-  completeCourse,
-  getCourseCompletionErrorMessage,
-} from '@/features/travel/api/course-completion-api'
+  deleteCourse,
+  getCourseDeletionErrorMessage,
+} from '@/features/travel/api/course-deletion-api'
 import TravelCoursePlaceCard, {
   type TravelReviewDraft,
 } from '@/features/travel/components/travel-course-place-card'
 import {
   getTravelPhotoErrorMessage,
-  uploadCoursePlacePhotos,
+  isSupportedTravelImage,
+  uploadCoursePlacePhotoBatch,
 } from '@/features/travel/api/travel-photos-api'
-import { useTravelStore } from '@/features/travel/stores/travel-store'
+import {
+  useTravelStore,
+  type TravelDraftPhoto,
+} from '@/features/travel/stores/travel-store'
 import { formatPetName } from '@/lib/format-pet-name'
 import { hideTravelPhoto } from '@/features/travel/lib/hidden-travel-photos'
 
@@ -43,19 +45,24 @@ interface TravelProgressScreenProps {
   petName: string | null
   onEndTrip: () => void
   onAbort: () => void
+  onLeave?: () => void
   routePath?: PedestrianRouteCoordinate[]
+}
+
+interface PendingTravelPhoto extends TravelDraftPhoto {
+  file: File
 }
 
 interface AbortConfirmSheetProps {
   error: string | null
-  isCompleting: boolean
+  isDeleting: boolean
   onCancel: () => void
   onConfirm: () => void
 }
 
 function AbortConfirmSheet({
   error,
-  isCompleting,
+  isDeleting,
   onCancel,
   onConfirm,
 }: AbortConfirmSheetProps) {
@@ -63,23 +70,29 @@ function AbortConfirmSheet({
     <div className="absolute inset-0 z-50 flex items-center justify-center p-6">
       <div
         className="absolute inset-0 bg-black/40"
-        onClick={isCompleting ? undefined : onCancel}
+        onClick={isDeleting ? undefined : onCancel}
       />
-      <div className="relative w-full rounded-card bg-card-surface p-6 shadow-2xl">
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="abort-trip-title"
+        aria-describedby="abort-trip-description"
+        className="relative w-full rounded-card bg-card-surface p-6 shadow-2xl"
+      >
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-danger/10">
           <AlertTriangle className="h-6 w-6 text-danger" />
         </div>
-        <h3 className="mb-2 text-center text-[17px] font-bold text-deep-brown">여행을 중도 종료할까요?</h3>
-        <p className="mb-6 text-center text-[13px] leading-relaxed text-warm-gray">저장한 후기와 사진은 이 기기에서 24시간 동안 보관됩니다.</p>
+        <h3 id="abort-trip-title" className="mb-2 text-center text-[17px] font-bold text-deep-brown">여행을 중도 종료할까요?</h3>
+        <p id="abort-trip-description" className="mb-6 text-center text-[13px] leading-relaxed text-warm-gray">중도 종료하면 이 코스와 작성 중인 후기, 임시 사진이 모두 삭제됩니다.</p>
         {error && (
           <p className="mb-4 text-center text-[12px] leading-relaxed text-danger" role="alert">
             {error}
           </p>
         )}
         <ModalActions>
-          <Button disabled={isCompleting} onClick={onCancel} variant="outline">계속 여행</Button>
-          <Button disabled={isCompleting} onClick={onConfirm} variant="destructive">
-            {isCompleting ? <><Loader2 className="animate-spin" /> 완료 처리 중</> : '중도 종료'}
+          <Button disabled={isDeleting} onClick={onCancel} variant="outline">계속 여행</Button>
+          <Button disabled={isDeleting} onClick={onConfirm} variant="destructive">
+            {isDeleting ? <><Loader2 className="animate-spin" /> 코스 삭제 중</> : '중도 종료'}
           </Button>
         </ModalActions>
       </div>
@@ -87,69 +100,35 @@ function AbortConfirmSheet({
   )
 }
 
-function VisitFailureDialog({
-  message,
-  onClose,
-}: {
-  message: string
-  onClose: () => void
-}) {
-  return (
-    <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/45 px-4">
-      <div
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="visit-failure-title"
-        aria-describedby="visit-failure-description"
-        className="w-full rounded-card border border-border bg-card-surface p-5 shadow-xl"
-      >
-        <div className="mx-auto mb-3 flex size-11 items-center justify-center rounded-full bg-danger/10">
-          <AlertTriangle aria-hidden="true" className="size-5 text-danger" />
-        </div>
-        <h2 id="visit-failure-title" className="text-center text-[17px] font-bold text-deep-brown">
-          방문 인증에 실패했어요
-        </h2>
-        <p id="visit-failure-description" className="mt-2 text-center text-[13px] leading-relaxed text-warm-gray">
-          {message}
-        </p>
-        <Button autoFocus onClick={onClose} fullWidth className="mt-5">
-          확인
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-function SkipVisitConfirmDialog({
-  placeName,
+function LeaveProgressSheet({
   onCancel,
   onConfirm,
 }: {
-  placeName: string
   onCancel: () => void
   onConfirm: () => void
 }) {
   return (
-    <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/45 px-4">
+    <div className="absolute inset-0 z-50 flex items-center justify-center p-6">
+      <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
       <div
-        role="alertdialog"
+        role="dialog"
         aria-modal="true"
-        aria-labelledby="skip-visit-title"
-        aria-describedby="skip-visit-description"
-        className="w-full rounded-card border border-border bg-card-surface p-5 shadow-xl"
+        aria-labelledby="leave-progress-title"
+        aria-describedby="leave-progress-description"
+        className="relative w-full rounded-card bg-card-surface p-6 shadow-2xl"
       >
-        <div className="mx-auto mb-3 flex size-11 items-center justify-center rounded-full bg-soft-orange/10">
-          <SkipForward aria-hidden="true" className="size-5 text-soft-orange" />
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-sage-green-light">
+          <MapPin aria-hidden="true" className="h-6 w-6 text-sage-green" />
         </div>
-        <h2 id="skip-visit-title" className="text-center text-[17px] font-bold text-deep-brown">
-          {placeName} 방문을 생략할까요?
-        </h2>
-        <p id="skip-visit-description" className="mt-2 text-center text-[13px] leading-relaxed text-warm-gray">
-          생략하면 다음 장소로 이동하며, 이 장소의 후기와 사진은 등록할 수 없어요.
+        <h3 id="leave-progress-title" className="mb-2 text-center text-[17px] font-bold text-deep-brown">
+          홈으로 이동할까요?
+        </h3>
+        <p id="leave-progress-description" className="mb-6 text-center text-[13px] leading-relaxed text-warm-gray">
+          뒤로 가도 여행은 종료되지 않아요. 지도 페이지를 다시 열면 이어서 진행할 수 있어요. 아직 전송하지 않은 임시 사진은 사라집니다.
         </p>
-        <ModalActions className="mt-5">
-          <Button autoFocus onClick={onCancel} variant="outline">계속 방문</Button>
-          <Button onClick={onConfirm} variant="secondary">방문 생략</Button>
+        <ModalActions>
+          <Button autoFocus onClick={onCancel} variant="outline">계속 여행</Button>
+          <Button onClick={onConfirm}>홈으로 이동</Button>
         </ModalActions>
       </div>
     </div>
@@ -182,63 +161,50 @@ function formatLocationTime(capturedAt: string | undefined) {
   return `업데이트 ${date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`
 }
 
-function getVisitErrorMessage(error: unknown) {
-  if (!error || typeof error !== 'object') return '방문 기록을 저장하지 못했어요. 다시 시도해주세요.'
-  const normalized = error as { status?: unknown; type?: unknown }
-  if (normalized.status === 400 || normalized.status === 422) return '장소에서 500m 이내인지 확인한 뒤 다시 시도해주세요.'
-  if (normalized.status === 401) return '로그인이 만료되었습니다. 다시 로그인해주세요.'
-  if (normalized.type === 'network') return '네트워크 연결을 확인하고 다시 시도해주세요.'
-  if (normalized.type === 'timeout') return '방문 기록 시간이 초과되었습니다. 다시 시도해주세요.'
-  return '방문 기록을 저장하지 못했어요. 다시 시도해주세요.'
-}
-
 export default function TravelProgressScreen({
   course,
   petName,
   onEndTrip,
   onAbort,
+  onLeave,
   routePath = [],
 }: TravelProgressScreenProps) {
   const [showAbortConfirm, setShowAbortConfirm] = useState(false)
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
   const [bottomExpanded, setBottomExpanded] = useState(false)
   const [expandedPlaceIds, setExpandedPlaceIds] = useState<string[]>([])
   const [photoStatuses, setPhotoStatuses] = useState<
     Record<string, { status: 'idle' | 'loading' | 'success' | 'error'; error: string | null }>
   >({})
-  const [checkInStatus, setCheckInStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
-  const [checkInError, setCheckInError] = useState<string | null>(null)
-  const [skipConfirmPlaceId, setSkipConfirmPlaceId] = useState<string | null>(null)
-  const [courseCompletionStatus, setCourseCompletionStatus] = useState<'idle' | 'loading' | 'error'>('idle')
-  const [courseCompletionError, setCourseCompletionError] = useState<string | null>(null)
-  const checkInControllerRef = useRef<AbortController | null>(null)
-  const completionControllerRef = useRef<AbortController | null>(null)
-  const photoControllersRef = useRef(new Map<string, AbortController>())
+  const [pendingPhotosByPlace, setPendingPhotosByPlace] = useState<
+    Record<string, PendingTravelPhoto[]>
+  >({})
+  const [finalPhotoUploadStatus, setFinalPhotoUploadStatus] = useState<
+    'idle' | 'loading' | 'error'
+  >('idle')
+  const [courseDeletionStatus, setCourseDeletionStatus] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [courseDeletionError, setCourseDeletionError] = useState<string | null>(null)
+  const deletionControllerRef = useRef<AbortController | null>(null)
+  const photoUploadControllerRef = useRef<AbortController | null>(null)
+  const pendingPhotosRef = useRef<Record<string, PendingTravelPhoto[]>>({})
   const position = useLocationStore((state) => state.position)
   const refreshLocation = useLocationStore((state) => state.refreshLocation)
   const cancelLocationRequest = useLocationStore((state) => state.cancelLocationRequest)
   const noteDrafts = useTravelStore((state) => state.noteDrafts)
   const visitedPlaceIds = useTravelStore((state) => state.visitedPlaceIds)
-  const skippedPlaceIds = useTravelStore((state) => state.skippedPlaceIds)
   const beginTravelDrafts = useTravelStore((state) => state.beginTravelDrafts)
   const hydrateTravelDrafts = useTravelStore((state) => state.hydrateTravelDrafts)
   const markPlaceVisited = useTravelStore((state) => state.markPlaceVisited)
-  const markPlaceSkipped = useTravelStore((state) => state.markPlaceSkipped)
   const removeDraftPhoto = useTravelStore((state) => state.removeDraftPhoto)
   const upsertNoteDraft = useTravelStore((state) => state.upsertNoteDraft)
 
   const places = useMemo(() => [...course.places].sort((left, right) => left.visitOrder - right.visitOrder), [course.places])
   const visitedPlaceIdSet = useMemo(() => new Set(visitedPlaceIds), [visitedPlaceIds])
-  const skippedPlaceIdSet = useMemo(() => new Set(skippedPlaceIds), [skippedPlaceIds])
   const nextPlace = places.find(
-    (place) => !visitedPlaceIdSet.has(place.id) && !skippedPlaceIdSet.has(place.id)
+    (place) => !visitedPlaceIdSet.has(place.id)
   ) ?? null
-  const skipConfirmPlace = places.find((place) => place.id === skipConfirmPlaceId) ?? null
   const visitedCount = places.filter((place) => visitedPlaceIdSet.has(place.id)).length
-  const skippedCount = places.filter((place) => skippedPlaceIdSet.has(place.id)).length
-  const handledCount = places.filter(
-    (place) => visitedPlaceIdSet.has(place.id) || skippedPlaceIdSet.has(place.id)
-  ).length
-  const progress = places.length === 0 ? 0 : (handledCount / places.length) * 100
+  const progress = places.length === 0 ? 0 : (visitedCount / places.length) * 100
   const distanceToNext = position && nextPlace ? distanceInMeters(position, nextPlace) : null
   const distanceToNextLabel = position ? formatDistance(distanceToNext) : '거리 정보 없음'
   const mapCenter = position
@@ -252,18 +218,14 @@ export default function TravelProgressScreen({
         id: `course-place-${place.id}`,
         position: { lat: place.latitude, lng: place.longitude },
         title: `${place.visitOrder}번 방문지: ${place.name}${
-          visitedPlaceIdSet.has(place.id)
-            ? ' (방문 완료)'
-            : skippedPlaceIdSet.has(place.id)
-              ? ' (방문 생략)'
-              : ''
+          visitedPlaceIdSet.has(place.id) ? ' (방문 완료)' : ''
         }`,
         label: place.isFinal ? '도착' : String(place.visitOrder),
         variant: place.isFinal ? 'destination' as const : 'candidate' as const,
       })),
       ...(position ? [{ id: 'current-position', position: { lat: position.latitude, lng: position.longitude }, title: '현재 위치', variant: 'current' as const }] : []),
     ],
-    [places, position, skippedPlaceIdSet, visitedPlaceIdSet]
+    [places, position, visitedPlaceIdSet]
   )
   const routeTitle = `${course.startLocation} → ${course.endLocation}`
   const displayPetName = formatPetName(petName)
@@ -271,78 +233,51 @@ export default function TravelProgressScreen({
   useEffect(() => {
     hydrateTravelDrafts(course.id)
     beginTravelDrafts(course.id)
-    const photoControllers = photoControllersRef.current
     void refreshLocation()
     const refreshTimer = window.setInterval(() => void refreshLocation(), 15_000)
     return () => {
       window.clearInterval(refreshTimer)
-      checkInControllerRef.current?.abort()
-      completionControllerRef.current?.abort()
-      photoControllers.forEach((controller) => controller.abort())
-      photoControllers.clear()
+      deletionControllerRef.current?.abort()
+      photoUploadControllerRef.current?.abort()
+      Object.values(pendingPhotosRef.current).forEach((photos) => {
+        photos.forEach((photo) => {
+          if (photo.downloadUrl.startsWith('blob:') && typeof URL.revokeObjectURL === 'function') {
+            URL.revokeObjectURL(photo.downloadUrl)
+          }
+        })
+      })
       cancelLocationRequest()
     }
   }, [beginTravelDrafts, cancelLocationRequest, course.id, hydrateTravelDrafts, refreshLocation])
 
-  const handleCheckIn = async () => {
-    if (!nextPlace || checkInStatus === 'loading') return
-    // Temporary product mode: persist the visit using the place coordinates,
-    // without requiring or validating the device position.
-    const checkInPosition = {
-      latitude: nextPlace.latitude,
-      longitude: nextPlace.longitude,
-    }
-    const controller = new AbortController()
-    checkInControllerRef.current?.abort()
-    checkInControllerRef.current = controller
-    setCheckInStatus('loading')
-    setCheckInError(null)
-    try {
-      await visitCoursePlace(nextPlace.id, checkInPosition, controller.signal)
-      if (controller.signal.aborted) return
-      markPlaceVisited(nextPlace.id)
-      setCheckInStatus('success')
-    } catch (error: unknown) {
-      if (controller.signal.aborted) return
-      setCheckInStatus('error')
-      setCheckInError(getVisitErrorMessage(error))
-    } finally {
-      if (checkInControllerRef.current === controller) checkInControllerRef.current = null
-    }
-  }
-
-  const handleSkipVisit = () => {
-    if (!skipConfirmPlace) return
-    checkInControllerRef.current?.abort()
-    markPlaceSkipped(skipConfirmPlace.id)
-    setExpandedPlaceIds((current) => current.filter((id) => id !== skipConfirmPlace.id))
-    setCheckInStatus('idle')
-    setCheckInError(null)
-    setSkipConfirmPlaceId(null)
+  const handleCheckIn = () => {
+    if (!nextPlace) return
+    // Visit progress is intentionally client-owned. The store persists the
+    // visited place IDs for this course in localStorage for up to 24 hours.
+    markPlaceVisited(nextPlace.id)
   }
 
   const handleAbort = async () => {
-    if (courseCompletionStatus === 'loading') return
-    checkInControllerRef.current?.abort()
-    completionControllerRef.current?.abort()
+    if (courseDeletionStatus === 'loading') return
+    deletionControllerRef.current?.abort()
     const controller = new AbortController()
-    completionControllerRef.current = controller
-    setCourseCompletionStatus('loading')
-    setCourseCompletionError(null)
+    deletionControllerRef.current = controller
+    setCourseDeletionStatus('loading')
+    setCourseDeletionError(null)
 
     try {
-      await completeCourse(course.id, controller.signal)
+      await deleteCourse(course.id, controller.signal)
       if (controller.signal.aborted) return
       setShowAbortConfirm(false)
-      setCourseCompletionStatus('idle')
+      setCourseDeletionStatus('idle')
       onAbort()
     } catch (error: unknown) {
       if (controller.signal.aborted) return
-      setCourseCompletionStatus('error')
-      setCourseCompletionError(getCourseCompletionErrorMessage(error))
+      setCourseDeletionStatus('error')
+      setCourseDeletionError(getCourseDeletionErrorMessage(error))
     } finally {
-      if (completionControllerRef.current === controller) {
-        completionControllerRef.current = null
+      if (deletionControllerRef.current === controller) {
+        deletionControllerRef.current = null
       }
     }
   }
@@ -369,80 +304,84 @@ export default function TravelProgressScreen({
       rating: update.rating ?? current?.rating ?? 0,
       photos: current?.photos ?? [],
       photoUrls: current?.photoUrls ?? [],
-      saved: false,
-      ...(current?.reviewId ? { reviewId: current.reviewId } : {}),
-    })
-  }
-
-  const saveReviewDraft = (placeId: string) => {
-    if (!visitedPlaceIdSet.has(placeId)) return
-    const place = places.find((item) => item.id === placeId)
-    const current = noteDrafts.find((draft) => draft.waypointId === placeId)
-    upsertNoteDraft({
-      waypointId: placeId,
-      externalPlaceId: place?.externalPlaceId,
-      content: current?.content ?? '',
-      rating: current?.rating ?? 0,
-      photos: current?.photos ?? [],
-      photoUrls: current?.photoUrls ?? [],
       saved: true,
       ...(current?.reviewId ? { reviewId: current.reviewId } : {}),
     })
   }
 
-  const savePhotos = async (placeId: string, files: File[]) => {
+  const stagePhotos = (placeId: string, files: File[]) => {
     if (!visitedPlaceIdSet.has(placeId)) return
     const place = places.find((item) => item.id === placeId)
     if (!place) return
     const currentDraft = useTravelStore
       .getState()
       .noteDrafts.find((draft) => draft.waypointId === placeId)
-    const selectedFiles = files.slice(0, 10 - (currentDraft?.photos?.length ?? 0))
+    const currentPendingPhotos = pendingPhotosRef.current[placeId] ?? []
+    const selectedFiles = files.slice(
+      0,
+      10 - (currentDraft?.photos?.length ?? 0) - currentPendingPhotos.length
+    )
     if (selectedFiles.length === 0) return
+    if (selectedFiles.some((file) => !isSupportedTravelImage(file))) {
+      setPhotoStatuses((current) => ({
+        ...current,
+        [placeId]: {
+          status: 'error',
+          error: '지원하는 이미지 형식인지 확인해주세요.',
+        },
+      }))
+      return
+    }
 
-    photoControllersRef.current.get(placeId)?.abort()
-    const controller = new AbortController()
-    photoControllersRef.current.set(placeId, controller)
+    const pendingPhotos = selectedFiles.map((file, index): PendingTravelPhoto => ({
+      photoId: `pending-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`,
+      downloadUrl:
+        typeof URL.createObjectURL === 'function'
+          ? URL.createObjectURL(file)
+          : '/images/album-cover.png',
+      takenAt: null,
+      file,
+    }))
+    setPendingPhotosByPlace((current) => {
+      const next = {
+        ...current,
+        [placeId]: [...(current[placeId] ?? []), ...pendingPhotos],
+      }
+      pendingPhotosRef.current = next
+      return next
+    })
     setPhotoStatuses((current) => ({
       ...current,
-      [placeId]: { status: 'loading', error: null },
+      [placeId]: { status: 'success', error: null },
     }))
-
-    try {
-      const photos = await uploadCoursePlacePhotos(placeId, selectedFiles, controller.signal)
-      if (controller.signal.aborted) return
-      const latestDraft = useTravelStore
-        .getState()
-        .noteDrafts.find((draft) => draft.waypointId === placeId)
-      const nextPhotos = [...(latestDraft?.photos ?? []), ...photos]
-      upsertNoteDraft({
-        waypointId: placeId,
-        externalPlaceId: place.externalPlaceId,
-        content: latestDraft?.content ?? '',
-        rating: latestDraft?.rating ?? 0,
-        photos: nextPhotos,
-        photoUrls: nextPhotos.map((photo) => photo.downloadUrl),
-        saved: latestDraft?.saved ?? false,
-        ...(latestDraft?.reviewId ? { reviewId: latestDraft.reviewId } : {}),
-      })
-      setPhotoStatuses((current) => ({
-        ...current,
-        [placeId]: { status: 'success', error: null },
-      }))
-    } catch (error: unknown) {
-      if (controller.signal.aborted) return
-      setPhotoStatuses((current) => ({
-        ...current,
-        [placeId]: { status: 'error', error: getTravelPhotoErrorMessage(error) },
-      }))
-    } finally {
-      if (photoControllersRef.current.get(placeId) === controller) {
-        photoControllersRef.current.delete(placeId)
-      }
-    }
   }
 
   const removePhoto = (placeId: string, photoId: string) => {
+    const pendingPhoto = pendingPhotosRef.current[placeId]?.find(
+      (photo) => photo.photoId === photoId
+    )
+    if (pendingPhoto) {
+      if (
+        pendingPhoto.downloadUrl.startsWith('blob:') &&
+        typeof URL.revokeObjectURL === 'function'
+      ) {
+        URL.revokeObjectURL(pendingPhoto.downloadUrl)
+      }
+      setPendingPhotosByPlace((current) => {
+        const next = {
+          ...current,
+          [placeId]: (current[placeId] ?? []).filter((photo) => photo.photoId !== photoId),
+        }
+        pendingPhotosRef.current = next
+        return next
+      })
+      setPhotoStatuses((current) => ({
+        ...current,
+        [placeId]: { status: 'idle', error: null },
+      }))
+      return
+    }
+
     const photo = useTravelStore
       .getState()
       .noteDrafts.find((draft) => draft.waypointId === placeId)
@@ -458,10 +397,94 @@ export default function TravelProgressScreen({
     }))
   }
 
+  const handleEndTrip = async () => {
+    if (finalPhotoUploadStatus === 'loading' || photoUploadControllerRef.current) return
+    const uploads = places.flatMap((place) => {
+      const photos = pendingPhotosRef.current[place.id] ?? []
+      return photos.length > 0
+        ? [{ coursePlaceId: place.id, files: photos.map((photo) => photo.file) }]
+        : []
+    })
+    if (uploads.length === 0) {
+      onEndTrip()
+      return
+    }
+
+    const controller = new AbortController()
+    photoUploadControllerRef.current = controller
+    setFinalPhotoUploadStatus('loading')
+    setPhotoStatuses((current) => ({
+      ...current,
+      ...Object.fromEntries(
+        uploads.map((upload) => [
+          upload.coursePlaceId,
+          { status: 'loading' as const, error: null },
+        ])
+      ),
+    }))
+
+    try {
+      const uploadedGroups = await uploadCoursePlacePhotoBatch(uploads, controller.signal)
+      if (controller.signal.aborted) return
+      for (const uploaded of uploadedGroups) {
+        const place = places.find((item) => item.id === uploaded.coursePlaceId)
+        if (!place) continue
+        const draft = useTravelStore
+          .getState()
+          .noteDrafts.find((item) => item.waypointId === uploaded.coursePlaceId)
+        const photos = [...(draft?.photos ?? []), ...uploaded.photos]
+        upsertNoteDraft({
+          waypointId: uploaded.coursePlaceId,
+          externalPlaceId: place.externalPlaceId,
+          content: draft?.content ?? '',
+          rating: draft?.rating ?? 0,
+          photos,
+          photoUrls: photos.map((photo) => photo.downloadUrl),
+          saved: draft?.saved ?? false,
+          ...(draft?.reviewId ? { reviewId: draft.reviewId } : {}),
+        })
+      }
+      Object.values(pendingPhotosRef.current).forEach((photos) => {
+        photos.forEach((photo) => {
+          if (photo.downloadUrl.startsWith('blob:') && typeof URL.revokeObjectURL === 'function') {
+            URL.revokeObjectURL(photo.downloadUrl)
+          }
+        })
+      })
+      pendingPhotosRef.current = {}
+      setPendingPhotosByPlace({})
+      setFinalPhotoUploadStatus('idle')
+      onEndTrip()
+    } catch (error: unknown) {
+      if (controller.signal.aborted) return
+      const message = getTravelPhotoErrorMessage(error)
+      setFinalPhotoUploadStatus('error')
+      setBottomExpanded(true)
+      setExpandedPlaceIds((current) => [
+        ...new Set([...current, ...uploads.map((upload) => upload.coursePlaceId)]),
+      ])
+      setPhotoStatuses((current) => ({
+        ...current,
+        ...Object.fromEntries(
+          uploads.map((upload) => [
+            upload.coursePlaceId,
+            { status: 'error' as const, error: message },
+          ])
+        ),
+      }))
+    } finally {
+      if (photoUploadControllerRef.current === controller) {
+        photoUploadControllerRef.current = null
+      }
+    }
+  }
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-warm-beige">
       <TopBar
+        showBack
         title="여행 진행"
+        onBack={() => setShowLeaveConfirm(true)}
         rightAction={
           <span className="flex size-8 items-center justify-center" aria-label="여행 진행 중">
             <span className="size-2.5 animate-pulse rounded-full bg-sage-green" />
@@ -509,7 +532,7 @@ export default function TravelProgressScreen({
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px] text-warm-gray">
             <span>진행률 {Math.round(progress)}%</span>
-            <span>방문 {visitedCount}곳 · 생략 {skippedCount}곳</span>
+            <span>방문 {visitedCount}곳 / 전체 {places.length}곳</span>
           </div>
         </section>
 
@@ -521,7 +544,6 @@ export default function TravelProgressScreen({
             <ol className="space-y-2">
               {places.map((place) => {
                 const visited = visitedPlaceIdSet.has(place.id)
-                const skipped = skippedPlaceIdSet.has(place.id)
                 const current = nextPlace?.id === place.id
                 const expanded = expandedPlaceIds.includes(place.id)
                 const cachedDraft = noteDrafts.find((draft) => draft.waypointId === place.id)
@@ -534,6 +556,10 @@ export default function TravelProgressScreen({
                   status: 'idle' as const,
                   error: null,
                 }
+                const photos = [
+                  ...(cachedDraft?.photos ?? []),
+                  ...(pendingPhotosByPlace[place.id] ?? []),
+                ]
 
                 return (
                   <li key={place.id}>
@@ -545,15 +571,14 @@ export default function TravelProgressScreen({
                       expanded={expanded}
                       reviewDraft={reviewDraft}
                       reviewEnabled={visited}
-                      photos={cachedDraft?.photos ?? []}
+                      photos={photos}
                       photoError={photoStatus.error}
                       photoStatus={photoStatus.status}
-                      skipped={skipped}
+                      skipped={false}
                       onToggle={() => togglePlaceDetails(place.id)}
                       onReviewChange={(update) => updateReviewDraft(place.id, update)}
-                      onPhotosSelected={(files) => void savePhotos(place.id, files)}
+                      onPhotosSelected={(files) => stagePhotos(place.id, files)}
                       onRemovePhoto={(photoId) => removePhoto(place.id, photoId)}
-                      onSaveReview={() => saveReviewDraft(place.id)}
                     />
                   </li>
                 )
@@ -567,7 +592,7 @@ export default function TravelProgressScreen({
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-[12px] font-semibold text-deep-brown">여행을 그만 진행할까요?</p>
-              <p className="mt-0.5 text-[10px] text-warm-gray">저장한 후기는 이 기기에서 24시간 보관됩니다.</p>
+              <p className="mt-0.5 text-[10px] text-warm-gray">중도 종료하면 현재 코스와 작성 중인 내용이 삭제됩니다.</p>
             </div>
           <Button
             onClick={() => setShowAbortConfirm(true)}
@@ -594,7 +619,7 @@ export default function TravelProgressScreen({
           <div className="flex items-center gap-1">
             <MapPin className="size-4 text-warm-gray" />
             <span className="whitespace-nowrap text-[12px] text-warm-gray">
-              방문 {visitedCount} · 생략 {skippedCount}
+              방문 {visitedCount} / 전체 {places.length}
             </span>
           </div>
           <div className="flex min-w-0 items-center gap-1">
@@ -608,65 +633,48 @@ export default function TravelProgressScreen({
           <div className="map-flow-dock-actions">
             <Button
               type="button"
-              onClick={() => setSkipConfirmPlaceId(nextPlace.id)}
-              disabled={checkInStatus === 'loading'}
+              onClick={handleCheckIn}
               size="lg"
-              variant="outline"
-              className="w-[108px]"
+              className="map-flow-dock-button min-w-0 flex-1"
             >
-              <SkipForward /> 생략
-            </Button>
-            <Button
-              type="button"
-              onClick={() => void handleCheckIn()}
-              disabled={checkInStatus === 'loading'}
-              size="lg"
-              className="min-w-0 flex-1"
-            >
-              {checkInStatus === 'loading' ? (
-                <><Loader2 className="animate-spin" /> 방문 기록 중</>
-              ) : (
-                <><MapPin /> <span className="truncate">{nextPlace.name} 방문 체크인</span></>
-              )}
+              <MapPin /> <span className="truncate">{nextPlace.name} 방문 체크인</span>
             </Button>
           </div>
         ) : (
           <Button
-            onClick={onEndTrip}
+            onClick={() => void handleEndTrip()}
+            disabled={finalPhotoUploadStatus === 'loading'}
             size="lg"
             className="map-flow-dock-button"
           >
-            여행 완료
+            {finalPhotoUploadStatus === 'loading' ? (
+              <><Loader2 className="animate-spin" /> 사진 저장 중</>
+            ) : (
+              '여행 완료'
+            )}
           </Button>
         )}
       </MapFlowBottomDock>
 
       {showAbortConfirm && (
         <AbortConfirmSheet
-          error={courseCompletionError}
-          isCompleting={courseCompletionStatus === 'loading'}
+          error={courseDeletionError}
+          isDeleting={courseDeletionStatus === 'loading'}
           onCancel={() => {
-            setCourseCompletionError(null)
-            setCourseCompletionStatus('idle')
+            setCourseDeletionError(null)
+            setCourseDeletionStatus('idle')
             setShowAbortConfirm(false)
           }}
           onConfirm={() => void handleAbort()}
         />
       )}
-      {checkInError && (
-        <VisitFailureDialog
-          message={checkInError}
-          onClose={() => {
-            setCheckInError(null)
-            setCheckInStatus('idle')
+      {showLeaveConfirm && (
+        <LeaveProgressSheet
+          onCancel={() => setShowLeaveConfirm(false)}
+          onConfirm={() => {
+            setShowLeaveConfirm(false)
+            onLeave?.()
           }}
-        />
-      )}
-      {skipConfirmPlace && (
-        <SkipVisitConfirmDialog
-          placeName={skipConfirmPlace.name}
-          onCancel={() => setSkipConfirmPlaceId(null)}
-          onConfirm={handleSkipVisit}
         />
       )}
     </div>
