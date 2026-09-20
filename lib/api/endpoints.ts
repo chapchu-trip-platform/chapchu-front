@@ -39,6 +39,7 @@ export const API_ENDPOINTS = {
     posts: '/users/me/posts',
     bookmarks: '/users/me/bookmarks',
     wishlist: '/users/me/wishlist',
+    stamps: '/users/me/stamps',
     wishlistPlace: (placeId: string) => `/users/me/wishlist/${pathId(placeId)}`,
     reviews: '/users/me/reviews',
     nicknameAvailability: '/users/nickname/availability',

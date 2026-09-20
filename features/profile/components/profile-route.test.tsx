@@ -13,6 +13,7 @@ import {
   fetchPets,
   fetchProfilePhoto,
   fetchProfileSummary,
+  fetchStampCollection,
   fetchWishlist,
   getProfileErrorMessage,
   removeBookmark,
@@ -51,6 +52,7 @@ vi.mock('@/features/profile/api/profile-api', () => ({
   fetchPets: vi.fn(),
   fetchProfilePhoto: vi.fn(),
   fetchProfileSummary: vi.fn(),
+  fetchStampCollection: vi.fn(),
   fetchWishlist: vi.fn(),
   getProfileErrorMessage: vi.fn(),
   removeBookmark: vi.fn(),
@@ -92,6 +94,26 @@ beforeEach(() => {
   vi.mocked(fetchProfileSummary).mockResolvedValue({ ...mockProfileSummary, petCount: 1 })
   vi.mocked(fetchPets).mockResolvedValue([pet])
   vi.mocked(fetchProfilePhoto).mockResolvedValue({ photoId: null, downloadUrl: null })
+  vi.mocked(fetchStampCollection).mockResolvedValue({
+    acquiredCount: 1,
+    totalCount: 2,
+    stamps: [
+      {
+        stampId: 'stamp-seoul',
+        stampName: '서울',
+        acquired: true,
+        stampCount: 2,
+        firstAcquiredAt: '2026-09-01T10:00:00',
+      },
+      {
+        stampId: 'stamp-busan',
+        stampName: '부산',
+        acquired: false,
+        stampCount: 0,
+        firstAcquiredAt: null,
+      },
+    ],
+  })
   vi.mocked(fetchPetOptions).mockResolvedValue(mockProfilePetOptions)
   vi.mocked(fetchMyPosts).mockResolvedValue(mockProfilePosts)
   vi.mocked(fetchPhotoDownload).mockResolvedValue({
@@ -344,21 +366,49 @@ describe('ProfileRoute', () => {
     }
   })
 
-  it('shows an unavailable notice instead of fabricated stamps and returns to mypage', async () => {
+  it('loads the regional stamp book with achieved and unachieved artwork', async () => {
     const user = userEvent.setup()
     render(<ProfileRoute />)
 
     await screen.findByRole('heading', { name: '초코맘' })
-    await user.click(screen.getByRole('button', { name: /스탬프.*API 준비 중/ }))
-    expect(await screen.findByRole('heading', { name: '스탬프 기능을 준비하고 있어요' })).toBeInTheDocument()
-    expect(screen.getByText(/아직 스탬프 정보를 불러올 수 없어요/)).toBeInTheDocument()
-    expect(screen.queryByText('서울')).not.toBeInTheDocument()
-    expect(screen.queryByText('미획득')).not.toBeInTheDocument()
-    expect(screen.queryByText(/\d+회 방문/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/예시 데이터/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /스탬프.*17개 지역 도감/ }))
+
+    expect(await screen.findByRole('heading', { name: '지역 스탬프' })).toBeInTheDocument()
+    expect(fetchStampCollection).toHaveBeenCalledWith(expect.any(AbortSignal))
+    expect(screen.getByRole('progressbar', { name: '스탬프 수집률' })).toHaveAttribute(
+      'aria-valuenow',
+      '1'
+    )
+    expect(screen.getByRole('img', { name: '서울 스탬프 획득' })).toHaveAttribute(
+      'src',
+      '/stamps/achieved/seoul.png'
+    )
+    expect(screen.getByRole('img', { name: '부산 스탬프 미획득' })).toHaveAttribute(
+      'src',
+      '/stamps/unachieved/busan.png'
+    )
+    expect(screen.getByText('2회 방문')).toBeInTheDocument()
+    expect(screen.getByText('미획득')).toBeInTheDocument()
+    expect(screen.getByText('2026. 9. 1.')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '뒤로 가기' }))
     expect(await screen.findByRole('heading', { name: '초코맘' })).toBeInTheDocument()
+  })
+
+  it('retries the stamp collection after an API failure', async () => {
+    const user = userEvent.setup()
+    vi.mocked(fetchStampCollection)
+      .mockRejectedValueOnce({ type: 'network' })
+      .mockResolvedValueOnce({ acquiredCount: 0, totalCount: 0, stamps: [] })
+    render(<ProfileRoute />)
+
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: /스탬프.*17개 지역 도감/ }))
+    expect(await screen.findByRole('heading', { name: '스탬프를 불러오지 못했어요' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '다시 불러오기' }))
+    expect(await screen.findByText('아직 등록된 지역 스탬프가 없어요.')).toBeInTheDocument()
+    expect(fetchStampCollection).toHaveBeenCalledTimes(2)
   })
 
   it('shows an unavailable notice instead of fabricated memory albums and returns to mypage', async () => {

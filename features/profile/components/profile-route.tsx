@@ -14,6 +14,7 @@ import {
   fetchPets,
   fetchProfilePhoto,
   fetchProfileSummary,
+  fetchStampCollection,
   getProfileErrorMessage,
   updateNickname,
   updatePet,
@@ -281,6 +282,7 @@ export default function ProfileRoute({ initialSettingsTab }: { initialSettingsTa
           onLogout={handleLogout}
           onOpenSettings={openSettings}
           onLoadPetOptions={fetchPetOptions}
+          onLoadStamps={fetchStampCollection}
           onCreatePet={handleCreatePet}
           onUpdatePet={handleUpdatePet}
           onDeletePet={handleDeletePet}

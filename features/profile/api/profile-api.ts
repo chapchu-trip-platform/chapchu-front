@@ -3,6 +3,12 @@
 import { apiClient, publicApiClient } from '@/lib/api/client'
 import { API_ENDPOINTS } from '@/lib/api/endpoints'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
+import {
+  getStampRegion,
+  getStampRegionOrder,
+  STAMP_REGIONS,
+} from '@/features/stamps/constants/regions'
+import type { StampCollection, TravelStamp } from '@/features/stamps/types/stamp'
 import type { BreedOption, NamedOption } from '@/features/auth/types/signup'
 import type {
   PetMutationInput,
@@ -252,11 +258,91 @@ function parseReview(value: unknown): ProfileReview {
   return value as unknown as ProfileReview
 }
 
+function isLocalDateTime(value: unknown): value is string {
+  return (
+    isString(value, 40) &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})?$/.test(value)
+  )
+}
+
+function parseStamp(value: unknown): TravelStamp {
+  if (
+    !isObject(value) ||
+    !isIdentifier(value.stampId, 200) ||
+    !isString(value.stampName, 30) ||
+    typeof value.acquired !== 'boolean' ||
+    !isNonNegativeInteger(value.stampCount) ||
+    !(
+      value.firstAcquiredAt === undefined ||
+      value.firstAcquiredAt === null ||
+      isLocalDateTime(value.firstAcquiredAt)
+    )
+  ) {
+    throw new Error('Stamp collection response was invalid.')
+  }
+
+  const region = getStampRegion(value.stampName)
+  const firstAcquiredAt = value.firstAcquiredAt ?? null
+  if (
+    !region ||
+    (value.acquired && (value.stampCount < 1 || !isLocalDateTime(firstAcquiredAt))) ||
+    (!value.acquired && (value.stampCount !== 0 || firstAcquiredAt !== null))
+  ) {
+    throw new Error('Stamp collection response was invalid.')
+  }
+
+  return {
+    stampId: value.stampId.trim(),
+    stampName: region.name,
+    acquired: value.acquired,
+    stampCount: value.stampCount,
+    firstAcquiredAt,
+  }
+}
+
+function parseStampCollection(value: unknown): StampCollection {
+  if (
+    !isObject(value) ||
+    !isNonNegativeInteger(value.acquiredCount) ||
+    !isNonNegativeInteger(value.totalCount) ||
+    !Array.isArray(value.stamps) ||
+    value.stamps.length > STAMP_REGIONS.length
+  ) {
+    throw new Error('Stamp collection response was invalid.')
+  }
+
+  const stamps = value.stamps.map(parseStamp)
+  const acquiredCount = stamps.filter((stamp) => stamp.acquired).length
+  if (
+    value.totalCount !== stamps.length ||
+    value.acquiredCount !== acquiredCount ||
+    new Set(stamps.map((stamp) => stamp.stampId)).size !== stamps.length ||
+    new Set(stamps.map((stamp) => stamp.stampName)).size !== stamps.length
+  ) {
+    throw new Error('Stamp collection response was invalid.')
+  }
+
+  return {
+    acquiredCount,
+    totalCount: value.totalCount,
+    stamps: stamps.sort(
+      (left, right) => getStampRegionOrder(left.stampName) - getStampRegionOrder(right.stampName)
+    ),
+  }
+}
+
 export async function fetchProfileSummary(signal?: AbortSignal) {
   const { data }: { data: unknown } = await apiClient.get(API_ENDPOINTS.users.mypage, {
     signal,
   })
   return parseProfileSummary(data)
+}
+
+export async function fetchStampCollection(signal?: AbortSignal) {
+  const { data }: { data: unknown } = await apiClient.get(API_ENDPOINTS.users.stamps, {
+    signal,
+  })
+  return parseStampCollection(data)
 }
 
 export async function fetchProfilePhoto(signal?: AbortSignal) {

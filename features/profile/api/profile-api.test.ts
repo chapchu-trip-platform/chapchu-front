@@ -10,6 +10,7 @@ import {
   fetchPets,
   fetchProfilePhoto,
   fetchProfileSummary,
+  fetchStampCollection,
   fetchWishlist,
   getProfileErrorMessage,
   removeBookmark,
@@ -186,6 +187,70 @@ describe('Profile API', () => {
     })
     expect(capturedConfig?.method).toBe('get')
     expect(capturedConfig?.url).toBe('/users/me/mypage')
+  })
+
+  it('loads, validates, and orders the documented regional stamp collection', async () => {
+    let capturedConfig: InternalAxiosRequestConfig | undefined
+    apiClient.defaults.adapter = async (config) => {
+      capturedConfig = config
+      return response(config, {
+        acquiredCount: 1,
+        totalCount: 2,
+        stamps: [
+          {
+            stampId: 'stamp-busan',
+            stampName: '부산',
+            acquired: false,
+            stampCount: 0,
+          },
+          {
+            stampId: 'stamp-seoul',
+            stampName: '서울',
+            acquired: true,
+            stampCount: 2,
+            firstAcquiredAt: '2026-09-01T10:00:00.123456',
+          },
+        ],
+      })
+    }
+
+    await expect(fetchStampCollection()).resolves.toEqual({
+      acquiredCount: 1,
+      totalCount: 2,
+      stamps: [
+        {
+          stampId: 'stamp-seoul',
+          stampName: '서울',
+          acquired: true,
+          stampCount: 2,
+          firstAcquiredAt: '2026-09-01T10:00:00.123456',
+        },
+        {
+          stampId: 'stamp-busan',
+          stampName: '부산',
+          acquired: false,
+          stampCount: 0,
+          firstAcquiredAt: null,
+        },
+      ],
+    })
+    expect(capturedConfig).toMatchObject({ method: 'get', url: '/users/me/stamps' })
+  })
+
+  it('rejects an inconsistent stamp collection response', async () => {
+    apiClient.defaults.adapter = async (config) => response(config, {
+      acquiredCount: 0,
+      totalCount: 1,
+      stamps: [{
+        stampId: 'stamp-seoul',
+        stampName: '서울',
+        acquired: false,
+        stampCount: 2,
+        firstAcquiredAt: null,
+      }],
+    })
+
+    await expect(fetchStampCollection()).rejects.toThrow('Stamp collection response was invalid')
   })
 
   it('loads pets and maps the documented nullable breed id', async () => {

@@ -1,31 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { mockStampCollection } from '@/data/mock/stamps'
-
-const STAMP_REGIONS = [
-  '서울',
-  '부산',
-  '대구',
-  '인천',
-  '광주',
-  '대전',
-  '울산',
-  '세종',
-  '경기',
-  '강원',
-  '충북',
-  '충남',
-  '전북',
-  '전남',
-  '경북',
-  '경남',
-  '제주',
-] as const
+import { STAMP_REGIONS } from '@/features/stamps/constants/regions'
 
 describe('mockStampCollection', () => {
   it('matches the 17-region stamp API contract', () => {
     expect(mockStampCollection.totalCount).toBe(STAMP_REGIONS.length)
     expect(mockStampCollection.stamps.map((stamp) => stamp.stampName)).toEqual(
-      STAMP_REGIONS
+      STAMP_REGIONS.map((region) => region.name)
     )
     expect(new Set(mockStampCollection.stamps.map((stamp) => stamp.stampId)).size).toBe(
       STAMP_REGIONS.length
