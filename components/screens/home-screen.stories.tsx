@@ -1,6 +1,18 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
 import MobileShell from '@/components/layout/mobile-shell'
 import HomeScreen from '@/components/screens/home-screen'
+import { selectHomeStamps } from '@/features/home/lib/home-stamps'
+import type { StampCollection } from '@/features/stamps/types/stamp'
+
+const stampCollection: StampCollection = {
+  acquiredCount: 3,
+  totalCount: 3,
+  stamps: [
+    { stampId: 'stamp-gangwon', stampName: '강원', acquired: true, stampCount: 5, firstAcquiredAt: '2026-08-24T10:00:00+09:00' },
+    { stampId: 'stamp-gyeonggi', stampName: '경기', acquired: true, stampCount: 3, firstAcquiredAt: '2026-08-23T10:00:00+09:00' },
+    { stampId: 'stamp-jeju', stampName: '제주', acquired: true, stampCount: 1, firstAcquiredAt: '2026-08-22T10:00:00+09:00' },
+  ],
+}
 
 const weather = {
   observedAt: '2026-08-22T12:00:00+09:00',
@@ -42,11 +54,11 @@ export const Default: Story = {
     locationStatus: 'success',
     petNames: ['루이', '바다'],
     petNamesStatus: 'success',
-    nearbyPlaces: [
-      { id: 'place-1', name: '수성못 산책로', imageUrl: '/images/place-park.png', address: '대구광역시 수성구', rating: 4.7, reviewCount: 32, distanceMeters: 420, hasPetPolicy: true },
-    ],
-    nearbyPlacesStatus: 'success',
-    onRetryNearbyPlaces: () => undefined,
+    stamps: selectHomeStamps(stampCollection.stamps),
+    stampsStatus: 'success',
+    acquiredStampCount: stampCollection.acquiredCount,
+    totalStampCount: stampCollection.totalCount,
+    onRetryStamps: () => undefined,
     hotPosts: [
       {
         id: 'post-1',

@@ -14,13 +14,16 @@ import {
   fetchPets,
   fetchProfilePhoto,
   fetchProfileSummary,
+  fetchStampCollection,
   getProfileErrorMessage,
   updateNickname,
   updatePet,
+  updatePetPhoto,
   updateProfilePhoto,
   withdrawAccount,
 } from '@/features/profile/api/profile-api'
 import { savePhotos, uploadPhotoFiles } from '@/features/photos/api/photo-api'
+import { isSupportedMetadataSafeImage } from '@/features/photos/lib/sanitize-image-file'
 import { usePetStore } from '@/features/profile/stores/pet-store'
 import type {
   PetMutationInput,
@@ -234,16 +237,53 @@ export default function ProfileRoute({ initialSettingsTab }: { initialSettingsTa
     )
   }
 
+  const handleUpdatePetPhoto = async (petId: string, file: File | null) => {
+    const sessionEpoch = useAuthStore.getState().sessionEpoch
+    if (file && !isSupportedMetadataSafeImage(file)) {
+      throw new Error('Pet profile image type was invalid.')
+    }
+    photoMutationControllerRef.current?.abort()
+    const controller = new AbortController()
+    photoMutationControllerRef.current = controller
+    const unsubscribe = useAuthStore.subscribe((state) => {
+      if (state.sessionEpoch !== sessionEpoch) controller.abort()
+    })
+    try {
+      let photoId: string | null = null
+      if (file) {
+        const [ticket] = await uploadPhotoFiles([file], 'PROFILE', controller.signal)
+        assertActiveSession(sessionEpoch)
+        const [savedPhoto] = await savePhotos([{ photoKey: ticket.photoKey }], controller.signal)
+        assertActiveSession(sessionEpoch)
+        photoId = savedPhoto.id
+      }
+      const pet = await updatePetPhoto(petId, photoId, controller.signal)
+      assertActiveSession(sessionEpoch)
+      upsertPet(pet)
+      return pet
+    } finally {
+      unsubscribe()
+      if (photoMutationControllerRef.current === controller) {
+        photoMutationControllerRef.current = null
+      }
+    }
+  }
+
   const handleUpdateProfilePhoto = async (file: File | null) => {
     const sessionEpoch = useAuthStore.getState().sessionEpoch
     photoMutationControllerRef.current?.abort()
     const controller = new AbortController()
     photoMutationControllerRef.current = controller
+    const unsubscribe = useAuthStore.subscribe((state) => {
+      if (state.sessionEpoch !== sessionEpoch) controller.abort()
+    })
     try {
       let photoId: string | null = null
       if (file) {
         const [ticket] = await uploadPhotoFiles([file], 'PROFILE', controller.signal)
+        assertActiveSession(sessionEpoch)
         const [savedPhoto] = await savePhotos([{ photoKey: ticket.photoKey }], controller.signal)
+        assertActiveSession(sessionEpoch)
         photoId = savedPhoto.id
       }
       const nextPhoto = await updateProfilePhoto(photoId, controller.signal)
@@ -251,6 +291,7 @@ export default function ProfileRoute({ initialSettingsTab }: { initialSettingsTa
       setProfilePhoto(nextPhoto)
       return nextPhoto
     } finally {
+      unsubscribe()
       if (photoMutationControllerRef.current === controller) {
         photoMutationControllerRef.current = null
       }
@@ -281,8 +322,10 @@ export default function ProfileRoute({ initialSettingsTab }: { initialSettingsTa
           onLogout={handleLogout}
           onOpenSettings={openSettings}
           onLoadPetOptions={fetchPetOptions}
+          onLoadStamps={fetchStampCollection}
           onCreatePet={handleCreatePet}
           onUpdatePet={handleUpdatePet}
+          onUpdatePetPhoto={handleUpdatePetPhoto}
           onDeletePet={handleDeletePet}
           onUpdateProfilePhoto={handleUpdateProfilePhoto}
           onWithdraw={handleWithdraw}

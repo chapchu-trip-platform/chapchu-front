@@ -38,7 +38,7 @@ export interface RecommendedPlaceDto {
 
 export interface CoursePlaceDto {
   coursePlaceId: string
-  externalPlaceId: string
+  externalPlaceId: string | null
   placeName: string
   placeImageUrl: string | null
   latitude: number

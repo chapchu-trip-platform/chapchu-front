@@ -3,8 +3,8 @@ import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import MapRouteOptionsScreen, {
+  type CourseCreationStatus,
   type MinimumWalkingTimeStatus,
-  type PlaceRecommendationStatus,
 } from '@/components/screens/map-route-options-screen'
 
 const origin = {
@@ -24,22 +24,22 @@ const destination = {
 }
 
 function Harness({
+  courseCreationError = null,
+  courseCreationStatus = 'idle',
+  onCreateCourse = vi.fn(),
   onPetSelect = vi.fn(),
-  onRecommend = vi.fn(),
   pets = [
     { id: 'pet-1', name: '초코' },
     { id: 'pet-2', name: '보리' },
   ],
-  recommendationError = null,
-  recommendationStatus = 'idle',
   minimumWalkingTimeSeconds = null,
   minimumWalkingTimeStatus = 'idle',
 }: {
+  courseCreationError?: string | null
+  courseCreationStatus?: CourseCreationStatus
+  onCreateCourse?: () => void
   onPetSelect?: (petId: string) => void
-  onRecommend?: () => void
   pets?: Array<{ id: string; name: string }>
-  recommendationError?: string | null
-  recommendationStatus?: PlaceRecommendationStatus
   minimumWalkingTimeSeconds?: number | null
   minimumWalkingTimeStatus?: MinimumWalkingTimeStatus
 } = {}) {
@@ -47,18 +47,18 @@ function Harness({
 
   return (
     <MapRouteOptionsScreen
+      courseCreationError={courseCreationError}
+      courseCreationStatus={courseCreationStatus}
       destination={destination}
       onBack={vi.fn()}
+      onCreateCourse={onCreateCourse}
       onPetSelect={(petId) => {
         setSelectedPetId(petId)
         onPetSelect(petId)
       }}
-      onRecommend={onRecommend}
       origin={origin}
       petLoadStatus="success"
       pets={pets}
-      recommendationError={recommendationError}
-      recommendationStatus={recommendationStatus}
       selectedPetId={selectedPetId}
       minimumWalkingTimeSeconds={minimumWalkingTimeSeconds}
       minimumWalkingTimeStatus={minimumWalkingTimeStatus}
@@ -69,12 +69,12 @@ function Harness({
 describe('MapRouteOptionsScreen', () => {
   afterEach(() => cleanup())
 
-  it('requests destination candidates without offering an intermediate stop count', () => {
+  it('creates intermediate stops with the entered destination fixed', () => {
     render(<Harness />)
 
     expect(screen.queryByText('중간 거점 개수')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '추천 장소 받기' })).toBeEnabled()
-    expect(screen.getByText(/방문할 장소 5곳을 추천/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '중간 경유지 만들기' })).toBeEnabled()
+    expect(screen.getByText(/입력한 도착지는 고정하고/)).toBeInTheDocument()
   })
 
   it('shows pets and changes the selected pet', async () => {
@@ -119,27 +119,27 @@ describe('MapRouteOptionsScreen', () => {
     expect(screen.getByTestId('minimum-walking-time')).toHaveTextContent('약 1시간 9분')
   })
 
-  it('disables duplicate submissions and exposes recommendation failures', async () => {
-    const onRecommend = vi.fn()
+  it('disables duplicate submissions and exposes course creation failures', async () => {
+    const onCreateCourse = vi.fn()
     const { rerender } = render(
-      <Harness onRecommend={onRecommend} recommendationStatus="loading" />
+      <Harness onCreateCourse={onCreateCourse} courseCreationStatus="loading" />
     )
 
     expect(
-      await screen.findByRole('button', { name: '추천 장소 찾는 중' })
+      await screen.findByRole('button', { name: '중간 경유지 만드는 중' })
     ).toBeDisabled()
 
     rerender(
       <Harness
-        onRecommend={onRecommend}
-        recommendationStatus="error"
-        recommendationError="추천 서버에 연결하지 못했습니다."
+        onCreateCourse={onCreateCourse}
+        courseCreationStatus="error"
+        courseCreationError="코스 서버에 연결하지 못했습니다."
       />
     )
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      '추천 서버에 연결하지 못했습니다.'
+      '코스 서버에 연결하지 못했습니다.'
     )
-    expect(screen.getByRole('button', { name: '추천 장소 다시 받기' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '코스 다시 만들기' })).toBeEnabled()
   })
 })

@@ -27,7 +27,7 @@ function isPetListItem(value: unknown): value is { id: string; petName: string }
 }
 
 export async function fetchSelectablePets(signal?: AbortSignal): Promise<SelectablePet[]> {
-  if (isDemoSessionActive()) return [{ id: 'demo-pet-1', name: '골든이' }]
+  if (isDemoSessionActive()) return []
 
   const { data }: { data: unknown } = await apiClient.get(API_ENDPOINTS.pets.list, {
     signal,

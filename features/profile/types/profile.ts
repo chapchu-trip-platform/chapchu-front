@@ -20,6 +20,7 @@ export interface ProfilePet {
   breedName: string
   size: PetSize
   age: number
+  profilePhoto: ProfilePhoto | null
   activities: NamedOption[]
 }
 

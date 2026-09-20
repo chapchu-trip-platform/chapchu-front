@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AlbumScreen from '@/components/screens/album-screen'
@@ -54,6 +54,8 @@ const album = {
   }],
 }
 
+const originalIntersectionObserver = globalThis.IntersectionObserver
+
 beforeEach(() => {
   vi.mocked(fetchMyPosts).mockResolvedValue([])
 })
@@ -61,9 +63,63 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  globalThis.IntersectionObserver = originalIntersectionObserver
 })
 
 describe('AlbumScreen', () => {
+  it('reveals albums 20 at a time as the user reaches the bottom', async () => {
+    let intersectionCallback: IntersectionObserverCallback | null = null
+
+    class AlbumIntersectionObserverMock {
+      readonly root = null
+      readonly rootMargin = ''
+      readonly thresholds = []
+
+      constructor(callback: IntersectionObserverCallback) {
+        intersectionCallback = callback
+      }
+
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+      takeRecords() { return [] }
+    }
+
+    globalThis.IntersectionObserver = AlbumIntersectionObserverMock as typeof IntersectionObserver
+
+    const albums = Array.from({ length: 45 }, (_, index) => ({
+      ...album,
+      courseId: `course-${index + 1}`,
+      petId: null,
+      photos: [],
+    }))
+    vi.mocked(fetchMyAlbums).mockResolvedValue(albums)
+    vi.mocked(fetchSelectablePets).mockResolvedValue([])
+
+    const { unmount } = render(<AlbumScreen />)
+
+    expect(await screen.findAllByRole('img', { name: '반려동물 여행 앨범' })).toHaveLength(20)
+    expect(screen.getByLabelText('앨범 더 불러오기')).toBeInTheDocument()
+    await waitFor(() => expect(intersectionCallback).not.toBeNull())
+
+    await act(async () => {
+      intersectionCallback?.([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver)
+    })
+    await waitFor(() => {
+      expect(screen.getAllByRole('img', { name: '반려동물 여행 앨범' })).toHaveLength(40)
+    })
+
+    await act(async () => {
+      intersectionCallback?.([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver)
+    })
+    await waitFor(() => {
+      expect(screen.getAllByRole('img', { name: '반려동물 여행 앨범' })).toHaveLength(45)
+      expect(screen.queryByLabelText('앨범 더 불러오기')).not.toBeInTheDocument()
+    })
+
+    unmount()
+  })
+
   it('uses the generated album cover when a saved album has no photos', async () => {
     const photoLessAlbum = { ...album, photos: [] }
     vi.mocked(fetchMyAlbums).mockResolvedValue([photoLessAlbum])
@@ -108,6 +164,9 @@ describe('AlbumScreen', () => {
     const detailCover = await screen.findByRole('img', { name: '초코와의 서울숲 여행' })
     expect(detailCover.getAttribute('src')).toContain('album-default-cover.png')
     expect(detailCover.getAttribute('src')).not.toContain('place-park.png')
+    expect(screen.getByRole('region', { name: '여행 완료 일기' })).toHaveTextContent(
+      '작성한 여행 일기가 없어요.'
+    )
   })
 
   it('renders the server album list and loads its actual course detail', async () => {

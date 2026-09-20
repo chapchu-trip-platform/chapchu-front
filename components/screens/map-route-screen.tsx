@@ -119,7 +119,7 @@ export default function MapRouteScreen({
             role="status"
             className="rounded-xl border border-sage-green/30 bg-sage-green-light px-3 py-2 text-[11px] font-medium text-deep-brown"
           >
-            선택한 최종 도착지를 기준으로 서버가 생성한 코스입니다.
+            입력한 최종 도착지는 고정하고, 서버가 중간 경유지를 구성한 코스입니다.
           </div>
           {pedestrianRouteStatus === 'loading' && (
             <div className="flex items-center gap-2 rounded-xl border border-soft-orange/30 bg-soft-orange/10 px-3 py-2 text-[11px] leading-relaxed text-deep-brown">

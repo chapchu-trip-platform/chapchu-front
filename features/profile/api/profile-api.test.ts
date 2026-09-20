@@ -10,12 +10,14 @@ import {
   fetchPets,
   fetchProfilePhoto,
   fetchProfileSummary,
+  fetchStampCollection,
   fetchWishlist,
   getProfileErrorMessage,
   removeBookmark,
   removeWishlistPlace,
   updateNickname,
   updatePet,
+  updatePetPhoto,
   updateProfilePhoto,
   withdrawAccount,
 } from '@/features/profile/api/profile-api'
@@ -53,6 +55,7 @@ const petResponse = {
   breedName: ' 골든리트리버 ',
   size: 'MEDIUM',
   age: 3,
+  profilePhoto: null,
   activities: [{ id: 'activity-id', name: ' 산책 ' }],
   createdAt: null,
   updatedAt: null,
@@ -188,6 +191,70 @@ describe('Profile API', () => {
     expect(capturedConfig?.url).toBe('/users/me/mypage')
   })
 
+  it('loads, validates, and orders the documented regional stamp collection', async () => {
+    let capturedConfig: InternalAxiosRequestConfig | undefined
+    apiClient.defaults.adapter = async (config) => {
+      capturedConfig = config
+      return response(config, {
+        acquiredCount: 1,
+        totalCount: 2,
+        stamps: [
+          {
+            stampId: 'stamp-busan',
+            stampName: '부산',
+            acquired: false,
+            stampCount: 0,
+          },
+          {
+            stampId: 'stamp-seoul',
+            stampName: '서울',
+            acquired: true,
+            stampCount: 2,
+            firstAcquiredAt: '2026-09-01T10:00:00.123456',
+          },
+        ],
+      })
+    }
+
+    await expect(fetchStampCollection()).resolves.toEqual({
+      acquiredCount: 1,
+      totalCount: 2,
+      stamps: [
+        {
+          stampId: 'stamp-seoul',
+          stampName: '서울',
+          acquired: true,
+          stampCount: 2,
+          firstAcquiredAt: '2026-09-01T10:00:00.123456',
+        },
+        {
+          stampId: 'stamp-busan',
+          stampName: '부산',
+          acquired: false,
+          stampCount: 0,
+          firstAcquiredAt: null,
+        },
+      ],
+    })
+    expect(capturedConfig).toMatchObject({ method: 'get', url: '/users/me/stamps' })
+  })
+
+  it('rejects an inconsistent stamp collection response', async () => {
+    apiClient.defaults.adapter = async (config) => response(config, {
+      acquiredCount: 0,
+      totalCount: 1,
+      stamps: [{
+        stampId: 'stamp-seoul',
+        stampName: '서울',
+        acquired: false,
+        stampCount: 2,
+        firstAcquiredAt: null,
+      }],
+    })
+
+    await expect(fetchStampCollection()).rejects.toThrow('Stamp collection response was invalid')
+  })
+
   it('loads pets and maps the documented nullable breed id', async () => {
     apiClient.defaults.adapter = async (config) => response(config, [petResponse])
 
@@ -199,6 +266,7 @@ describe('Profile API', () => {
         breedName: '골든리트리버',
         size: 'MEDIUM',
         age: 3,
+        profilePhoto: null,
         activities: [{ id: 'activity-id', name: '산책' }],
       },
     ])
@@ -249,6 +317,38 @@ describe('Profile API', () => {
       { method: 'post', url: '/pets', body: input },
       { method: 'patch', url: '/pets/pet%2Fid', body: input },
       { method: 'delete', url: '/pets/pet%2Fid', body: undefined },
+    ])
+  })
+
+  it('sets and removes a pet profile photo with the documented response', async () => {
+    const requests: Array<{ method?: string; url?: string; body?: unknown }> = []
+    apiClient.defaults.adapter = async (config) => {
+      const body = typeof config.data === 'string' ? JSON.parse(config.data) : config.data
+      requests.push({ method: config.method, url: config.url, body })
+      return response(config, {
+        ...petResponse,
+        profilePhoto: body.photoId
+          ? {
+              photoId: body.photoId,
+              downloadUrl: 'https://bucket.example/profile/pet.jpg?signature=test',
+            }
+          : null,
+      })
+    }
+
+    await expect(updatePetPhoto('pet/id', 'photo-1')).resolves.toMatchObject({
+      id: 'pet-id',
+      profilePhoto: {
+        photoId: 'photo-1',
+        downloadUrl: 'https://bucket.example/profile/pet.jpg?signature=test',
+      },
+    })
+    await expect(updatePetPhoto('pet/id', null)).resolves.toMatchObject({
+      profilePhoto: null,
+    })
+    expect(requests).toEqual([
+      { method: 'patch', url: '/pets/pet%2Fid/photo', body: { photoId: 'photo-1' } },
+      { method: 'patch', url: '/pets/pet%2Fid/photo', body: { photoId: null } },
     ])
   })
 

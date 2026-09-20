@@ -1,9 +1,10 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import HomeRoute from '@/features/home/components/home-route'
-import { fetchHomeSummary, fetchNearbyPlaces, fetchPopularPosts } from '@/features/home/api/home-api'
+import { fetchHomeSummary, fetchPopularPosts } from '@/features/home/api/home-api'
 import { webLocationProvider } from '@/features/location/providers/web-location-provider'
 import { useLocationStore } from '@/features/location/stores/location-store'
+import { fetchStampCollection } from '@/features/profile/api/profile-api'
 import type {
   DevicePosition,
   LocationRequestOptions,
@@ -13,8 +14,11 @@ import type { CurrentWeather } from '@/types/weather'
 
 vi.mock('@/features/home/api/home-api', () => ({
   fetchHomeSummary: vi.fn(),
-  fetchNearbyPlaces: vi.fn(),
   fetchPopularPosts: vi.fn(),
+}))
+
+vi.mock('@/features/profile/api/profile-api', () => ({
+  fetchStampCollection: vi.fn(),
 }))
 
 vi.mock('@/features/location/providers/web-location-provider', () => ({
@@ -56,6 +60,19 @@ const weather: CurrentWeather = {
   source: '기상청',
 }
 
+const stampCollection = {
+  acquiredCount: 6,
+  totalCount: 6,
+  stamps: [
+    { stampId: 'stamp-gangwon', stampName: '강원', acquired: true, stampCount: 3, firstAcquiredAt: '2026-09-06T10:00:00' },
+    { stampId: 'stamp-gyeonggi', stampName: '경기', acquired: true, stampCount: 8, firstAcquiredAt: '2026-09-01T10:00:00' },
+    { stampId: 'stamp-jeju', stampName: '제주', acquired: true, stampCount: 1, firstAcquiredAt: '2026-09-05T10:00:00' },
+    { stampId: 'stamp-jeonbuk', stampName: '전북', acquired: true, stampCount: 5, firstAcquiredAt: '2026-09-04T10:00:00' },
+    { stampId: 'stamp-busan', stampName: '부산', acquired: true, stampCount: 2, firstAcquiredAt: '2026-09-03T10:00:00' },
+    { stampId: 'stamp-seoul', stampName: '서울', acquired: true, stampCount: 4, firstAcquiredAt: '2026-09-02T10:00:00' },
+  ],
+}
+
 function weatherResponse(data: unknown = weather) {
   return new Response(JSON.stringify(data), {
     status: 200,
@@ -80,7 +97,7 @@ beforeEach(() => {
       photoUrl: null,
     },
   ])
-  vi.mocked(fetchNearbyPlaces).mockReset().mockResolvedValue([])
+  vi.mocked(fetchStampCollection).mockReset().mockResolvedValue(stampCollection)
   vi.mocked(webLocationProvider.checkPermission).mockReset().mockResolvedValue('granted')
   vi.mocked(webLocationProvider.requestCurrentPosition).mockReset().mockResolvedValue({
     ok: true,
@@ -111,8 +128,19 @@ describe('HomeRoute data and location flow', () => {
     expect(await screen.findByText('루이와 1마리')).toBeInTheDocument()
     expect(await screen.findByText('인기 여행기')).toBeInTheDocument()
     expect(await screen.findByText('27°C')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '여행 스탬프' })).toBeInTheDocument()
+    const stampItems = screen.getAllByRole('listitem')
+    expect(stampItems).toHaveLength(5)
+    expect(stampItems.map((item) => item.textContent)).toEqual([
+      '경기8회',
+      '전북5회',
+      '서울4회',
+      '강원3회',
+      '부산2회',
+    ])
     expect(fetchHomeSummary).toHaveBeenCalledOnce()
     expect(fetchPopularPosts).toHaveBeenCalledOnce()
+    expect(fetchStampCollection).toHaveBeenCalledOnce()
     expect(screen.getByTestId('home-map')).toHaveAttribute('data-lat', '35.8552083333333')
     expect(screen.getByTestId('home-map')).toHaveAttribute('data-lng', '128.632866666666')
     expect(screen.getByTestId('home-map')).toHaveAttribute(
@@ -123,6 +151,38 @@ describe('HomeRoute data and location flow', () => {
       '/api/weather/current?nx=89&ny=90',
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
+  })
+
+  it('shows an empty message when no travel stamp has been acquired', async () => {
+    vi.mocked(fetchStampCollection).mockResolvedValue({
+      acquiredCount: 0,
+      totalCount: 2,
+      stamps: [
+        { stampId: 'stamp-seoul', stampName: '서울', acquired: false, stampCount: 0, firstAcquiredAt: null },
+        { stampId: 'stamp-busan', stampName: '부산', acquired: false, stampCount: 0, firstAcquiredAt: null },
+      ],
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(weatherResponse()))
+
+    render(<HomeRoute />)
+
+    expect(await screen.findByRole('region', { name: '여행 스탬프' })).toHaveTextContent(
+      '아직 획득한 여행 스탬프가 없어요.여행을 완료하면 이곳에 표시돼요.'
+    )
+    expect(screen.queryByRole('list', { name: '방문 횟수가 많은 여행 스탬프' })).not.toBeInTheDocument()
+  })
+
+  it('retries the travel stamp request without replacing it with mock data', async () => {
+    vi.mocked(fetchStampCollection)
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce(stampCollection)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(weatherResponse()))
+
+    render(<HomeRoute />)
+    fireEvent.click(await screen.findByRole('button', { name: '스탬프 다시 시도' }))
+
+    expect(await screen.findByRole('list', { name: '방문 횟수가 많은 여행 스탬프' })).toBeInTheDocument()
+    expect(fetchStampCollection).toHaveBeenCalledTimes(2)
   })
 
   it('loads weather from the first coarse grid before the final map position resolves', async () => {

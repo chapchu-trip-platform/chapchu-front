@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ProfileRoute from '@/features/profile/components/profile-route'
@@ -13,12 +13,14 @@ import {
   fetchPets,
   fetchProfilePhoto,
   fetchProfileSummary,
+  fetchStampCollection,
   fetchWishlist,
   getProfileErrorMessage,
   removeBookmark,
   removeWishlistPlace,
   updateNickname,
   updatePet,
+  updatePetPhoto,
   updateProfilePhoto,
   withdrawAccount,
 } from '@/features/profile/api/profile-api'
@@ -51,12 +53,14 @@ vi.mock('@/features/profile/api/profile-api', () => ({
   fetchPets: vi.fn(),
   fetchProfilePhoto: vi.fn(),
   fetchProfileSummary: vi.fn(),
+  fetchStampCollection: vi.fn(),
   fetchWishlist: vi.fn(),
   getProfileErrorMessage: vi.fn(),
   removeBookmark: vi.fn(),
   removeWishlistPlace: vi.fn(),
   updateNickname: vi.fn(),
   updatePet: vi.fn(),
+  updatePetPhoto: vi.fn(),
   updateProfilePhoto: vi.fn(),
   withdrawAccount: vi.fn(),
 }))
@@ -92,6 +96,26 @@ beforeEach(() => {
   vi.mocked(fetchProfileSummary).mockResolvedValue({ ...mockProfileSummary, petCount: 1 })
   vi.mocked(fetchPets).mockResolvedValue([pet])
   vi.mocked(fetchProfilePhoto).mockResolvedValue({ photoId: null, downloadUrl: null })
+  vi.mocked(fetchStampCollection).mockResolvedValue({
+    acquiredCount: 1,
+    totalCount: 2,
+    stamps: [
+      {
+        stampId: 'stamp-seoul',
+        stampName: '서울',
+        acquired: true,
+        stampCount: 2,
+        firstAcquiredAt: '2026-09-01T10:00:00',
+      },
+      {
+        stampId: 'stamp-busan',
+        stampName: '부산',
+        acquired: false,
+        stampCount: 0,
+        firstAcquiredAt: null,
+      },
+    ],
+  })
   vi.mocked(fetchPetOptions).mockResolvedValue(mockProfilePetOptions)
   vi.mocked(fetchMyPosts).mockResolvedValue(mockProfilePosts)
   vi.mocked(fetchPhotoDownload).mockResolvedValue({
@@ -108,6 +132,12 @@ beforeEach(() => {
   vi.mocked(updateNickname).mockResolvedValue('새닉네임')
   vi.mocked(createPet).mockResolvedValue({ ...pet, id: 'new-pet-id', petName: '보리' })
   vi.mocked(updatePet).mockResolvedValue(pet)
+  vi.mocked(updatePetPhoto).mockImplementation(async (_petId, photoId) => ({
+    ...pet,
+    profilePhoto: photoId
+      ? { photoId, downloadUrl: 'https://example.com/pet-profile.jpg' }
+      : null,
+  }))
   vi.mocked(updateProfilePhoto).mockResolvedValue({
     photoId: 'photo-1',
     downloadUrl: 'https://example.com/profile.jpg',
@@ -198,7 +228,7 @@ describe('ProfileRoute', () => {
     expect(fetchProfilePhoto).toHaveBeenCalledOnce()
   })
 
-  it('uses the supplied default profile and uploads a replacement through the photo flow', async () => {
+  it('uses the supplied default profile and uploads an iOS photo replacement', async () => {
     const user = userEvent.setup()
     render(<ProfileRoute />)
 
@@ -206,8 +236,13 @@ describe('ProfileRoute', () => {
     expect(screen.getByRole('img', { name: '프로필' })).toHaveAttribute('src', '/images/default-profile.svg')
     await user.click(editButton)
     expect(screen.getByRole('dialog', { name: '프로필 사진 수정' })).toBeInTheDocument()
-    const file = new File(['profile'], 'profile.jpg', { type: 'image/jpeg' })
-    await user.upload(screen.getByLabelText('새 프로필 사진 선택'), file)
+    const input = screen.getByLabelText('새 프로필 사진 선택')
+    expect(input).toHaveAttribute(
+      'accept',
+      '.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.avif,image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,image/avif,image/x-heic,image/x-heif'
+    )
+    const file = new File(['profile'], 'profile.heic', { type: 'image/x-heic' })
+    await user.upload(input, file)
 
     await waitFor(() => expect(uploadPhotoFiles).toHaveBeenCalledWith([file], 'PROFILE', expect.any(AbortSignal)))
     expect(savePhotos).toHaveBeenCalledWith(
@@ -217,6 +252,110 @@ describe('ProfileRoute', () => {
     expect(updateProfilePhoto).toHaveBeenCalledWith('photo-1', expect.any(AbortSignal))
     await waitFor(() => expect(screen.queryByRole('dialog', { name: '프로필 사진 수정' })).not.toBeInTheDocument())
     expect(screen.getByRole('img', { name: '프로필' })).toHaveAttribute('src', 'https://example.com/profile.jpg')
+  })
+
+  it('rejects an unsupported pet profile image before upload', async () => {
+    const user = userEvent.setup()
+    render(<ProfileRoute />)
+
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: /반려동물 관리.*추가 · 수정 · 삭제/ }))
+    await user.click(await screen.findByRole('button', { name: '초코 프로필 사진 등록' }))
+
+    const input = screen.getByLabelText('초코 새 프로필 사진 선택')
+    fireEvent.change(input, {
+      target: { files: [new File(['svg'], 'illustration.svg', { type: 'image/svg+xml' })] },
+    })
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'JPG, PNG, WebP, GIF, HEIC, HEIF, AVIF 사진만 선택할 수 있어요.'
+    )
+    expect(uploadPhotoFiles).not.toHaveBeenCalled()
+  })
+
+  it('registers, replaces, and removes a pet profile photo', async () => {
+    const user = userEvent.setup()
+    render(<ProfileRoute />)
+
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: /반려동물 관리.*추가 · 수정 · 삭제/ }))
+    await user.click(await screen.findByRole('button', { name: '초코 프로필 사진 등록' }))
+
+    expect(screen.getByRole('dialog', { name: '초코 프로필 사진 등록' })).toBeInTheDocument()
+    const input = screen.getByLabelText('초코 새 프로필 사진 선택')
+    expect(input).toHaveAttribute(
+      'accept',
+      '.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.avif,image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,image/avif,image/x-heic,image/x-heif'
+    )
+
+    const file = new File(['profile'], 'pet.avif', { type: 'image/avif' })
+    await user.upload(input, file)
+
+    await waitFor(() =>
+      expect(uploadPhotoFiles).toHaveBeenCalledWith(
+        [file],
+        'PROFILE',
+        expect.any(AbortSignal)
+      )
+    )
+    expect(savePhotos).toHaveBeenCalledWith(
+      [{ photoKey: 'profile/user/profile.jpg' }],
+      expect.any(AbortSignal)
+    )
+    expect(updatePetPhoto).toHaveBeenCalledWith(
+      pet.id,
+      'photo-1',
+      expect.any(AbortSignal)
+    )
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: '초코 프로필 사진 등록' })).not.toBeInTheDocument()
+    )
+    expect(screen.getByRole('img', { name: '초코 프로필 사진' })).toHaveAttribute(
+      'src',
+      'https://example.com/pet-profile.jpg'
+    )
+
+    await user.click(screen.getByRole('button', { name: '초코 프로필 사진 수정' }))
+    await user.click(screen.getByRole('button', { name: '기본 프로필로 변경' }))
+    await waitFor(() =>
+      expect(updatePetPhoto).toHaveBeenLastCalledWith(
+        pet.id,
+        null,
+        expect.any(AbortSignal)
+      )
+    )
+    expect(uploadPhotoFiles).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops the pet photo flow before saving when the auth session changes', async () => {
+    const user = userEvent.setup()
+    const uploadRequest = createDeferred<Awaited<ReturnType<typeof uploadPhotoFiles>>>()
+    vi.mocked(uploadPhotoFiles).mockReturnValueOnce(uploadRequest.promise)
+    render(<ProfileRoute />)
+
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: /반려동물 관리.*추가 · 수정 · 삭제/ }))
+    await user.click(await screen.findByRole('button', { name: '초코 프로필 사진 등록' }))
+    await user.upload(
+      screen.getByLabelText('초코 새 프로필 사진 선택'),
+      new File(['profile'], 'pet.jpg', { type: 'image/jpeg' })
+    )
+    await waitFor(() => expect(uploadPhotoFiles).toHaveBeenCalledOnce())
+
+    act(() => {
+      useAuthStore.setState({ sessionEpoch: useAuthStore.getState().sessionEpoch + 1 })
+    })
+    await act(async () => {
+      uploadRequest.resolve([{
+        uploadUrl: 'https://upload.example/profile',
+        photoKey: 'profile/user/profile.jpg',
+        fileName: 'pet.jpg',
+      }])
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
+    expect(savePhotos).not.toHaveBeenCalled()
+    expect(updatePetPhoto).not.toHaveBeenCalled()
   })
 
   it('shows three pets in the summary and combines the remaining count', async () => {
@@ -344,21 +483,49 @@ describe('ProfileRoute', () => {
     }
   })
 
-  it('shows an unavailable notice instead of fabricated stamps and returns to mypage', async () => {
+  it('loads the regional stamp book with achieved and unachieved artwork', async () => {
     const user = userEvent.setup()
     render(<ProfileRoute />)
 
     await screen.findByRole('heading', { name: '초코맘' })
-    await user.click(screen.getByRole('button', { name: /스탬프.*API 준비 중/ }))
-    expect(await screen.findByRole('heading', { name: '스탬프 기능을 준비하고 있어요' })).toBeInTheDocument()
-    expect(screen.getByText(/아직 스탬프 정보를 불러올 수 없어요/)).toBeInTheDocument()
-    expect(screen.queryByText('서울')).not.toBeInTheDocument()
-    expect(screen.queryByText('미획득')).not.toBeInTheDocument()
-    expect(screen.queryByText(/\d+회 방문/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/예시 데이터/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /스탬프.*17개 지역 도감/ }))
+
+    expect(await screen.findByRole('heading', { name: '지역 스탬프' })).toBeInTheDocument()
+    expect(fetchStampCollection).toHaveBeenCalledWith(expect.any(AbortSignal))
+    expect(screen.getByRole('progressbar', { name: '스탬프 수집률' })).toHaveAttribute(
+      'aria-valuenow',
+      '1'
+    )
+    expect(screen.getByRole('img', { name: '서울 스탬프 획득' })).toHaveAttribute(
+      'src',
+      '/stamps/achieved/seoul.png'
+    )
+    expect(screen.getByRole('img', { name: '부산 스탬프 미획득' })).toHaveAttribute(
+      'src',
+      '/stamps/unachieved/busan.png'
+    )
+    expect(screen.getByText('2회 방문')).toBeInTheDocument()
+    expect(screen.getByText('미획득')).toBeInTheDocument()
+    expect(screen.getByText('2026. 9. 1.')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '뒤로 가기' }))
     expect(await screen.findByRole('heading', { name: '초코맘' })).toBeInTheDocument()
+  })
+
+  it('retries the stamp collection after an API failure', async () => {
+    const user = userEvent.setup()
+    vi.mocked(fetchStampCollection)
+      .mockRejectedValueOnce({ type: 'network' })
+      .mockResolvedValueOnce({ acquiredCount: 0, totalCount: 0, stamps: [] })
+    render(<ProfileRoute />)
+
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: /스탬프.*17개 지역 도감/ }))
+    expect(await screen.findByRole('heading', { name: '스탬프를 불러오지 못했어요' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '다시 불러오기' }))
+    expect(await screen.findByText('아직 등록된 지역 스탬프가 없어요.')).toBeInTheDocument()
+    expect(fetchStampCollection).toHaveBeenCalledTimes(2)
   })
 
   it('shows an unavailable notice instead of fabricated memory albums and returns to mypage', async () => {
@@ -663,7 +830,8 @@ describe('ProfileRoute', () => {
         name: operation === 'create' ? '반려동물 추가하기' : operation === 'update' ? '초코 수정' : operation === 'delete' ? '초코 삭제' : '회원 탈퇴',
       })
       await user.click(trigger)
-      await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog')
+      expect(dialog).toHaveFocus()
       expect(nav).toHaveAttribute('inert')
       expect(nav).toHaveAttribute('aria-hidden', 'true')
       expect(trigger.closest('[inert]')).not.toBeNull()

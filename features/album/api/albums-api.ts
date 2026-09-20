@@ -42,6 +42,23 @@ function isNullableString(value: unknown, max = MAX_STRING_LENGTH) {
   return value === null || isString(value, max)
 }
 
+function isSafeHttpsUrl(value: unknown): value is string {
+  if (!isString(value, MAX_URL_LENGTH)) return false
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' && !url.username && !url.password
+  } catch {
+    return false
+  }
+}
+
+function isNullableDate(value: unknown) {
+  return value === null || (
+    isString(value, 100) &&
+    Number.isFinite(Date.parse(value))
+  )
+}
+
 /**
  * Convert the date formats accepted by the API into a comparable timestamp.
  * Date-only values are parsed in UTC so the ordering does not depend on the
@@ -100,6 +117,14 @@ export function compareAlbumPhotos(left: AlbumPhoto, right: AlbumPhoto) {
   if (leftTime !== null && rightTime === null) return -1
   if (leftTime === null && rightTime !== null) return 1
 
+  const leftCreatedTime = toComparableTime(left.createdAt ?? null)
+  const rightCreatedTime = toComparableTime(right.createdAt ?? null)
+  if (leftCreatedTime !== null && rightCreatedTime !== null && leftCreatedTime !== rightCreatedTime) {
+    return leftCreatedTime - rightCreatedTime
+  }
+  if (leftCreatedTime !== null && rightCreatedTime === null) return -1
+  if (leftCreatedTime === null && rightCreatedTime !== null) return 1
+
   return compareIds(left.photoId, right.photoId)
 }
 
@@ -112,9 +137,10 @@ function isAlbumPhotoDto(value: unknown): value is AlbumPhoto {
   const photo = value as Partial<AlbumPhoto>
   return (
     isString(photo.photoId, 500) &&
-    isString(photo.downloadUrl, MAX_URL_LENGTH) &&
+    isSafeHttpsUrl(photo.downloadUrl) &&
     isNullableString(photo.takenAt, 100) &&
-    isString(photo.externalPlaceId, 500) &&
+    (photo.createdAt === undefined || isNullableDate(photo.createdAt)) &&
+    isNullableString(photo.externalPlaceId, 500) &&
     typeof photo.isPublic === 'boolean'
   )
 }
@@ -152,7 +178,7 @@ function isCourseReviewPhoto(value: unknown) {
   const photo = value as { photoId?: unknown; downloadUrl?: unknown; takenAt?: unknown }
   return (
     isString(photo.photoId, 500) &&
-    isString(photo.downloadUrl, MAX_URL_LENGTH) &&
+    isSafeHttpsUrl(photo.downloadUrl) &&
     isNullableString(photo.takenAt, 100)
   )
 }
@@ -237,25 +263,8 @@ async function fetchCourseReviewStops(courseId: string, signal?: AbortSignal) {
   }
 }
 
-const DEMO_ALBUMS: AlbumSummary[] = [
-  {
-    courseId: 'demo-course-1',
-    travelDate: '2026-09-12',
-    petId: 'demo-pet-1',
-    photos: [
-      {
-        photoId: 'demo-photo-1',
-        downloadUrl: '/images/album-cover.png',
-        takenAt: '2026-09-12',
-        externalPlaceId: 'demo-place-1',
-        isPublic: false,
-      },
-    ],
-  },
-]
-
 export async function fetchMyAlbums(signal?: AbortSignal): Promise<AlbumSummary[]> {
-  if (isDemoSessionActive()) return DEMO_ALBUMS
+  if (isDemoSessionActive()) return []
 
   const [albumResponse, courseResponse] = await Promise.all([
     apiClient.get(API_ENDPOINTS.albums.mine, { signal }),
@@ -307,42 +316,6 @@ export async function fetchAlbumDetail(
   summary: AlbumSummary,
   signal?: AbortSignal
 ): Promise<AlbumDetail> {
-  if (isDemoSessionActive()) {
-    return {
-      summary,
-      course: {
-        id: summary.courseId,
-        travelDate: summary.travelDate ?? '',
-        startLocation: '서울역',
-        endLocation: '서울숲',
-        places: [
-          {
-            id: 'demo-course-place-1',
-            externalPlaceId: 'demo-place-1',
-            name: '서울숲',
-            imageUrl: '/images/place-park.png',
-            latitude: 37.5444,
-            longitude: 127.0374,
-            visitOrder: 1,
-            isFinal: true,
-            petPolicy: null,
-          },
-        ],
-      },
-      stops: [
-        {
-          coursePlaceId: 'demo-course-place-1',
-          externalPlaceId: 'demo-place-1',
-          placeName: '서울숲',
-          visitOrder: 1,
-          imageUrl: '/images/place-park.png',
-          review: null,
-          photos: sortAlbumPhotos(summary.photos),
-        },
-      ],
-    }
-  }
-
   const [course, reviewStops] = await Promise.all([
     fetchCourseById(summary.courseId, signal, { allowLegacyFields: true }),
     fetchCourseReviewStops(summary.courseId, signal),

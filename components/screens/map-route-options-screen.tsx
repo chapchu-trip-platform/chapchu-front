@@ -11,23 +11,18 @@ import { formatWalkingTime } from '@/features/map/api/walking-time-api'
 import { formatPetName } from '@/lib/format-pet-name'
 import { cn } from '@/lib/utils'
 
-export type PlaceRecommendationStatus =
-  | 'idle'
-  | 'loading'
-  | 'success'
-  | 'empty'
-  | 'error'
+export type CourseCreationStatus = 'idle' | 'loading' | 'error'
 
 export type MinimumWalkingTimeStatus = 'idle' | 'loading' | 'success' | 'error'
 
 interface MapRouteOptionsScreenProps {
   destination: SearchableLocation
+  courseCreationError: string | null
+  courseCreationStatus: CourseCreationStatus
   onBack: () => void
+  onCreateCourse: () => void
   onPetSelect: (petId: string) => void
-  onRecommend: () => void
   origin: SearchableLocation
-  recommendationError: string | null
-  recommendationStatus: PlaceRecommendationStatus
   petLoadStatus: 'loading' | 'success' | 'error'
   pets: SelectablePet[]
   selectedPetId: string | null
@@ -49,27 +44,27 @@ function RouteOptionsCard({ className, ...props }: ComponentProps<'section'>) {
 
 export default function MapRouteOptionsScreen({
   destination,
+  courseCreationError,
+  courseCreationStatus,
   onBack,
+  onCreateCourse,
   onPetSelect,
-  onRecommend,
   origin,
-  recommendationError,
-  recommendationStatus,
   petLoadStatus,
   pets,
   selectedPetId,
   minimumWalkingTimeSeconds = null,
   minimumWalkingTimeStatus = 'idle',
 }: MapRouteOptionsScreenProps) {
-  const canRecommend = selectedPetId !== null
+  const canCreateCourse = selectedPetId !== null
 
   return (
     <div className="flex flex-1 flex-col bg-warm-beige">
-      <TopBar title="추천 장소 찾기" showBack onBack={onBack} />
+      <TopBar title="여행 코스 만들기" showBack onBack={onBack} />
 
       <div className="mobile-scroll flex-1 px-4 py-5">
         <RouteOptionsCard>
-          <p className="text-[12px] font-semibold text-sage-green">여행 출발지·탐색 지역</p>
+          <p className="text-[12px] font-semibold text-sage-green">고정된 출발지·도착지</p>
           <div className="mt-3 flex items-start gap-3">
             <div className="mt-1 flex flex-col items-center">
               <span className="size-2.5 rounded-full bg-sage-green" />
@@ -176,49 +171,39 @@ export default function MapRouteOptionsScreen({
           )}
         </RouteOptionsCard>
 
-        {recommendationStatus === 'error' && (
+        {courseCreationStatus === 'error' && (
           <div
             role="alert"
             className="mt-4 rounded-xl border border-danger/20 bg-danger/5 p-3 text-[12px] text-deep-brown"
           >
-            {recommendationError}
-          </div>
-        )}
-
-        {recommendationStatus === 'empty' && (
-          <div
-            role="status"
-            className="mt-4 rounded-xl border border-soft-orange/30 bg-soft-orange/10 p-3 text-[12px] text-deep-brown"
-          >
-            탐색 지역 주변에서 추천할 수 있는 장소를 찾지 못했습니다. 다른 지역을
-            선택하거나 다시 시도해주세요.
+            {courseCreationError}
           </div>
         )}
       </div>
 
       <div className="safe-bottom-action px-4 pt-3">
         <Button
-          disabled={!canRecommend || recommendationStatus === 'loading'}
+          disabled={!canCreateCourse || courseCreationStatus === 'loading'}
           fullWidth
           size="lg"
-          onClick={onRecommend}
+          onClick={onCreateCourse}
           aria-live="polite"
         >
-          {recommendationStatus === 'loading' ? (
+          {courseCreationStatus === 'loading' ? (
             <>
               <Loader2 className="size-4 animate-spin" />
-              추천 장소 찾는 중
+              중간 경유지 만드는 중
             </>
           ) : !selectedPetId ? (
             '반려동물을 선택해주세요'
           ) : (
-            recommendationStatus === 'error' || recommendationStatus === 'empty'
-              ? '추천 장소 다시 받기'
-              : '추천 장소 받기'
+            courseCreationStatus === 'error'
+              ? '코스 다시 만들기'
+              : '중간 경유지 만들기'
           )}
         </Button>
         <p className="mt-2 text-center text-[11px] text-warm-gray">
-          선택한 반려동물과 탐색 지역을 기준으로 방문할 장소 5곳을 추천합니다.
+          입력한 도착지는 고정하고, 반려동물과 날씨에 맞는 중간 경유지를 자동으로 구성합니다.
         </p>
       </div>
     </div>

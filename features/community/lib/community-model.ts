@@ -8,6 +8,14 @@ const count = (value: unknown): value is number => typeof value === 'number' && 
 const date = (value: unknown): value is string | null => value === null || (text(value, 100) && Number.isFinite(Date.parse(value)))
 const postCategory = (value: unknown): value is PostCategory => typeof value === 'string' && POST_CATEGORIES.includes(value as PostCategory)
 
+function parsePostCategory(value: unknown): PostCategory | null | undefined {
+  if (value === undefined) return undefined
+  if (value === null) return null
+  if (value === 'GENERAL') return 'FREE'
+  if (postCategory(value)) return value
+  throw new Error('Invalid community post type.')
+}
+
 /** Remote photos are rendered by the browser, never fetched by a server-side proxy. */
 export function safePhotoUrl(value: string | null): string | null {
   if (!value) return null
@@ -30,14 +38,16 @@ export function parsePost(value: unknown): Post {
       typeof value.recommended !== 'boolean' || typeof value.bookmarked !== 'boolean' || !photos) {
     throw new Error('Invalid community post response.')
   }
+  const category = parsePostCategory(value.postType ?? value.category)
+  const postValue = { ...value }
+  delete postValue.postType
+  delete postValue.category
   const parsed: Post = {
-    ...(value as unknown as Post),
+    ...(postValue as unknown as Post),
     authorProfilePhotoUrl: safePhotoUrl((value.authorProfilePhotoUrl as string | null | undefined) ?? null),
     photoUrl: safePhotoUrl(value.photoUrl as string | null),
     photos,
-  }
-  if (value.category !== undefined && value.category !== null && !postCategory(value.category)) {
-    throw new Error('Invalid community post category.')
+    ...(category !== undefined ? { category } : {}),
   }
   return parsed
 }
@@ -91,10 +101,8 @@ export function parsePostSummary(value: unknown): PostSummary {
       : null,
     createdAt: value.createdAt,
   }
-  if (value.category !== undefined && value.category !== null) {
-    if (!postCategory(value.category)) throw new Error('Invalid community post category.')
-    parsed.category = value.category
-  }
+  const category = parsePostCategory(value.postType ?? value.category)
+  if (category !== undefined) parsed.category = category
   return parsed
 }
 

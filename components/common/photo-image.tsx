@@ -41,20 +41,24 @@ function PhotoImageSource({
   const [resolvedSrc, setResolvedSrc] = useState(src)
   const [failed, setFailed] = useState(false)
   const [fallbackFailed, setFallbackFailed] = useState(false)
+  const [refreshRequested, setRefreshRequested] = useState(false)
 
   useEffect(() => {
-    if (src || !photoId) return
+    if (!photoId || (src && !refreshRequested)) return
 
     const controller = new AbortController()
     void fetchPhotoDownload(photoId, controller.signal)
       .then((photo) => {
-        if (!controller.signal.aborted) setResolvedSrc(photo.downloadUrl)
+        if (!controller.signal.aborted) {
+          setResolvedSrc(photo.downloadUrl)
+          setFailed(false)
+        }
       })
       .catch(() => {
-        // The visual fallback remains local to this image when a signed URL expires or fails.
+        if (!controller.signal.aborted) setFailed(true)
       })
     return () => controller.abort()
-  }, [photoId, src])
+  }, [photoId, refreshRequested, src])
 
   return (
     <div className={`relative overflow-hidden bg-sage-green-light ${className}`}>
@@ -68,7 +72,14 @@ function PhotoImageSource({
           priority={priority}
           referrerPolicy="no-referrer"
           className={imageClassName}
-          onError={() => setFailed(true)}
+          onError={() => {
+            if (src && photoId && !refreshRequested) {
+              setResolvedSrc(null)
+              setRefreshRequested(true)
+              return
+            }
+            setFailed(true)
+          }}
         />
       ) : fallbackSrc && !fallbackFailed ? (
         <Image

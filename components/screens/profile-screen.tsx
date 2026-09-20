@@ -33,6 +33,8 @@ import {
   METADATA_SAFE_IMAGE_ACCEPT,
 } from '@/features/photos/lib/sanitize-image-file'
 import { getProfileErrorMessage } from '@/features/profile/api/profile-api'
+import { getStampRegion } from '@/features/stamps/constants/regions'
+import type { StampCollection } from '@/features/stamps/types/stamp'
 import type {
   PetMutationInput,
   PetOptions,
@@ -54,8 +56,10 @@ interface ProfileScreenProps {
   onOpenSettings?: (tab: SettingsTab) => void
   onLogout?: () => void | Promise<void>
   onLoadPetOptions: (signal?: AbortSignal) => Promise<PetOptions>
+  onLoadStamps: (signal?: AbortSignal) => Promise<StampCollection>
   onCreatePet: (input: PetMutationInput) => Promise<ProfilePet>
   onUpdatePet: (petId: string, input: PetMutationInput) => Promise<ProfilePet>
+  onUpdatePetPhoto: (petId: string, file: File | null) => Promise<ProfilePet>
   onDeletePet: (petId: string) => Promise<void>
   onUpdateProfilePhoto: (file: File | null) => Promise<ProfilePhoto>
   onWithdraw: () => Promise<void>
@@ -177,7 +181,7 @@ function useModalFocus(onClose: () => void, isBlocked = false) {
     const focusableElements = () =>
       Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector))
 
-    focusableElements()[0]?.focus()
+    dialog.focus({ preventScroll: true })
 
     // Isolate the overlay, not just the focusable dialog. The backdrop stays
     // clickable while ancestor siblings (including navigation) become inert.
@@ -205,17 +209,21 @@ function useModalFocus(onClose: () => void, isBlocked = false) {
       const elements = focusableElements()
       if (elements.length === 0) {
         event.preventDefault()
-        dialog.focus()
+        dialog.focus({ preventScroll: true })
         return
       }
       const first = elements[0]
       const last = elements[elements.length - 1]
-      if (event.shiftKey && document.activeElement === first) {
+      if (document.activeElement === dialog) {
         event.preventDefault()
-        last.focus()
+        const focusTarget = event.shiftKey ? last : first
+        focusTarget.focus({ preventScroll: true })
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus({ preventScroll: true })
       } else if (!event.shiftKey && document.activeElement === last) {
         event.preventDefault()
-        first.focus()
+        first.focus({ preventScroll: true })
       }
     }
 
@@ -225,7 +233,7 @@ function useModalFocus(onClose: () => void, isBlocked = false) {
       for (const element of isolated) {
         restoreModalBackground(element)
       }
-      previouslyFocused?.focus()
+      previouslyFocused?.focus({ preventScroll: true })
     }
   }, [])
 
@@ -520,6 +528,7 @@ function PetsSubScreen({
   onLoadOptions,
   onCreate,
   onUpdate,
+  onUpdatePhoto,
   onDelete,
 }: {
   pets: ProfilePet[]
@@ -527,10 +536,12 @@ function PetsSubScreen({
   onLoadOptions: (signal?: AbortSignal) => Promise<PetOptions>
   onCreate: (input: PetMutationInput) => Promise<ProfilePet>
   onUpdate: (petId: string, input: PetMutationInput) => Promise<ProfilePet>
+  onUpdatePhoto: (petId: string, file: File | null) => Promise<ProfilePet>
   onDelete: (petId: string) => Promise<void>
 }) {
   const [deleteTarget, setDeleteTarget] = useState<ProfilePet | null>(null)
   const [editorPet, setEditorPet] = useState<ProfilePet | null>(null)
+  const [photoEditorPet, setPhotoEditorPet] = useState<ProfilePet | null>(null)
   const [showEditor, setShowEditor] = useState(false)
   const [options, setOptions] = useState<PetOptions | null>(null)
   const [optionsError, setOptionsError] = useState<string | null>(null)
@@ -552,6 +563,7 @@ function PetsSubScreen({
   }, [onLoadOptions, options, optionsRequestKey, showEditor])
 
   const openEditor = (pet: ProfilePet | null) => {
+    setPhotoEditorPet(null)
     setEditorPet(pet)
     setShowEditor(true)
     setOptionsError(null)
@@ -588,9 +600,30 @@ function PetsSubScreen({
             className="mb-3 overflow-hidden rounded-card border border-border bg-card-surface p-4 shadow-sm"
           >
             <div className="flex items-start gap-3">
-              <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-full border-2 border-sage-green/30">
-                <Image src="/images/dog-hero.png" alt={pet.petName} fill className="object-cover" />
-              </div>
+              <button
+                type="button"
+                aria-label={`${pet.petName} 프로필 사진 ${pet.profilePhoto ? '수정' : '등록'}`}
+                className="relative h-14 w-14 flex-shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-green focus-visible:ring-offset-2"
+                onClick={() => {
+                  setShowEditor(false)
+                  setOptionsError(null)
+                  setDeleteTarget(null)
+                  setPhotoEditorPet(pet)
+                }}
+              >
+                <PhotoImage
+                  src={pet.profilePhoto?.downloadUrl}
+                  photoId={pet.profilePhoto?.photoId}
+                  alt={`${pet.petName} 프로필 사진`}
+                  className="h-full w-full rounded-full border-2 border-sage-green/30"
+                  fallbackSrc="/images/dog-hero.png"
+                  fallbackAlt={`${pet.petName} 기본 프로필 사진`}
+                  sizes="56px"
+                />
+                <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-card-surface bg-sage-green text-white">
+                  <Camera aria-hidden="true" className="h-2.5 w-2.5" />
+                </span>
+              </button>
               <div className="flex-1">
                 <div className="flex items-center justify-between">
                   <p className="text-[16px] font-bold text-deep-brown">{pet.petName}</p>
@@ -599,6 +632,7 @@ function PetsSubScreen({
                       <Edit3 className="h-4 w-4 text-warm-gray" />
                     </IconButton>
                     <IconButton aria-label={`${pet.petName} 삭제`} size="sm" variant="danger" onClick={() => {
+                      setPhotoEditorPet(null)
                       setShowEditor(false)
                       setOptionsError(null)
                       setDeleteTarget(pet)
@@ -682,22 +716,224 @@ function PetsSubScreen({
             }}
           />
         )}
+        {photoEditorPet && (
+          <ProfilePhotoEditor
+            key={`photo-${photoEditorPet.id}`}
+            currentPhoto={photoEditorPet.profilePhoto}
+            title={`${photoEditorPet.petName} 프로필 사진 ${photoEditorPet.profilePhoto ? '수정' : '등록'}`}
+            currentPhotoAlt={`${photoEditorPet.petName} 현재 프로필 사진`}
+            inputLabel={`${photoEditorPet.petName} 새 프로필 사진 선택`}
+            onClose={() => setPhotoEditorPet(null)}
+            onSave={(file) => onUpdatePhoto(photoEditorPet.id, file)}
+          />
+        )}
       </AnimatePresence>
     </div>
   )
 }
 
-function StampsSubScreen({ onBack }: { onBack: () => void }) {
+function formatStampDate(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value)
+  if (!match) return ''
+  return `${Number(match[1])}. ${Number(match[2])}. ${Number(match[3])}.`
+}
+
+function StampBookLoading() {
+  return (
+    <div aria-hidden="true">
+      <div className="mt-4 h-28 animate-pulse rounded-card border border-border bg-card-surface" />
+      <div className="mt-6 grid grid-cols-3 gap-x-2 gap-y-5">
+        {Array.from({ length: 9 }, (_, index) => (
+          <div key={index} className="flex flex-col items-center">
+            <div className="h-[92px] w-[92px] animate-pulse rounded-full bg-muted" />
+            <div className="mt-2 h-3 w-10 animate-pulse rounded-full bg-muted" />
+            <div className="mt-1.5 h-2.5 w-14 animate-pulse rounded-full bg-muted" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function StampsSubScreen({
+  onBack,
+  onLoad,
+}: {
+  onBack: () => void
+  onLoad: (signal?: AbortSignal) => Promise<StampCollection>
+}) {
+  const [collection, setCollection] = useState<StampCollection | null>(null)
+  const [status, setStatus] = useState<ProfileLoadStatus>('loading')
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [requestVersion, setRequestVersion] = useState(0)
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    void onLoad(controller.signal)
+      .then((nextCollection) => {
+        if (controller.signal.aborted) return
+        setCollection(nextCollection)
+        setStatus('success')
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return
+        setCollection(null)
+        setErrorMessage(getProfileErrorMessage(error))
+        setStatus('error')
+      })
+
+    return () => controller.abort()
+  }, [onLoad, requestVersion])
+
+  const progress = collection && collection.totalCount > 0
+    ? Math.round((collection.acquiredCount / collection.totalCount) * 100)
+    : 0
+  const remainingCount = collection
+    ? Math.max(collection.totalCount - collection.acquiredCount, 0)
+    : 0
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden bg-warm-beige">
       <TopBar title="여행 스탬프" showBack onBack={onBack} />
-      <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-24 pt-4">
-        <p className="mb-1 text-[13px] text-warm-gray">방문한 지역의 스탬프를 모아보세요!</p>
-        <section aria-labelledby="stamps-unavailable-title" className="mt-4 rounded-card border border-border bg-card-surface px-4 py-8 text-center shadow-sm">
-          <Stamp aria-hidden="true" className="mx-auto mb-3 h-8 w-8 text-soft-orange" />
-          <h2 id="stamps-unavailable-title" className="text-[14px] font-semibold text-deep-brown">스탬프 기능을 준비하고 있어요</h2>
-          <p className="mt-2 text-[12px] leading-relaxed text-warm-gray">아직 스탬프 정보를 불러올 수 없어요. 기능이 연결되면 이곳에서 확인할 수 있어요.</p>
-        </section>
+      <div
+        className="flex-1 overflow-y-auto no-scrollbar px-4 pb-24 pt-4"
+        aria-busy={status === 'loading'}
+      >
+        <p className="text-[13px] text-warm-gray">방문한 지역의 스탬프를 모아보세요!</p>
+        <span className="sr-only" role="status">
+          {status === 'loading'
+            ? '스탬프 도감을 불러오는 중'
+            : status === 'success'
+              ? '스탬프 도감 불러오기 완료'
+              : '스탬프 도감을 불러오지 못했습니다'}
+        </span>
+
+        {status === 'loading' ? (
+          <StampBookLoading />
+        ) : status === 'error' ? (
+          <section
+            aria-labelledby="stamps-error-title"
+            className="mt-4 rounded-card border border-danger/20 bg-card-surface px-4 py-8 text-center shadow-sm"
+            role="alert"
+          >
+            <Stamp aria-hidden="true" className="mx-auto mb-3 h-8 w-8 text-soft-orange" />
+            <h2 id="stamps-error-title" className="text-[14px] font-semibold text-deep-brown">
+              스탬프를 불러오지 못했어요
+            </h2>
+            <p className="mt-2 text-[12px] leading-relaxed text-warm-gray">{errorMessage}</p>
+            <Button
+              className="mt-4"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setCollection(null)
+                setStatus('loading')
+                setErrorMessage(null)
+                setRequestVersion((version) => version + 1)
+              }}
+            >
+              다시 불러오기
+            </Button>
+          </section>
+        ) : collection ? (
+          <>
+            <section
+              aria-labelledby="stamp-progress-title"
+              className="mt-4 rounded-card border border-border bg-card-surface p-4 shadow-sm"
+            >
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <h2 id="stamp-progress-title" className="text-[14px] font-semibold text-deep-brown">
+                    수집 현황
+                  </h2>
+                  <p className="mt-1 text-[11px] text-warm-gray">
+                    {collection.totalCount === 0
+                      ? '등록된 지역 정보를 기다리고 있어요'
+                      : remainingCount === 0
+                      ? '모든 지역의 스탬프를 모았어요!'
+                      : `${remainingCount}개 지역을 더 방문해보세요`}
+                  </p>
+                </div>
+                <p className="shrink-0 text-[24px] font-bold leading-none text-soft-orange">
+                  {collection.acquiredCount}
+                  <span className="ml-1 text-[13px] font-semibold text-warm-gray">
+                    / {collection.totalCount}
+                  </span>
+                </p>
+              </div>
+              <div
+                className="mt-4 h-2 overflow-hidden rounded-full bg-muted"
+                role="progressbar"
+                aria-label="스탬프 수집률"
+                aria-valuemin={0}
+                aria-valuemax={Math.max(collection.totalCount, 1)}
+                aria-valuenow={collection.acquiredCount}
+              >
+                <div
+                  className="h-full rounded-full bg-soft-orange transition-[width] duration-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </section>
+
+            <section aria-labelledby="regional-stamps-title" className="mt-6">
+              <div className="flex items-center justify-between">
+                <h2 id="regional-stamps-title" className="text-[15px] font-bold text-deep-brown">
+                  지역 스탬프
+                </h2>
+                <span className="text-[11px] text-warm-gray">총 {collection.totalCount}개 지역</span>
+              </div>
+              {collection.stamps.length > 0 ? (
+                <ul className="mt-4 grid grid-cols-3 gap-x-2 gap-y-5">
+                  {collection.stamps.map((stamp, index) => {
+                    const region = getStampRegion(stamp.stampName)
+                    if (!region) return null
+                    const state = stamp.acquired ? 'achieved' : 'unachieved'
+                    const formattedDate = stamp.firstAcquiredAt
+                      ? formatStampDate(stamp.firstAcquiredAt)
+                      : ''
+                    return (
+                      <li
+                        key={stamp.stampId}
+                        className="flex min-w-0 flex-col items-center text-center"
+                        aria-label={`${stamp.stampName} ${stamp.acquired ? `${stamp.stampCount}회 방문` : '미획득'}`}
+                      >
+                        <Image
+                          src={`/stamps/${state}/${region.slug}.png`}
+                          alt={`${stamp.stampName} 스탬프 ${stamp.acquired ? '획득' : '미획득'}`}
+                          width={104}
+                          height={104}
+                          className="h-auto w-full max-w-[104px]"
+                          priority={index < 6}
+                        />
+                        <p className="mt-1 text-[13px] font-bold text-deep-brown">{stamp.stampName}</p>
+                        <p className={cn(
+                          'mt-0.5 text-[10px] font-semibold',
+                          stamp.acquired ? 'text-soft-orange' : 'text-warm-gray'
+                        )}>
+                          {stamp.acquired ? `${stamp.stampCount}회 방문` : '미획득'}
+                        </p>
+                        {formattedDate && (
+                          <time
+                            dateTime={stamp.firstAcquiredAt ?? undefined}
+                            className="mt-0.5 text-[9px] text-warm-gray"
+                          >
+                            {formattedDate}
+                          </time>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+              ) : (
+                <p className="mt-4 rounded-card border border-border bg-card-surface px-4 py-8 text-center text-[12px] text-warm-gray">
+                  아직 등록된 지역 스탬프가 없어요.
+                </p>
+              )}
+            </section>
+          </>
+        ) : null}
       </div>
     </div>
   )
@@ -721,12 +957,24 @@ function MemoryAlbumSubScreen({ onBack }: { onBack: () => void }) {
 
 function ProfilePhotoEditor({
   currentPhoto,
+  title = '프로필 사진 수정',
+  currentPhotoAlt = '현재 프로필 사진',
+  inputLabel = '새 프로필 사진 선택',
+  accept = METADATA_SAFE_IMAGE_ACCEPT,
+  isValidFile = isSupportedMetadataSafeImage,
+  invalidFileMessage = 'JPG, PNG, WebP, GIF, HEIC, HEIF, AVIF 사진만 선택할 수 있어요.',
   onClose,
   onSave,
 }: {
   currentPhoto: ProfilePhoto | null
+  title?: string
+  currentPhotoAlt?: string
+  inputLabel?: string
+  accept?: string
+  isValidFile?: (file: File) => boolean
+  invalidFileMessage?: string
   onClose: () => void
-  onSave: (file: File | null) => Promise<ProfilePhoto>
+  onSave: (file: File | null) => Promise<unknown>
 }) {
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -736,8 +984,8 @@ function ProfilePhotoEditor({
 
   const save = async (file: File | null) => {
     if (isSaving) return
-    if (file && !isSupportedMetadataSafeImage(file)) {
-      setErrorMessage('이미지 파일만 선택할 수 있어요.')
+    if (file && !isValidFile(file)) {
+      setErrorMessage(invalidFileMessage)
       return
     }
     setIsSaving(true)
@@ -772,11 +1020,11 @@ function ProfilePhotoEditor({
         transition={{ duration: prefersReducedMotion ? 0 : 0.34, ease: PROFILE_MOTION_EASE }}
         className="relative w-full rounded-t-[24px] bg-card-surface p-5 pb-10"
       >
-        <h3 id="profile-photo-editor-title" className="text-[17px] font-bold text-deep-brown">프로필 사진 수정</h3>
+        <h3 id="profile-photo-editor-title" className="text-[17px] font-bold text-deep-brown">{title}</h3>
         <p className="mt-1 text-[12px] text-warm-gray">새 사진을 선택하거나 기본 프로필로 돌아갈 수 있어요.</p>
         <PhotoImage
           src={currentPhoto?.photoId ? currentPhoto.downloadUrl : '/images/default-profile.svg'}
-          alt="현재 프로필 사진"
+          alt={currentPhotoAlt}
           className="mx-auto mt-5 h-24 w-24 rounded-full border-2 border-sage-green/30"
           fallbackSrc="/images/default-profile.svg"
           fallbackAlt="기본 프로필"
@@ -785,9 +1033,9 @@ function ProfilePhotoEditor({
         <input
           ref={inputRef}
           type="file"
-          accept={METADATA_SAFE_IMAGE_ACCEPT}
+          accept={accept}
           className="sr-only"
-          aria-label="새 프로필 사진 선택"
+          aria-label={inputLabel}
           disabled={isSaving}
           onChange={(event) => {
             const file = event.target.files?.[0] ?? null
@@ -818,8 +1066,10 @@ export default function ProfileScreen({
   onLogout,
   onOpenSettings,
   onLoadPetOptions,
+  onLoadStamps,
   onCreatePet,
   onUpdatePet,
+  onUpdatePetPhoto,
   onDeletePet,
   onUpdateProfilePhoto,
   onWithdraw,
@@ -834,7 +1084,7 @@ export default function ProfileScreen({
   const visiblePetNames = visiblePets.map((pet) => pet.petName).join(' · ')
   const menuItems = useMemo(() => [
     { icon: PawPrint, iconColor: 'text-sage-green', label: '반려동물 관리', sub: 'pets' as const, desc: status === 'loading' ? '반려동물 정보를 불러오는 중' : status === 'error' ? '반려동물 정보를 불러오지 못함' : '추가 · 수정 · 삭제' },
-    { icon: Stamp, iconColor: 'text-soft-orange', label: '스탬프', sub: 'stamps' as const, desc: 'API 준비 중' },
+    { icon: Stamp, iconColor: 'text-soft-orange', label: '스탬프', sub: 'stamps' as const, desc: '17개 지역 도감' },
     { icon: Heart, iconColor: 'text-danger', label: '추억 앨범', sub: 'memory-album' as const, desc: 'API 준비 중' },
     { icon: FileText, iconColor: 'text-warm-gray', label: '작성한 글', tab: 'posts' as const, desc: '내 작성글 보기' },
     { icon: Star, iconColor: 'text-soft-orange', label: '장소 위시리스트', tab: 'wishlist' as const, desc: '저장한 장소 보기' },
@@ -847,11 +1097,11 @@ export default function ProfileScreen({
     <AnimatePresence initial={false} mode="wait">
       {subScreen === 'pets' ? (
         <ProfilePane key="pets" direction="forward">
-          <PetsSubScreen pets={pets} onBack={() => setSubScreen(null)} onLoadOptions={onLoadPetOptions} onCreate={onCreatePet} onUpdate={onUpdatePet} onDelete={onDeletePet} />
+          <PetsSubScreen pets={pets} onBack={() => setSubScreen(null)} onLoadOptions={onLoadPetOptions} onCreate={onCreatePet} onUpdate={onUpdatePet} onUpdatePhoto={onUpdatePetPhoto} onDelete={onDeletePet} />
         </ProfilePane>
       ) : subScreen === 'stamps' ? (
         <ProfilePane key="stamps" direction="forward">
-          <StampsSubScreen onBack={() => setSubScreen(null)} />
+          <StampsSubScreen onBack={() => setSubScreen(null)} onLoad={onLoadStamps} />
         </ProfilePane>
       ) : subScreen === 'memory-album' ? (
         <ProfilePane key="memory-album" direction="forward">
@@ -1023,7 +1273,16 @@ export default function ProfileScreen({
                     {visiblePets.map((pet) => (
                       <div key={pet.id} className="flex min-w-0 flex-col items-center rounded-card bg-muted/40 px-2 py-2 text-center">
                         <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-full border border-border">
-                          <Image src="/images/dog-hero.png" alt="" fill className="object-cover" loading="eager" />
+                          <PhotoImage
+                            src={pet.profilePhoto?.downloadUrl}
+                            photoId={pet.profilePhoto?.photoId}
+                            alt=""
+                            className="h-full w-full"
+                            fallbackSrc="/images/dog-hero.png"
+                            fallbackAlt=""
+                            sizes="40px"
+                            priority
+                          />
                         </div>
                         <p className="mt-1.5 max-w-full truncate text-[12px] font-semibold text-deep-brown">{pet.petName}</p>
                       </div>

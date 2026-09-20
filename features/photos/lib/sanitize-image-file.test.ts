@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   ImageMetadataSanitizationError,
+  isSupportedMetadataSafeImage,
+  METADATA_SAFE_IMAGE_ACCEPT,
   sanitizeImageFile,
 } from '@/features/photos/lib/sanitize-image-file'
 import { jpegFileWithMetadata } from '@/test/fixtures/images'
@@ -41,6 +43,37 @@ async function fileBytes(file: File) {
 }
 
 describe('sanitizeImageFile', () => {
+  it.each([
+    ['photo.jpg', 'image/jpeg'],
+    ['photo.jpeg', 'image/jpeg'],
+    ['photo.png', 'image/png'],
+    ['photo.webp', 'image/webp'],
+    ['photo.gif', 'image/gif'],
+    ['photo.heic', 'image/heic'],
+    ['photo.heic', 'image/x-heic'],
+    ['photo.heif', 'image/heif'],
+    ['photo.heif', 'image/x-heif'],
+    ['photo.avif', 'image/avif'],
+    ['photo.HEIC', ''],
+  ])('accepts the supported photo format %s (%s)', (name, type) => {
+    expect(isSupportedMetadataSafeImage({ name, type })).toBe(true)
+  })
+
+  it.each([
+    ['photo.svg', 'image/svg+xml'],
+    ['photo.svg', 'image/jpeg'],
+    ['photo.bmp', 'image/bmp'],
+    ['photo.jpg', 'image/png'],
+  ])('rejects an unsupported or mismatched photo format %s (%s)', (name, type) => {
+    expect(isSupportedMetadataSafeImage({ name, type })).toBe(false)
+  })
+
+  it('advertises common web and mobile photo formats to file pickers', () => {
+    expect(METADATA_SAFE_IMAGE_ACCEPT).toBe(
+      '.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.avif,image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,image/avif,image/x-heic,image/x-heif'
+    )
+  })
+
   it('removes EXIF/GPS, IPTC, and comment segments from JPEG files', async () => {
     const original = jpegFileWithMetadata('산책.jpg', {
       lastModified: 1234,
