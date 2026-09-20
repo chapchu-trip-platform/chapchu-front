@@ -6,6 +6,10 @@ import { parseComment, parseComments, parsePost, parsePostPage, parsePosts, pars
 import type { PostCategory, PostInput, ReviewInput, UpdatePostInput } from '@/features/community/types/community'
 
 const endpoints = API_ENDPOINTS.community
+const postTypeByCategory = {
+  FREE: 'GENERAL',
+  TRAVEL_REVIEW: 'TRAVEL_REVIEW',
+} as const satisfies Record<PostCategory, string>
 
 export async function fetchPosts(
   sort: 'latest' | 'popular',
@@ -14,7 +18,7 @@ export async function fetchPosts(
   category?: PostCategory
 ) {
   const { data } = await apiClient.get<unknown>(endpoints.posts, {
-    params: { sort, size: 20, ...(cursor ? { cursor } : {}), ...(category ? { category } : {}) },
+    params: { sort, size: 20, ...(cursor ? { cursor } : {}), ...(category ? { type: postTypeByCategory[category] } : {}) },
     signal,
   })
   return parsePostPage(data)
@@ -37,7 +41,12 @@ export async function fetchMyBookmarks(signal?: AbortSignal) {
 
 export async function createPost(input: PostInput, signal?: AbortSignal) {
   if (input.title.length > 100) throw new Error('Post title exceeds 100 characters.')
-  const { status } = await apiClient.post<void>(endpoints.posts, input, { signal })
+  const { category, ...postInput } = input
+  const { status } = await apiClient.post<void>(
+    endpoints.posts,
+    { ...postInput, ...(category ? { postType: postTypeByCategory[category] } : {}) },
+    { signal }
+  )
   if (status !== 200 && status !== 201) throw new Error('Unexpected post creation status.')
 }
 
