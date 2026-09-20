@@ -33,6 +33,10 @@ import {
   METADATA_SAFE_IMAGE_ACCEPT,
 } from '@/features/photos/lib/sanitize-image-file'
 import { getProfileErrorMessage } from '@/features/profile/api/profile-api'
+import {
+  isCommonPetProfileImage,
+  PET_PROFILE_IMAGE_ACCEPT,
+} from '@/features/profile/lib/pet-profile-image'
 import { getStampRegion } from '@/features/stamps/constants/regions'
 import type { StampCollection } from '@/features/stamps/types/stamp'
 import type {
@@ -59,6 +63,7 @@ interface ProfileScreenProps {
   onLoadStamps: (signal?: AbortSignal) => Promise<StampCollection>
   onCreatePet: (input: PetMutationInput) => Promise<ProfilePet>
   onUpdatePet: (petId: string, input: PetMutationInput) => Promise<ProfilePet>
+  onUpdatePetPhoto: (petId: string, file: File | null) => Promise<ProfilePet>
   onDeletePet: (petId: string) => Promise<void>
   onUpdateProfilePhoto: (file: File | null) => Promise<ProfilePhoto>
   onWithdraw: () => Promise<void>
@@ -523,6 +528,7 @@ function PetsSubScreen({
   onLoadOptions,
   onCreate,
   onUpdate,
+  onUpdatePhoto,
   onDelete,
 }: {
   pets: ProfilePet[]
@@ -530,10 +536,12 @@ function PetsSubScreen({
   onLoadOptions: (signal?: AbortSignal) => Promise<PetOptions>
   onCreate: (input: PetMutationInput) => Promise<ProfilePet>
   onUpdate: (petId: string, input: PetMutationInput) => Promise<ProfilePet>
+  onUpdatePhoto: (petId: string, file: File | null) => Promise<ProfilePet>
   onDelete: (petId: string) => Promise<void>
 }) {
   const [deleteTarget, setDeleteTarget] = useState<ProfilePet | null>(null)
   const [editorPet, setEditorPet] = useState<ProfilePet | null>(null)
+  const [photoEditorPet, setPhotoEditorPet] = useState<ProfilePet | null>(null)
   const [showEditor, setShowEditor] = useState(false)
   const [options, setOptions] = useState<PetOptions | null>(null)
   const [optionsError, setOptionsError] = useState<string | null>(null)
@@ -555,6 +563,7 @@ function PetsSubScreen({
   }, [onLoadOptions, options, optionsRequestKey, showEditor])
 
   const openEditor = (pet: ProfilePet | null) => {
+    setPhotoEditorPet(null)
     setEditorPet(pet)
     setShowEditor(true)
     setOptionsError(null)
@@ -591,9 +600,30 @@ function PetsSubScreen({
             className="mb-3 overflow-hidden rounded-card border border-border bg-card-surface p-4 shadow-sm"
           >
             <div className="flex items-start gap-3">
-              <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-full border-2 border-sage-green/30">
-                <Image src="/images/dog-hero.png" alt={pet.petName} fill className="object-cover" />
-              </div>
+              <button
+                type="button"
+                aria-label={`${pet.petName} 프로필 사진 ${pet.profilePhoto ? '수정' : '등록'}`}
+                className="relative h-14 w-14 flex-shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-green focus-visible:ring-offset-2"
+                onClick={() => {
+                  setShowEditor(false)
+                  setOptionsError(null)
+                  setDeleteTarget(null)
+                  setPhotoEditorPet(pet)
+                }}
+              >
+                <PhotoImage
+                  src={pet.profilePhoto?.downloadUrl}
+                  photoId={pet.profilePhoto?.photoId}
+                  alt={`${pet.petName} 프로필 사진`}
+                  className="h-full w-full rounded-full border-2 border-sage-green/30"
+                  fallbackSrc="/images/dog-hero.png"
+                  fallbackAlt={`${pet.petName} 기본 프로필 사진`}
+                  sizes="56px"
+                />
+                <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-card-surface bg-sage-green text-white">
+                  <Camera aria-hidden="true" className="h-2.5 w-2.5" />
+                </span>
+              </button>
               <div className="flex-1">
                 <div className="flex items-center justify-between">
                   <p className="text-[16px] font-bold text-deep-brown">{pet.petName}</p>
@@ -602,6 +632,7 @@ function PetsSubScreen({
                       <Edit3 className="h-4 w-4 text-warm-gray" />
                     </IconButton>
                     <IconButton aria-label={`${pet.petName} 삭제`} size="sm" variant="danger" onClick={() => {
+                      setPhotoEditorPet(null)
                       setShowEditor(false)
                       setOptionsError(null)
                       setDeleteTarget(pet)
@@ -683,6 +714,20 @@ function PetsSubScreen({
               else await onCreate(input)
               setShowEditor(false)
             }}
+          />
+        )}
+        {photoEditorPet && (
+          <ProfilePhotoEditor
+            key={`photo-${photoEditorPet.id}`}
+            currentPhoto={photoEditorPet.profilePhoto}
+            title={`${photoEditorPet.petName} 프로필 사진 ${photoEditorPet.profilePhoto ? '수정' : '등록'}`}
+            currentPhotoAlt={`${photoEditorPet.petName} 현재 프로필 사진`}
+            inputLabel={`${photoEditorPet.petName} 새 프로필 사진 선택`}
+            accept={PET_PROFILE_IMAGE_ACCEPT}
+            isValidFile={isCommonPetProfileImage}
+            invalidFileMessage="JPG, PNG, WebP 이미지 파일만 선택할 수 있어요."
+            onClose={() => setPhotoEditorPet(null)}
+            onSave={(file) => onUpdatePhoto(photoEditorPet.id, file)}
           />
         )}
       </AnimatePresence>
@@ -915,12 +960,24 @@ function MemoryAlbumSubScreen({ onBack }: { onBack: () => void }) {
 
 function ProfilePhotoEditor({
   currentPhoto,
+  title = '프로필 사진 수정',
+  currentPhotoAlt = '현재 프로필 사진',
+  inputLabel = '새 프로필 사진 선택',
+  accept = METADATA_SAFE_IMAGE_ACCEPT,
+  isValidFile = isSupportedMetadataSafeImage,
+  invalidFileMessage = '이미지 파일만 선택할 수 있어요.',
   onClose,
   onSave,
 }: {
   currentPhoto: ProfilePhoto | null
+  title?: string
+  currentPhotoAlt?: string
+  inputLabel?: string
+  accept?: string
+  isValidFile?: (file: File) => boolean
+  invalidFileMessage?: string
   onClose: () => void
-  onSave: (file: File | null) => Promise<ProfilePhoto>
+  onSave: (file: File | null) => Promise<unknown>
 }) {
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -930,8 +987,8 @@ function ProfilePhotoEditor({
 
   const save = async (file: File | null) => {
     if (isSaving) return
-    if (file && !isSupportedMetadataSafeImage(file)) {
-      setErrorMessage('이미지 파일만 선택할 수 있어요.')
+    if (file && !isValidFile(file)) {
+      setErrorMessage(invalidFileMessage)
       return
     }
     setIsSaving(true)
@@ -966,11 +1023,11 @@ function ProfilePhotoEditor({
         transition={{ duration: prefersReducedMotion ? 0 : 0.34, ease: PROFILE_MOTION_EASE }}
         className="relative w-full rounded-t-[24px] bg-card-surface p-5 pb-10"
       >
-        <h3 id="profile-photo-editor-title" className="text-[17px] font-bold text-deep-brown">프로필 사진 수정</h3>
+        <h3 id="profile-photo-editor-title" className="text-[17px] font-bold text-deep-brown">{title}</h3>
         <p className="mt-1 text-[12px] text-warm-gray">새 사진을 선택하거나 기본 프로필로 돌아갈 수 있어요.</p>
         <PhotoImage
           src={currentPhoto?.photoId ? currentPhoto.downloadUrl : '/images/default-profile.svg'}
-          alt="현재 프로필 사진"
+          alt={currentPhotoAlt}
           className="mx-auto mt-5 h-24 w-24 rounded-full border-2 border-sage-green/30"
           fallbackSrc="/images/default-profile.svg"
           fallbackAlt="기본 프로필"
@@ -979,9 +1036,9 @@ function ProfilePhotoEditor({
         <input
           ref={inputRef}
           type="file"
-          accept={METADATA_SAFE_IMAGE_ACCEPT}
+          accept={accept}
           className="sr-only"
-          aria-label="새 프로필 사진 선택"
+          aria-label={inputLabel}
           disabled={isSaving}
           onChange={(event) => {
             const file = event.target.files?.[0] ?? null
@@ -1015,6 +1072,7 @@ export default function ProfileScreen({
   onLoadStamps,
   onCreatePet,
   onUpdatePet,
+  onUpdatePetPhoto,
   onDeletePet,
   onUpdateProfilePhoto,
   onWithdraw,
@@ -1042,7 +1100,7 @@ export default function ProfileScreen({
     <AnimatePresence initial={false} mode="wait">
       {subScreen === 'pets' ? (
         <ProfilePane key="pets" direction="forward">
-          <PetsSubScreen pets={pets} onBack={() => setSubScreen(null)} onLoadOptions={onLoadPetOptions} onCreate={onCreatePet} onUpdate={onUpdatePet} onDelete={onDeletePet} />
+          <PetsSubScreen pets={pets} onBack={() => setSubScreen(null)} onLoadOptions={onLoadPetOptions} onCreate={onCreatePet} onUpdate={onUpdatePet} onUpdatePhoto={onUpdatePetPhoto} onDelete={onDeletePet} />
         </ProfilePane>
       ) : subScreen === 'stamps' ? (
         <ProfilePane key="stamps" direction="forward">
@@ -1218,7 +1276,16 @@ export default function ProfileScreen({
                     {visiblePets.map((pet) => (
                       <div key={pet.id} className="flex min-w-0 flex-col items-center rounded-card bg-muted/40 px-2 py-2 text-center">
                         <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-full border border-border">
-                          <Image src="/images/dog-hero.png" alt="" fill className="object-cover" loading="eager" />
+                          <PhotoImage
+                            src={pet.profilePhoto?.downloadUrl}
+                            photoId={pet.profilePhoto?.photoId}
+                            alt=""
+                            className="h-full w-full"
+                            fallbackSrc="/images/dog-hero.png"
+                            fallbackAlt=""
+                            sizes="40px"
+                            priority
+                          />
                         </div>
                         <p className="mt-1.5 max-w-full truncate text-[12px] font-semibold text-deep-brown">{pet.petName}</p>
                       </div>

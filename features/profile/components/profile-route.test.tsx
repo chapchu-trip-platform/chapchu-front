@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ProfileRoute from '@/features/profile/components/profile-route'
@@ -20,6 +20,7 @@ import {
   removeWishlistPlace,
   updateNickname,
   updatePet,
+  updatePetPhoto,
   updateProfilePhoto,
   withdrawAccount,
 } from '@/features/profile/api/profile-api'
@@ -59,6 +60,7 @@ vi.mock('@/features/profile/api/profile-api', () => ({
   removeWishlistPlace: vi.fn(),
   updateNickname: vi.fn(),
   updatePet: vi.fn(),
+  updatePetPhoto: vi.fn(),
   updateProfilePhoto: vi.fn(),
   withdrawAccount: vi.fn(),
 }))
@@ -130,6 +132,12 @@ beforeEach(() => {
   vi.mocked(updateNickname).mockResolvedValue('새닉네임')
   vi.mocked(createPet).mockResolvedValue({ ...pet, id: 'new-pet-id', petName: '보리' })
   vi.mocked(updatePet).mockResolvedValue(pet)
+  vi.mocked(updatePetPhoto).mockImplementation(async (_petId, photoId) => ({
+    ...pet,
+    profilePhoto: photoId
+      ? { photoId, downloadUrl: 'https://example.com/pet-profile.jpg' }
+      : null,
+  }))
   vi.mocked(updateProfilePhoto).mockResolvedValue({
     photoId: 'photo-1',
     downloadUrl: 'https://example.com/profile.jpg',
@@ -239,6 +247,110 @@ describe('ProfileRoute', () => {
     expect(updateProfilePhoto).toHaveBeenCalledWith('photo-1', expect.any(AbortSignal))
     await waitFor(() => expect(screen.queryByRole('dialog', { name: '프로필 사진 수정' })).not.toBeInTheDocument())
     expect(screen.getByRole('img', { name: '프로필' })).toHaveAttribute('src', 'https://example.com/profile.jpg')
+  })
+
+  it('rejects an uncommon pet profile image before upload', async () => {
+    const user = userEvent.setup()
+    render(<ProfileRoute />)
+
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: /반려동물 관리.*추가 · 수정 · 삭제/ }))
+    await user.click(await screen.findByRole('button', { name: '초코 프로필 사진 등록' }))
+
+    const input = screen.getByLabelText('초코 새 프로필 사진 선택')
+    fireEvent.change(input, {
+      target: { files: [new File(['gif'], 'animated.gif', { type: 'image/gif' })] },
+    })
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'JPG, PNG, WebP 이미지 파일만 선택할 수 있어요.'
+    )
+    expect(uploadPhotoFiles).not.toHaveBeenCalled()
+  })
+
+  it('registers, replaces, and removes a pet profile photo', async () => {
+    const user = userEvent.setup()
+    render(<ProfileRoute />)
+
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: /반려동물 관리.*추가 · 수정 · 삭제/ }))
+    await user.click(await screen.findByRole('button', { name: '초코 프로필 사진 등록' }))
+
+    expect(screen.getByRole('dialog', { name: '초코 프로필 사진 등록' })).toBeInTheDocument()
+    const input = screen.getByLabelText('초코 새 프로필 사진 선택')
+    expect(input).toHaveAttribute(
+      'accept',
+      '.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp'
+    )
+
+    const file = new File(['profile'], 'pet.jpg', { type: 'image/jpeg' })
+    await user.upload(input, file)
+
+    await waitFor(() =>
+      expect(uploadPhotoFiles).toHaveBeenCalledWith(
+        [file],
+        'PROFILE',
+        expect.any(AbortSignal)
+      )
+    )
+    expect(savePhotos).toHaveBeenCalledWith(
+      [{ photoKey: 'profile/user/profile.jpg' }],
+      expect.any(AbortSignal)
+    )
+    expect(updatePetPhoto).toHaveBeenCalledWith(
+      pet.id,
+      'photo-1',
+      expect.any(AbortSignal)
+    )
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: '초코 프로필 사진 등록' })).not.toBeInTheDocument()
+    )
+    expect(screen.getByRole('img', { name: '초코 프로필 사진' })).toHaveAttribute(
+      'src',
+      'https://example.com/pet-profile.jpg'
+    )
+
+    await user.click(screen.getByRole('button', { name: '초코 프로필 사진 수정' }))
+    await user.click(screen.getByRole('button', { name: '기본 프로필로 변경' }))
+    await waitFor(() =>
+      expect(updatePetPhoto).toHaveBeenLastCalledWith(
+        pet.id,
+        null,
+        expect.any(AbortSignal)
+      )
+    )
+    expect(uploadPhotoFiles).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops the pet photo flow before saving when the auth session changes', async () => {
+    const user = userEvent.setup()
+    const uploadRequest = createDeferred<Awaited<ReturnType<typeof uploadPhotoFiles>>>()
+    vi.mocked(uploadPhotoFiles).mockReturnValueOnce(uploadRequest.promise)
+    render(<ProfileRoute />)
+
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: /반려동물 관리.*추가 · 수정 · 삭제/ }))
+    await user.click(await screen.findByRole('button', { name: '초코 프로필 사진 등록' }))
+    await user.upload(
+      screen.getByLabelText('초코 새 프로필 사진 선택'),
+      new File(['profile'], 'pet.jpg', { type: 'image/jpeg' })
+    )
+    await waitFor(() => expect(uploadPhotoFiles).toHaveBeenCalledOnce())
+
+    act(() => {
+      useAuthStore.setState({ sessionEpoch: useAuthStore.getState().sessionEpoch + 1 })
+    })
+    await act(async () => {
+      uploadRequest.resolve([{
+        uploadUrl: 'https://upload.example/profile',
+        photoKey: 'profile/user/profile.jpg',
+        fileName: 'pet.jpg',
+      }])
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
+    expect(savePhotos).not.toHaveBeenCalled()
+    expect(updatePetPhoto).not.toHaveBeenCalled()
   })
 
   it('shows three pets in the summary and combines the remaining count', async () => {
