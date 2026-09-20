@@ -24,6 +24,8 @@ import { fetchMyPosts } from '@/features/community/api/community-api'
 import { fetchSelectablePets } from '@/features/profile/api/pets-api'
 import { formatPetName } from '@/lib/format-pet-name'
 
+const ALBUM_PAGE_SIZE = 20
+
 function formatDate(value: string | null) {
   if (!value) return '여행 날짜 미정'
   const [year, month, day] = value.split('-')
@@ -87,7 +89,9 @@ export default function AlbumScreen() {
   const [detailError, setDetailError] = useState<string | null>(null)
   const [detailReloadKey, setDetailReloadKey] = useState(0)
   const [serverDiaries, setServerDiaries] = useState<Record<string, string>>({})
+  const [visibleAlbumCount, setVisibleAlbumCount] = useState(ALBUM_PAGE_SIZE)
   const albumScrollRef = useRef<HTMLDivElement>(null)
+  const loadMoreRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const handleScrollTop = () => {
@@ -104,6 +108,7 @@ export default function AlbumScreen() {
       .then((nextAlbums) => {
         if (controller.signal.aborted) return
         setAlbums(nextAlbums.map(prioritizeAlbumCover))
+        setVisibleAlbumCount(ALBUM_PAGE_SIZE)
         setListStatus('success')
       })
       .catch((error: unknown) => {
@@ -124,6 +129,30 @@ export default function AlbumScreen() {
 
     return () => controller.abort()
   }, [reloadKey])
+
+  useEffect(() => {
+    const loadMoreElement = loadMoreRef.current
+    const scrollElement = albumScrollRef.current
+    if (
+      listStatus !== 'success' ||
+      !loadMoreElement ||
+      visibleAlbumCount >= albums.length
+    ) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return
+        setVisibleAlbumCount((current) => Math.min(current + ALBUM_PAGE_SIZE, albums.length))
+      },
+      {
+        root: scrollElement,
+        rootMargin: '0px 0px 240px 0px',
+      }
+    )
+
+    observer.observe(loadMoreElement)
+    return () => observer.disconnect()
+  }, [albums.length, listStatus, visibleAlbumCount])
 
   useEffect(() => {
     if (!selectedAlbum) return
@@ -173,6 +202,10 @@ export default function AlbumScreen() {
     trips: albums.length,
     photos: albums.reduce((count, album) => count + album.photos.length, 0),
   }), [albums])
+  const visibleAlbums = useMemo(
+    () => albums.slice(0, visibleAlbumCount),
+    [albums, visibleAlbumCount]
+  )
 
   if (selectedAlbum) {
     if (detailStatus === 'success' && detail) {
@@ -257,7 +290,7 @@ export default function AlbumScreen() {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              {albums.map((album) => (
+              {visibleAlbums.map((album) => (
                 <AlbumCard
                   key={album.courseId}
                   album={album}
@@ -266,6 +299,16 @@ export default function AlbumScreen() {
                 />
               ))}
             </div>
+
+            {visibleAlbumCount < albums.length && (
+              <div
+                ref={loadMoreRef}
+                aria-label="앨범 더 불러오기"
+                className="flex h-8 items-center justify-center"
+              >
+                <Loader2 className="size-4 animate-spin text-sage-green" aria-hidden="true" />
+              </div>
+            )}
           </div>
         )}
       </div>

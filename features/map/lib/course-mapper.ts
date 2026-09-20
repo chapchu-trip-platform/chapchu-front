@@ -11,7 +11,7 @@ export function mapCourse(dto: CourseDto): RecommendedCourse {
       .sort((first, second) => first.visitOrder - second.visitOrder)
       .map((place) => ({
         id: place.coursePlaceId,
-        externalPlaceId: place.externalPlaceId,
+        externalPlaceId: place.externalPlaceId?.trim() ?? '',
         name: place.placeName.trim(),
         imageUrl: place.placeImageUrl,
         latitude: place.latitude,

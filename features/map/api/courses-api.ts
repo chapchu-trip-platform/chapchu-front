@@ -10,7 +10,6 @@ import type {
   RecommendedPlaceDto,
 } from '@/features/map/types/course-api'
 import type { RecommendedCourse } from '@/features/map/types/course'
-import type { RecommendedPlace } from '@/features/map/types/recommended-place'
 import { formatLocalTravelDate } from '@/features/map/lib/travel-date'
 import { apiClient, refreshAccessToken } from '@/lib/api/client'
 import { API_ENDPOINTS } from '@/lib/api/endpoints'
@@ -57,7 +56,7 @@ function isCoursePlaceDto(
   const allowLegacyFields = options?.allowLegacyFields === true
   return (
     isBoundedString(place.coursePlaceId) &&
-    isBoundedString(place.externalPlaceId) &&
+    (place.externalPlaceId === null || isBoundedString(place.externalPlaceId)) &&
     isBoundedString(place.placeName) &&
     (place.placeImageUrl === null ||
       (typeof place.placeImageUrl === 'string' &&
@@ -116,20 +115,21 @@ function isCourseSummaryDto(value: unknown): value is CourseSummaryDto {
 
 export { formatLocalTravelDate } from '@/features/map/lib/travel-date'
 
-function mapRecommendedPlaceToDto(destination: RecommendedPlace): RecommendedPlaceDto {
+function mapDestinationToDto(destination: SearchableLocation): RecommendedPlaceDto {
+  const placeName = destination.name.trim() || destination.address.trim()
   return {
-    externalPlaceId: destination.externalPlaceId.trim(),
-    placeName: destination.name.trim(),
-    placeImageUrl: destination.imageUrl,
+    externalPlaceId: destination.id.trim(),
+    placeName,
+    placeImageUrl: null,
     latitude: destination.latitude,
     longitude: destination.longitude,
     address: destination.address.trim(),
-    categoryLabel: destination.category.trim(),
-    indoorOutdoorType: destination.indoorOutdoorType.trim(),
-    allowedPetSize: destination.allowedPetSize,
-    leashRequired: destination.leashRequired,
-    carrierRequired: destination.carrierRequired,
-    placeCaution: destination.caution,
+    categoryLabel: '도착지',
+    indoorOutdoorType: 'BOTH',
+    allowedPetSize: null,
+    leashRequired: null,
+    carrierRequired: null,
+    placeCaution: null,
   }
 }
 
@@ -140,7 +140,7 @@ export function buildCreateCourseRequest(
     petId,
     weather,
   }: {
-    destination: RecommendedPlace
+    destination: SearchableLocation
     origin: SearchableLocation
     petId: string
     weather?: CourseWeatherInput
@@ -157,7 +157,7 @@ export function buildCreateCourseRequest(
     startLocation,
     startLat: origin.latitude,
     startLng: origin.longitude,
-    destination: mapRecommendedPlaceToDto(destination),
+    destination: mapDestinationToDto(destination),
     ...(typeof weather?.temperature === 'number'
       ? { temperature: weather.temperature }
       : {}),
@@ -232,26 +232,7 @@ export async function fetchActiveCourse(signal?: AbortSignal): Promise<Recommend
 }
 
 export function getCourseRecommendationErrorMessage(error: unknown) {
-  if (!error || typeof error !== 'object') {
-    return '추천 코스를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'
-  }
-
-  if (error instanceof InvalidCourseResponseError) {
-    return '추천 코스 응답 형식을 확인하지 못했습니다. 서버 API 계약을 확인해주세요.'
-  }
-
-  const normalized = error as { status?: unknown; type?: unknown }
-  if (normalized.status === 401) return '로그인이 만료되었습니다. 다시 로그인해주세요.'
-  if (normalized.status === 403) return '선택한 반려동물로 코스를 생성할 권한이 없습니다.'
-  if (normalized.status === 404) return '선택한 장소로 코스를 만들지 못했습니다.'
-  if (normalized.status === 429) return '추천 요청이 많습니다. 잠시 후 다시 시도해주세요.'
-  if (normalized.type === 'network') return '네트워크 연결을 확인하고 다시 시도해주세요.'
-  if (normalized.type === 'timeout') return '추천 요청 시간이 초과되었습니다. 다시 시도해주세요.'
-  if (normalized.status === 400 || normalized.status === 422) {
-    return '반려동물과 선택한 장소 정보를 확인한 뒤 다시 시도해주세요.'
-  }
-  if (normalized.type === 'server') {
-    return '서버에서 추천 코스를 생성하지 못했습니다. 잠시 후 다시 시도해주세요.'
-  }
-  return '추천 코스를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'
+  const normalized = error as { status?: unknown } | null
+  if (normalized?.status === 401) return '로그인이 만료되었습니다. 다시 로그인해주세요.'
+  return '코스 생성에 실패했습니다. 다시 시도해주세요.'
 }

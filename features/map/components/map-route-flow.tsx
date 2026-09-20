@@ -3,10 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import MapSetupScreen from '@/components/screens/map-setup-screen'
-import MapRouteOptionsScreen, {
-  type PlaceRecommendationStatus,
-} from '@/components/screens/map-route-options-screen'
-import MapPlaceSelectionScreen from '@/components/screens/map-place-selection-screen'
+import MapRouteOptionsScreen from '@/components/screens/map-route-options-screen'
 import MapRouteScreen from '@/components/screens/map-route-screen'
 import TravelProgressScreen from '@/components/screens/travel-progress-screen'
 import TripEndScreen from '@/components/screens/trip-end-screen'
@@ -19,17 +16,7 @@ import {
   fetchActiveCourse,
   getCourseRecommendationErrorMessage,
 } from '@/features/map/api/courses-api'
-import {
-  buildRecommendedPlacesRequest,
-  fetchRecommendedPlaces,
-  getPlaceRecommendationErrorMessage,
-} from '@/features/map/api/recommended-places-api'
 import type { CourseWeatherInput } from '@/features/map/types/course-api'
-import type { RecommendedPlace } from '@/features/map/types/recommended-place'
-import {
-  getSelectedRecommendedPlace,
-  toggleRecommendedPlaceSelection,
-} from '@/features/map/lib/recommended-place-selection'
 import { formatLocalTravelDate } from '@/features/map/lib/travel-date'
 import {
   fetchSelectablePets,
@@ -58,7 +45,7 @@ import type { ErrorType } from '@/types'
 import MapFlowPageTransition from '@/features/map/components/map-flow-page-transition'
 import { saveAlbumCoverPreference } from '@/features/album/lib/album-cover-preference'
 
-type MapStep = 'setup' | 'options' | 'places' | 'route' | 'progress' | 'end'
+type MapStep = 'setup' | 'options' | 'route' | 'progress' | 'end'
 
 interface MapRouteFlowProps {
   initialErrorType?: ErrorType
@@ -72,13 +59,8 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
   const [shareTitle, setShareTitle] = useState('')
   const [shareCoverPhotoId, setShareCoverPhotoId] = useState<string | null>(null)
   const [boardShared, setBoardShared] = useState(false)
-  const [recommendationStatus, setRecommendationStatus] =
-    useState<PlaceRecommendationStatus>('idle')
-  const [recommendationError, setRecommendationError] = useState<string | null>(null)
-  const [recommendedPlaces, setRecommendedPlaces] = useState<RecommendedPlace[]>([])
-  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null)
-  const [courseWeather, setCourseWeather] = useState<CourseWeatherInput | undefined>()
   const [selectablePets, setSelectablePets] = useState<SelectablePet[]>([])
+  const [courseWeather, setCourseWeather] = useState<CourseWeatherInput | undefined>()
   const [petLoadStatus, setPetLoadStatus] = useState<'loading' | 'success' | 'error'>(
     'loading'
   )
@@ -96,7 +78,6 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
   const [pedestrianRouteStatus, setPedestrianRouteStatus] = useState<
     'idle' | 'loading' | 'success' | 'error'
   >('idle')
-  const recommendationRequestRef = useRef<AbortController | null>(null)
   const courseCreationRequestRef = useRef<AbortController | null>(null)
   const activeCourseRequestRef = useRef<AbortController | null>(null)
   const pedestrianRouteRequestRef = useRef<AbortController | null>(null)
@@ -116,6 +97,7 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
     setOverallReview,
     beginTravelDrafts,
     markReviewSaved,
+    resetTravel,
     setTravelStage,
   } = useTravelStore()
   const currentPosition = useLocationStore((state) => state.position)
@@ -155,7 +137,6 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
 
   useEffect(
     () => () => {
-      recommendationRequestRef.current?.abort()
       courseCreationRequestRef.current?.abort()
       activeCourseRequestRef.current?.abort()
       pedestrianRouteRequestRef.current?.abort()
@@ -212,37 +193,25 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
     return () => controller.abort()
   }, [displayedStep, initialErrorType, routeDestination, routeOrigin])
 
-  const requestRecommendedPlaces = async () => {
+  const createCourse = async () => {
     if (
+      !routeOrigin ||
       !routeDestination ||
-      recommendationStatus === 'loading'
+      !selectedPetId ||
+      courseCreationStatus === 'loading'
     ) {
       return
     }
-    if (!selectedPetId) {
-      setRecommendationError(
-        petLoadStatus === 'loading'
-          ? '반려동물 정보를 확인하고 있습니다. 잠시 후 다시 시도해주세요.'
-          : petLoadStatus === 'error'
-            ? '반려동물 정보를 불러오지 못했습니다. 다시 로그인한 뒤 시도해주세요.'
-            : '등록된 반려동물이 없습니다. 반려동물을 등록한 뒤 다시 시도해주세요.'
-      )
-      setRecommendationStatus('error')
-      return
-    }
 
-    recommendationRequestRef.current?.abort()
+    courseCreationRequestRef.current?.abort()
     const controller = new AbortController()
-    recommendationRequestRef.current = controller
+    courseCreationRequestRef.current = controller
+    setCourseCreationStatus('loading')
+    setCourseCreationError(null)
     setRecommendedCourse(null)
-    setRecommendedPlaces([])
-    setSelectedPlaceId(null)
-    setCourseWeather(undefined)
     pedestrianRouteRequestRef.current?.abort()
     setPedestrianRoute(null)
     setPedestrianRouteStatus('idle')
-    setRecommendationError(null)
-    setRecommendationStatus('loading')
 
     try {
       let weather: CourseWeatherInput | undefined
@@ -251,65 +220,14 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
       } catch {
         if (controller.signal.aborted) return
       }
-
-      const places = await fetchRecommendedPlaces(
-        buildRecommendedPlacesRequest({
-          destination: routeDestination,
-          petId: selectedPetId,
-          weather,
-        }),
-        controller.signal
-      )
-      if (controller.signal.aborted) return
       setCourseWeather(weather)
 
-      if (places.length === 0) {
-        setRecommendationStatus('empty')
-        return
-      }
-
-      setRecommendedPlaces(places)
-      setRecommendationStatus('success')
-      setStep('places')
-    } catch (error: unknown) {
-      if (controller.signal.aborted) return
-      setRecommendationError(getPlaceRecommendationErrorMessage(error))
-      setRecommendationStatus('error')
-    } finally {
-      if (recommendationRequestRef.current === controller) {
-        recommendationRequestRef.current = null
-      }
-    }
-  }
-
-  const createCourseFromSelection = async () => {
-    if (
-      !routeOrigin ||
-      !selectedPetId ||
-      courseCreationStatus === 'loading'
-    ) {
-      return
-    }
-
-    const destination = getSelectedRecommendedPlace(
-      recommendedPlaces,
-      selectedPlaceId
-    )
-    if (!destination) return
-
-    courseCreationRequestRef.current?.abort()
-    const controller = new AbortController()
-    courseCreationRequestRef.current = controller
-    setCourseCreationStatus('loading')
-    setCourseCreationError(null)
-
-    try {
       const serverCourse = await createRecommendedCourse(
         buildCreateCourseRequest({
-          destination,
+          destination: routeDestination,
           origin: routeOrigin,
           petId: selectedPetId,
-          weather: courseWeather,
+          weather,
         }),
         controller.signal
       )
@@ -400,13 +318,11 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
           initialOrigin={routeOrigin}
           locationStatus={locationStatus}
           onNext={(origin, destination) => {
-            recommendationRequestRef.current?.abort()
+            courseCreationRequestRef.current?.abort()
             setRouteEndpoints(origin, destination)
             setTravelStage('planning')
-            setRecommendationError(null)
-            setRecommendationStatus('idle')
-            setRecommendedPlaces([])
-            setSelectedPlaceId(null)
+            setCourseCreationError(null)
+            setCourseCreationStatus('idle')
             setCourseWeather(undefined)
             pedestrianRouteRequestRef.current?.abort()
             setPedestrianRoute(null)
@@ -430,67 +346,29 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
         <MapRouteOptionsScreen
         destination={routeDestination}
         onBack={() => {
-          recommendationRequestRef.current?.abort()
-          setRecommendationError(null)
-          setRecommendationStatus('idle')
+          courseCreationRequestRef.current?.abort()
+          setCourseCreationError(null)
+          setCourseCreationStatus('idle')
           setStep('setup')
         }}
         onPetSelect={(petId) => {
-          recommendationRequestRef.current?.abort()
-          recommendationRequestRef.current = null
+          courseCreationRequestRef.current?.abort()
+          courseCreationRequestRef.current = null
           const pet = selectablePets.find((item) => item.id === petId) ?? null
           setSelectedPet(pet)
-          setRecommendationError(null)
-          setRecommendationStatus('idle')
-          setRecommendedPlaces([])
-          setSelectedPlaceId(null)
+          setCourseCreationError(null)
+          setCourseCreationStatus('idle')
           setCourseWeather(undefined)
         }}
-        onRecommend={() => void requestRecommendedPlaces()}
+        onCreateCourse={() => void createCourse()}
         origin={routeOrigin}
         petLoadStatus={petLoadStatus}
         pets={selectablePets}
-        recommendationError={recommendationError}
-        recommendationStatus={recommendationStatus}
+        courseCreationError={courseCreationError}
+        courseCreationStatus={courseCreationStatus}
         selectedPetId={selectedPetId}
         minimumWalkingTimeSeconds={minimumWalkingTimeSeconds}
         minimumWalkingTimeStatus={minimumWalkingTimeStatus}
-        />
-      </MapFlowPageTransition>
-    )
-  }
-
-  if (displayedStep === 'places' && routeDestination && recommendedPlaces.length > 0) {
-    return (
-      <MapFlowPageTransition step="places">
-        <MapPlaceSelectionScreen
-        courseCreationError={courseCreationError}
-        destinationArea={routeDestination}
-        isCreatingCourse={courseCreationStatus === 'loading'}
-        origin={routeOrigin ?? undefined}
-        onBack={() => {
-          recommendationRequestRef.current?.abort()
-          setRecommendedPlaces([])
-          setSelectedPlaceId(null)
-          setCourseCreationError(null)
-          setCourseCreationStatus('idle')
-          setRecommendationError(null)
-          setRecommendationStatus('idle')
-          setMinimumWalkingTimeSeconds(null)
-          setMinimumWalkingTimeStatus('loading')
-          setStep('options')
-        }}
-        onConfirm={() => void createCourseFromSelection()}
-        onToggle={(placeId) => {
-          setSelectedPlaceId((current) =>
-            toggleRecommendedPlaceSelection(current, placeId)
-          )
-          setCourseCreationError(null)
-          setCourseCreationStatus('idle')
-        }}
-        places={recommendedPlaces}
-        selectedPlaceId={selectedPlaceId}
-        travelDate={formatLocalTravelDate(new Date())}
         />
       </MapFlowPageTransition>
     )
@@ -506,7 +384,9 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
           pedestrianRouteRequestRef.current?.abort()
           setPedestrianRoute(null)
           setPedestrianRouteStatus('idle')
-          setStep('places')
+          setCourseCreationError(null)
+          setCourseCreationStatus('idle')
+          setStep('options')
         }}
         onStartTrip={() => {
           setTravelStage('in-progress')
@@ -538,9 +418,10 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
           setStep('end')
         }}
         onAbort={() => {
-          setTravelStage('idle')
+          resetTravel()
           router.push('/home')
         }}
+        onLeave={() => router.push('/home')}
         />
       </MapFlowPageTransition>
     )

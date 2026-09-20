@@ -255,7 +255,7 @@ export default function CourseDetailScreen({ detail, petName, overallReview, onB
             <h3 className="text-[14px] font-bold text-deep-brown">여행 완료 일기</h3>
           </div>
           <p className="mt-2 min-h-4 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-warm-gray">
-            {overallReview?.trim() ?? ''}
+            {overallReview?.trim() || '작성한 여행 일기가 없어요.'}
           </p>
         </section>
 
