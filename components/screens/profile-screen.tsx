@@ -185,7 +185,7 @@ function useModalFocus(onClose: () => void, isBlocked = false) {
     const focusableElements = () =>
       Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector))
 
-    focusableElements()[0]?.focus()
+    dialog.focus({ preventScroll: true })
 
     // Isolate the overlay, not just the focusable dialog. The backdrop stays
     // clickable while ancestor siblings (including navigation) become inert.
@@ -213,17 +213,21 @@ function useModalFocus(onClose: () => void, isBlocked = false) {
       const elements = focusableElements()
       if (elements.length === 0) {
         event.preventDefault()
-        dialog.focus()
+        dialog.focus({ preventScroll: true })
         return
       }
       const first = elements[0]
       const last = elements[elements.length - 1]
-      if (event.shiftKey && document.activeElement === first) {
+      if (document.activeElement === dialog) {
         event.preventDefault()
-        last.focus()
+        const focusTarget = event.shiftKey ? last : first
+        focusTarget.focus({ preventScroll: true })
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus({ preventScroll: true })
       } else if (!event.shiftKey && document.activeElement === last) {
         event.preventDefault()
-        first.focus()
+        first.focus({ preventScroll: true })
       }
     }
 
@@ -233,7 +237,7 @@ function useModalFocus(onClose: () => void, isBlocked = false) {
       for (const element of isolated) {
         restoreModalBackground(element)
       }
-      previouslyFocused?.focus()
+      previouslyFocused?.focus({ preventScroll: true })
     }
   }, [])
 

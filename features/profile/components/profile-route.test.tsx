@@ -825,7 +825,8 @@ describe('ProfileRoute', () => {
         name: operation === 'create' ? '반려동물 추가하기' : operation === 'update' ? '초코 수정' : operation === 'delete' ? '초코 삭제' : '회원 탈퇴',
       })
       await user.click(trigger)
-      await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog')
+      expect(dialog).toHaveFocus()
       expect(nav).toHaveAttribute('inert')
       expect(nav).toHaveAttribute('aria-hidden', 'true')
       expect(trigger.closest('[inert]')).not.toBeNull()
