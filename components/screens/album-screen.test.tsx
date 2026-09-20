@@ -100,17 +100,22 @@ describe('AlbumScreen', () => {
 
     expect(await screen.findAllByRole('img', { name: '반려동물 여행 앨범' })).toHaveLength(20)
     expect(screen.getByLabelText('앨범 더 불러오기')).toBeInTheDocument()
+    await waitFor(() => expect(intersectionCallback).not.toBeNull())
 
     await act(async () => {
       intersectionCallback?.([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver)
     })
-    expect(screen.getAllByRole('img', { name: '반려동물 여행 앨범' })).toHaveLength(40)
+    await waitFor(() => {
+      expect(screen.getAllByRole('img', { name: '반려동물 여행 앨범' })).toHaveLength(40)
+    })
 
     await act(async () => {
       intersectionCallback?.([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver)
     })
-    expect(screen.getAllByRole('img', { name: '반려동물 여행 앨범' })).toHaveLength(45)
-    expect(screen.queryByLabelText('앨범 더 불러오기')).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getAllByRole('img', { name: '반려동물 여행 앨범' })).toHaveLength(45)
+      expect(screen.queryByLabelText('앨범 더 불러오기')).not.toBeInTheDocument()
+    })
 
     unmount()
   })
