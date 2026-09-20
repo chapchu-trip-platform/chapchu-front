@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import HomeScreen from '@/components/screens/home-screen'
-import { mockStampCollection } from '@/data/mock/stamps'
 import { fetchHomeSummary, fetchPopularPosts } from '@/features/home/api/home-api'
 import { convertLatLngToKmaGrid } from '@/features/home/lib/kma-grid'
 import { selectHomeStamps } from '@/features/home/lib/home-stamps'
@@ -13,14 +12,14 @@ import type {
   HotPost,
 } from '@/features/home/types/home'
 import { useLocationStore } from '@/features/location/stores/location-store'
+import { fetchStampCollection } from '@/features/profile/api/profile-api'
+import type { StampCollection } from '@/features/stamps/types/stamp'
 import type { CurrentWeather, WeatherLoadStatus } from '@/types/weather'
 
 const DEFAULT_HOME_LOCATION = {
   center: { lat: 35.8552083333333, lng: 128.632866666666 },
   label: '대구 수성구 기준 · 위치 확인 전',
 } as const
-
-const HOME_STAMPS = selectHomeStamps(mockStampCollection.stamps)
 
 const WEATHER_CONDITION_CODES = new Set([
   'CLEAR',
@@ -94,14 +93,18 @@ export default function HomeRoute() {
   const [summaryStatus, setSummaryStatus] = useState<HomeDataStatus>('loading')
   const [hotPosts, setHotPosts] = useState<HotPost[]>([])
   const [hotPostsStatus, setHotPostsStatus] = useState<HomeDataStatus>('loading')
+  const [stampCollection, setStampCollection] = useState<StampCollection | null>(null)
+  const [stampsStatus, setStampsStatus] = useState<HomeDataStatus>('loading')
   const [weather, setWeather] = useState<CurrentWeather | null>(null)
   const [weatherStatus, setWeatherStatus] = useState<WeatherLoadStatus>('loading')
   const weatherControllerRef = useRef<AbortController | null>(null)
   const postsControllerRef = useRef<AbortController | null>(null)
+  const stampsControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     const summaryController = new AbortController()
     const postsController = new AbortController()
+    const stampsController = new AbortController()
 
     void fetchHomeSummary(summaryController.signal)
       .then((data) => {
@@ -128,10 +131,25 @@ export default function HomeRoute() {
         setHotPostsStatus('error')
       })
 
+    stampsControllerRef.current = stampsController
+    void fetchStampCollection(stampsController.signal)
+      .then((collection) => {
+        if (stampsController.signal.aborted) return
+        setStampCollection(collection)
+        setStampsStatus('success')
+      })
+      .catch(() => {
+        if (stampsController.signal.aborted) return
+        setStampCollection(null)
+        setStampsStatus('error')
+      })
+
     return () => {
       summaryController.abort()
       postsControllerRef.current?.abort()
       postsControllerRef.current = null
+      stampsControllerRef.current?.abort()
+      stampsControllerRef.current = null
     }
   }, [])
 
@@ -242,6 +260,24 @@ export default function HomeRoute() {
       })
   }
 
+  const retryStamps = () => {
+    stampsControllerRef.current?.abort()
+    const controller = new AbortController()
+    stampsControllerRef.current = controller
+    setStampsStatus('loading')
+    void fetchStampCollection(controller.signal)
+      .then((collection) => {
+        if (stampsControllerRef.current !== controller) return
+        setStampCollection(collection)
+        setStampsStatus('success')
+      })
+      .catch(() => {
+        if (stampsControllerRef.current !== controller) return
+        setStampCollection(null)
+        setStampsStatus('error')
+      })
+  }
+
   const mapCenter = locationPosition
     ? { lat: locationPosition.latitude, lng: locationPosition.longitude }
     : DEFAULT_HOME_LOCATION.center
@@ -263,9 +299,11 @@ export default function HomeRoute() {
       locationStatus={locationStatus}
       petNames={summary?.petNames ?? []}
       petNamesStatus={summaryStatus}
-      stamps={HOME_STAMPS}
-      acquiredStampCount={mockStampCollection.acquiredCount}
-      totalStampCount={mockStampCollection.totalCount}
+      stamps={selectHomeStamps(stampCollection?.stamps ?? [])}
+      stampsStatus={stampsStatus}
+      acquiredStampCount={stampCollection?.acquiredCount ?? 0}
+      totalStampCount={stampCollection?.totalCount ?? 0}
+      onRetryStamps={retryStamps}
       hotPosts={hotPosts}
       hotPostsStatus={hotPostsStatus}
       onRetryHotPosts={retryHotPosts}
