@@ -71,6 +71,58 @@ describe('album API', () => {
     ])
   })
 
+  it('keeps album photos that are not linked to a specific place', async () => {
+    const unassignedPhoto = {
+      ...summary.photos[0],
+      createdAt: '2026-09-15T12:00:00.123456',
+      externalPlaceId: null,
+    }
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/users/me/album') {
+        return response(config, [{ ...summary, photos: [unassignedPhoto] }])
+      }
+      return response(config, [])
+    }
+
+    await expect(fetchMyAlbums()).resolves.toEqual([{
+      ...summary,
+      photos: [unassignedPhoto],
+    }])
+  })
+
+  it.each([
+    'http://bucket.example/private.jpg',
+    'javascript:alert(1)',
+    'https://user:secret@bucket.example/private.jpg',
+    'not-a-url',
+  ])('rejects an unsafe album photo URL: %s', async (downloadUrl) => {
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/users/me/album') {
+        return response(config, [{
+          ...summary,
+          photos: [{ ...summary.photos[0], downloadUrl }],
+        }])
+      }
+      return response(config, [])
+    }
+
+    await expect(fetchMyAlbums()).rejects.toThrow('Album response was invalid.')
+  })
+
+  it('rejects a malformed album photo creation timestamp', async () => {
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/users/me/album') {
+        return response(config, [{
+          ...summary,
+          photos: [{ ...summary.photos[0], createdAt: 'not-a-date' }],
+        }])
+      }
+      return response(config, [])
+    }
+
+    await expect(fetchMyAlbums()).rejects.toThrow('Album response was invalid.')
+  })
+
   it('sorts albums by real travel time with deterministic fallbacks', async () => {
     const albums: AlbumSummary[] = [
       { ...summary, courseId: 'course-z', travelDate: '2026-9-2' },
@@ -100,6 +152,10 @@ describe('album API', () => {
       { ...summary.photos[0], photoId: 'photo-b' },
       { ...summary.photos[0], photoId: 'photo-a' },
     )).toBeGreaterThan(0)
+    expect(compareAlbumPhotos(
+      { ...summary.photos[0], photoId: 'photo-a', createdAt: '2026-09-15T12:00:01' },
+      { ...summary.photos[0], photoId: 'photo-b', createdAt: '2026-09-15T12:00:02' },
+    )).toBeLessThan(0)
   })
 
   it('creates an album entry for a completed course even when it has no photos', async () => {

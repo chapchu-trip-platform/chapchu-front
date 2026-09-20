@@ -4,7 +4,8 @@ export interface AlbumPhoto {
   photoId: string
   downloadUrl: string
   takenAt: string | null
-  externalPlaceId: string
+  createdAt?: string | null
+  externalPlaceId: string | null
   isPublic: boolean
 }
 

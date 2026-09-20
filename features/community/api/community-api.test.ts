@@ -33,7 +33,17 @@ describe('community API requests', () => {
     await api.fetchPosts('latest', undefined, undefined, 'TRAVEL_REVIEW')
 
     expect(apiClient.get).toHaveBeenCalledWith('/posts', {
-      params: { sort: 'latest', size: 20, category: 'TRAVEL_REVIEW' },
+      params: { sort: 'latest', size: 20, type: 'TRAVEL_REVIEW' },
+      signal: undefined,
+    })
+  })
+  it('maps the free-board category to the documented general post type', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ data: { posts: [], nextCursor: null } })
+
+    await api.fetchPosts('latest', undefined, undefined, 'FREE')
+
+    expect(apiClient.get).toHaveBeenCalledWith('/posts', {
+      params: { sort: 'latest', size: 20, type: 'GENERAL' },
       signal: undefined,
     })
   })
@@ -60,6 +70,17 @@ describe('community API requests', () => {
     expect(apiClient.patch).toHaveBeenCalledWith('/posts/post-1', { title: '수정', content: '본문' }, { signal })
     await api.deletePost('post-1')
     expect(apiClient.delete).toHaveBeenCalledWith('/posts/post-1')
+  })
+  it('maps an explicit UI category to the documented postType request field', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ data: undefined, status: 201 })
+
+    await api.createPost({ title: '제목', content: '내용', category: 'FREE' })
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      '/posts',
+      { title: '제목', content: '내용', postType: 'GENERAL' },
+      { signal: undefined }
+    )
   })
   it('preserves the three-state post photo update contract', async () => {
     vi.mocked(apiClient.patch).mockResolvedValue({ data: postFixture })

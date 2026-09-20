@@ -57,13 +57,15 @@ describe('community contract adapters', () => {
       nextCursor: null,
     })
   })
-  it('preserves the travel review category when the server returns it', () => {
+  it('maps the documented post type to the UI board category', () => {
     const summary = {
       id: 'travel-summary', title: '여행 기록', nickname: '작성자', recommendationCount: 0, commentCount: 0,
-      thumbnail: null, category: 'TRAVEL_REVIEW', createdAt: null,
+      thumbnail: null, postType: 'TRAVEL_REVIEW', createdAt: null,
     }
     expect(parsePostSummary(summary).category).toBe('TRAVEL_REVIEW')
-    expect(parsePost({ ...postFixture, category: 'TRAVEL_REVIEW' }).category).toBe('TRAVEL_REVIEW')
+    expect(parsePost({ ...postFixture, postType: 'TRAVEL_REVIEW' }).category).toBe('TRAVEL_REVIEW')
+    expect(parsePostSummary({ ...summary, postType: 'GENERAL' }).category).toBe('FREE')
+    expect(() => parsePostSummary({ ...summary, postType: 'UNKNOWN' })).toThrow('Invalid community post type.')
   })
   it('does not treat an opaque thumbnail photo key as a browser URL', () => {
     const summary = {

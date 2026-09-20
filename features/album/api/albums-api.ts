@@ -42,6 +42,23 @@ function isNullableString(value: unknown, max = MAX_STRING_LENGTH) {
   return value === null || isString(value, max)
 }
 
+function isSafeHttpsUrl(value: unknown): value is string {
+  if (!isString(value, MAX_URL_LENGTH)) return false
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' && !url.username && !url.password
+  } catch {
+    return false
+  }
+}
+
+function isNullableDate(value: unknown) {
+  return value === null || (
+    isString(value, 100) &&
+    Number.isFinite(Date.parse(value))
+  )
+}
+
 /**
  * Convert the date formats accepted by the API into a comparable timestamp.
  * Date-only values are parsed in UTC so the ordering does not depend on the
@@ -100,6 +117,14 @@ export function compareAlbumPhotos(left: AlbumPhoto, right: AlbumPhoto) {
   if (leftTime !== null && rightTime === null) return -1
   if (leftTime === null && rightTime !== null) return 1
 
+  const leftCreatedTime = toComparableTime(left.createdAt ?? null)
+  const rightCreatedTime = toComparableTime(right.createdAt ?? null)
+  if (leftCreatedTime !== null && rightCreatedTime !== null && leftCreatedTime !== rightCreatedTime) {
+    return leftCreatedTime - rightCreatedTime
+  }
+  if (leftCreatedTime !== null && rightCreatedTime === null) return -1
+  if (leftCreatedTime === null && rightCreatedTime !== null) return 1
+
   return compareIds(left.photoId, right.photoId)
 }
 
@@ -112,9 +137,10 @@ function isAlbumPhotoDto(value: unknown): value is AlbumPhoto {
   const photo = value as Partial<AlbumPhoto>
   return (
     isString(photo.photoId, 500) &&
-    isString(photo.downloadUrl, MAX_URL_LENGTH) &&
+    isSafeHttpsUrl(photo.downloadUrl) &&
     isNullableString(photo.takenAt, 100) &&
-    isString(photo.externalPlaceId, 500) &&
+    (photo.createdAt === undefined || isNullableDate(photo.createdAt)) &&
+    isNullableString(photo.externalPlaceId, 500) &&
     typeof photo.isPublic === 'boolean'
   )
 }
@@ -152,7 +178,7 @@ function isCourseReviewPhoto(value: unknown) {
   const photo = value as { photoId?: unknown; downloadUrl?: unknown; takenAt?: unknown }
   return (
     isString(photo.photoId, 500) &&
-    isString(photo.downloadUrl, MAX_URL_LENGTH) &&
+    isSafeHttpsUrl(photo.downloadUrl) &&
     isNullableString(photo.takenAt, 100)
   )
 }
