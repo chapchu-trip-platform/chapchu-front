@@ -416,7 +416,7 @@ function Editor({ initialPost, returnToPrevious = false }: { initialPost?: Post;
     const candidates = Array.from(files)
     const images = candidates.filter(isSupportedMetadataSafeImage)
     if (images.length !== candidates.length) {
-      setPhotoError('이미지 파일만 첨부할 수 있어요.')
+      setPhotoError('JPG, PNG, WebP, GIF, HEIC, HEIF, AVIF 사진만 첨부할 수 있어요.')
       return
     }
     const nextTotalBytes = totalPhotoBytes + images.reduce((total, file) => total + file.size, 0)

@@ -33,10 +33,6 @@ import {
   METADATA_SAFE_IMAGE_ACCEPT,
 } from '@/features/photos/lib/sanitize-image-file'
 import { getProfileErrorMessage } from '@/features/profile/api/profile-api'
-import {
-  isCommonPetProfileImage,
-  PET_PROFILE_IMAGE_ACCEPT,
-} from '@/features/profile/lib/pet-profile-image'
 import { getStampRegion } from '@/features/stamps/constants/regions'
 import type { StampCollection } from '@/features/stamps/types/stamp'
 import type {
@@ -727,9 +723,6 @@ function PetsSubScreen({
             title={`${photoEditorPet.petName} 프로필 사진 ${photoEditorPet.profilePhoto ? '수정' : '등록'}`}
             currentPhotoAlt={`${photoEditorPet.petName} 현재 프로필 사진`}
             inputLabel={`${photoEditorPet.petName} 새 프로필 사진 선택`}
-            accept={PET_PROFILE_IMAGE_ACCEPT}
-            isValidFile={isCommonPetProfileImage}
-            invalidFileMessage="JPG, PNG, WebP 이미지 파일만 선택할 수 있어요."
             onClose={() => setPhotoEditorPet(null)}
             onSave={(file) => onUpdatePhoto(photoEditorPet.id, file)}
           />
@@ -969,7 +962,7 @@ function ProfilePhotoEditor({
   inputLabel = '새 프로필 사진 선택',
   accept = METADATA_SAFE_IMAGE_ACCEPT,
   isValidFile = isSupportedMetadataSafeImage,
-  invalidFileMessage = '이미지 파일만 선택할 수 있어요.',
+  invalidFileMessage = 'JPG, PNG, WebP, GIF, HEIC, HEIF, AVIF 사진만 선택할 수 있어요.',
   onClose,
   onSave,
 }: {

@@ -228,7 +228,7 @@ describe('ProfileRoute', () => {
     expect(fetchProfilePhoto).toHaveBeenCalledOnce()
   })
 
-  it('uses the supplied default profile and uploads a replacement through the photo flow', async () => {
+  it('uses the supplied default profile and uploads an iOS photo replacement', async () => {
     const user = userEvent.setup()
     render(<ProfileRoute />)
 
@@ -236,8 +236,13 @@ describe('ProfileRoute', () => {
     expect(screen.getByRole('img', { name: '프로필' })).toHaveAttribute('src', '/images/default-profile.svg')
     await user.click(editButton)
     expect(screen.getByRole('dialog', { name: '프로필 사진 수정' })).toBeInTheDocument()
-    const file = new File(['profile'], 'profile.jpg', { type: 'image/jpeg' })
-    await user.upload(screen.getByLabelText('새 프로필 사진 선택'), file)
+    const input = screen.getByLabelText('새 프로필 사진 선택')
+    expect(input).toHaveAttribute(
+      'accept',
+      '.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.avif,image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,image/avif,image/x-heic,image/x-heif'
+    )
+    const file = new File(['profile'], 'profile.heic', { type: 'image/x-heic' })
+    await user.upload(input, file)
 
     await waitFor(() => expect(uploadPhotoFiles).toHaveBeenCalledWith([file], 'PROFILE', expect.any(AbortSignal)))
     expect(savePhotos).toHaveBeenCalledWith(
@@ -249,7 +254,7 @@ describe('ProfileRoute', () => {
     expect(screen.getByRole('img', { name: '프로필' })).toHaveAttribute('src', 'https://example.com/profile.jpg')
   })
 
-  it('rejects an uncommon pet profile image before upload', async () => {
+  it('rejects an unsupported pet profile image before upload', async () => {
     const user = userEvent.setup()
     render(<ProfileRoute />)
 
@@ -259,10 +264,10 @@ describe('ProfileRoute', () => {
 
     const input = screen.getByLabelText('초코 새 프로필 사진 선택')
     fireEvent.change(input, {
-      target: { files: [new File(['gif'], 'animated.gif', { type: 'image/gif' })] },
+      target: { files: [new File(['svg'], 'illustration.svg', { type: 'image/svg+xml' })] },
     })
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'JPG, PNG, WebP 이미지 파일만 선택할 수 있어요.'
+      'JPG, PNG, WebP, GIF, HEIC, HEIF, AVIF 사진만 선택할 수 있어요.'
     )
     expect(uploadPhotoFiles).not.toHaveBeenCalled()
   })
@@ -279,10 +284,10 @@ describe('ProfileRoute', () => {
     const input = screen.getByLabelText('초코 새 프로필 사진 선택')
     expect(input).toHaveAttribute(
       'accept',
-      '.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp'
+      '.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.avif,image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,image/avif,image/x-heic,image/x-heif'
     )
 
-    const file = new File(['profile'], 'pet.jpg', { type: 'image/jpeg' })
+    const file = new File(['profile'], 'pet.avif', { type: 'image/avif' })
     await user.upload(input, file)
 
     await waitFor(() =>

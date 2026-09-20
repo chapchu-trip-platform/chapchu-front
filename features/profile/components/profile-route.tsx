@@ -23,8 +23,8 @@ import {
   withdrawAccount,
 } from '@/features/profile/api/profile-api'
 import { savePhotos, uploadPhotoFiles } from '@/features/photos/api/photo-api'
+import { isSupportedMetadataSafeImage } from '@/features/photos/lib/sanitize-image-file'
 import { usePetStore } from '@/features/profile/stores/pet-store'
-import { isCommonPetProfileImage } from '@/features/profile/lib/pet-profile-image'
 import type {
   PetMutationInput,
   ProfileLoadStatus,
@@ -239,7 +239,7 @@ export default function ProfileRoute({ initialSettingsTab }: { initialSettingsTa
 
   const handleUpdatePetPhoto = async (petId: string, file: File | null) => {
     const sessionEpoch = useAuthStore.getState().sessionEpoch
-    if (file && !isCommonPetProfileImage(file)) {
+    if (file && !isSupportedMetadataSafeImage(file)) {
       throw new Error('Pet profile image type was invalid.')
     }
     photoMutationControllerRef.current?.abort()
