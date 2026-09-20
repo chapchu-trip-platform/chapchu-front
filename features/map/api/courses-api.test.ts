@@ -35,18 +35,11 @@ afterEach(() => {
 })
 
 const destination = {
-  externalPlaceId: 'external-1',
+  id: 'destination',
   name: ' 서울숲 ',
-  imageUrl: 'https://example.com/seoul-forest.jpg',
   latitude: 37.5444,
   longitude: 127.0374,
   address: '서울 성동구 뚝섬로 273',
-  category: '관광지',
-  indoorOutdoorType: '실외',
-  allowedPetSize: 'ALL',
-  leashRequired: true,
-  carrierRequired: false,
-  caution: '목줄을 착용해주세요.',
 }
 
 const createCourseRequest: CreateCourseRequestDto = {
@@ -56,18 +49,18 @@ const createCourseRequest: CreateCourseRequestDto = {
   startLat: 37.5547,
   startLng: 126.9706,
   destination: {
-    externalPlaceId: 'external-1',
+    externalPlaceId: 'destination',
     placeName: '서울숲',
-    placeImageUrl: 'https://example.com/seoul-forest.jpg',
+    placeImageUrl: null,
     latitude: 37.5444,
     longitude: 127.0374,
     address: '서울 성동구 뚝섬로 273',
-    categoryLabel: '관광지',
-    indoorOutdoorType: '실외',
-    allowedPetSize: 'ALL',
-    leashRequired: true,
-    carrierRequired: false,
-    placeCaution: '목줄을 착용해주세요.',
+    categoryLabel: '도착지',
+    indoorOutdoorType: 'BOTH',
+    allowedPetSize: null,
+    leashRequired: null,
+    carrierRequired: null,
+    placeCaution: null,
   },
 }
 
@@ -123,7 +116,7 @@ describe('courses API', () => {
         places: [
           {
             coursePlaceId: 'course-place-1',
-            externalPlaceId: 'external-1',
+            externalPlaceId: null,
             placeName: '서울숲',
             placeImageUrl: null,
             latitude: 37.5444,
@@ -139,7 +132,14 @@ describe('courses API', () => {
 
     await expect(createRecommendedCourse(request, signal)).resolves.toMatchObject({
       id: 'course-1',
-      places: [{ id: 'course-place-1', name: '서울숲', isFinal: true }],
+      places: [
+        {
+          id: 'course-place-1',
+          externalPlaceId: '',
+          name: '서울숲',
+          isFinal: true,
+        },
+      ],
     })
     expect(capturedConfig?.url).toBe('/courses')
     expect(capturedConfig?.method).toBe('post')
@@ -231,13 +231,12 @@ describe('courses API', () => {
   })
 
   it('maps normalized failures to safe UI messages', () => {
-    expect(getCourseRecommendationErrorMessage({ type: 'network' })).toContain('네트워크')
-    expect(getCourseRecommendationErrorMessage({ type: 'timeout' })).toContain('시간이 초과')
+    const retryMessage = '코스 생성에 실패했습니다. 다시 시도해주세요.'
+    expect(getCourseRecommendationErrorMessage({ type: 'network' })).toBe(retryMessage)
+    expect(getCourseRecommendationErrorMessage({ type: 'timeout' })).toBe(retryMessage)
     expect(getCourseRecommendationErrorMessage({ status: 401 })).toContain('로그인')
-    expect(getCourseRecommendationErrorMessage({ status: 400 })).toContain('반려동물과 선택한 장소')
-    expect(getCourseRecommendationErrorMessage({ type: 'server', status: 500 })).toContain(
-      '서버에서'
-    )
+    expect(getCourseRecommendationErrorMessage({ status: 400 })).toBe(retryMessage)
+    expect(getCourseRecommendationErrorMessage({ type: 'server', status: 500 })).toBe(retryMessage)
     expect(getCourseRecommendationErrorMessage(new Error('secret'))).not.toContain('secret')
   })
 
@@ -248,6 +247,8 @@ describe('courses API', () => {
       ...createCourseRequest,
     }).catch((caught: unknown) => caught)
 
-    expect(getCourseRecommendationErrorMessage(error)).toContain('응답 형식')
+    expect(getCourseRecommendationErrorMessage(error)).toBe(
+      '코스 생성에 실패했습니다. 다시 시도해주세요.'
+    )
   })
 })

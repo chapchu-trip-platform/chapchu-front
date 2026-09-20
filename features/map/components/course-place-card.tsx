@@ -32,6 +32,10 @@ export default function CoursePlaceCard({ place }: { place: RecommendedCoursePla
     const nextExpanded = !expanded
     setExpanded(nextExpanded)
     if (!nextExpanded || detailStatus === 'loading' || detailStatus === 'success') return
+    if (!place.externalPlaceId.trim()) {
+      setDetailStatus('success')
+      return
+    }
 
     const controller = new AbortController()
     requestRef.current = controller

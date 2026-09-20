@@ -12,7 +12,7 @@ describe('mapCourse', () => {
         places: [
           {
             coursePlaceId: 'course-place-2',
-            externalPlaceId: 'external-2',
+            externalPlaceId: null,
             placeName: ' 서울숲 ',
             placeImageUrl: 'https://example.com/forest.jpg',
             latitude: 37.5444,
@@ -55,7 +55,7 @@ describe('mapCourse', () => {
         },
         {
           id: 'course-place-2',
-          externalPlaceId: 'external-2',
+          externalPlaceId: '',
           name: '서울숲',
           imageUrl: 'https://example.com/forest.jpg',
           latitude: 37.5444,

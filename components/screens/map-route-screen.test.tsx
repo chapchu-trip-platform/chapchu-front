@@ -224,7 +224,7 @@ describe('MapRouteScreen', () => {
       },
     ])
     expect(screen.getByRole('status')).toHaveTextContent(
-      '선택한 최종 도착지를 기준으로 서버가 생성한 코스입니다.'
+      '입력한 최종 도착지는 고정하고, 서버가 중간 경유지를 구성한 코스입니다.'
     )
     expect(screen.getByText('5.1km')).toBeInTheDocument()
     expect(screen.getByText('약 1시간 9분')).toBeInTheDocument()

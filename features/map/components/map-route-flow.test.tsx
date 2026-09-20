@@ -7,7 +7,6 @@ import {
   fetchActiveCourse,
 } from '@/features/map/api/courses-api'
 import { fetchCourseWeather } from '@/features/map/api/course-weather-api'
-import { fetchRecommendedPlaces } from '@/features/map/api/recommended-places-api'
 import {
   getMinimumWalkingTimeSeconds,
   getPedestrianRoute,
@@ -38,16 +37,6 @@ vi.mock('@/features/map/api/courses-api', async (importOriginal) => {
     ...actual,
     createRecommendedCourse: vi.fn(),
     fetchActiveCourse: vi.fn(),
-  }
-})
-
-vi.mock('@/features/map/api/recommended-places-api', async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import('@/features/map/api/recommended-places-api')
-  >()
-  return {
-    ...actual,
-    fetchRecommendedPlaces: vi.fn(),
   }
 })
 
@@ -116,66 +105,32 @@ vi.mock('@/components/screens/map-route-options-screen', () => ({
     origin,
     destination,
     onPetSelect,
-    onRecommend,
+    onCreateCourse,
     pets,
-    recommendationError,
-    recommendationStatus,
+    courseCreationError,
+    courseCreationStatus,
     selectedPetId,
   }: {
     origin: { name: string }
     destination: { name: string }
     onPetSelect: (petId: string) => void
-    onRecommend: () => void
+    onCreateCourse: () => void
     pets: Array<{ id: string; name: string }>
-    recommendationError: string | null
-    recommendationStatus: string
+    courseCreationError: string | null
+    courseCreationStatus: string
     selectedPetId: string | null
   }) => (
     <div data-testid="map-options">
       {origin.name} → {destination.name}
-      <span data-testid="recommendation-status">{recommendationStatus}</span>
-      {recommendationError && <span>{recommendationError}</span>}
+      <span data-testid="course-creation-status">{courseCreationStatus}</span>
+      {courseCreationError && <span>{courseCreationError}</span>}
       {pets.map((pet) => (
         <button key={pet.id} type="button" onClick={() => onPetSelect(pet.id)}>
           {pet.name}{selectedPetId === pet.id ? ' 선택됨' : ''}
         </button>
       ))}
-      <button type="button" onClick={onRecommend}>
-        추천 장소 요청
-      </button>
-    </div>
-  ),
-}))
-
-vi.mock('@/components/screens/map-place-selection-screen', () => ({
-  default: ({
-    courseCreationError,
-    isCreatingCourse,
-    onConfirm,
-    onToggle,
-    places,
-    selectedPlaceId,
-  }: {
-    courseCreationError?: string | null
-    isCreatingCourse?: boolean
-    onConfirm: () => void
-    onToggle: (placeId: string) => void
-    places: Array<{ externalPlaceId: string; name: string }>
-    selectedPlaceId: string | null
-  }) => (
-    <div data-testid="map-places">
-      {courseCreationError && <span role="alert">{courseCreationError}</span>}
-      {places.map((place) => (
-        <button
-          key={place.externalPlaceId}
-          type="button"
-          onClick={() => onToggle(place.externalPlaceId)}
-        >
-          {place.name}{selectedPlaceId === place.externalPlaceId ? ' 선택됨' : ''}
-        </button>
-      ))}
-      <button type="button" disabled={!selectedPlaceId || isCreatingCourse} onClick={onConfirm}>
-        {isCreatingCourse ? '코스 생성 중' : '최종 도착지 확정'}
+      <button type="button" onClick={onCreateCourse}>
+        중간 경유지 생성
       </button>
     </div>
   ),
@@ -196,8 +151,20 @@ vi.mock('@/components/screens/map-route-screen', () => ({
   ),
 }))
 vi.mock('@/components/screens/travel-progress-screen', () => ({
-  default: ({ onEndTrip }: { onEndTrip: () => void }) => (
-    <button type="button" onClick={onEndTrip}>여행 종료</button>
+  default: ({
+    onAbort,
+    onEndTrip,
+    onLeave,
+  }: {
+    onAbort: () => void
+    onEndTrip: () => void
+    onLeave: () => void
+  }) => (
+    <div>
+      <button type="button" onClick={onEndTrip}>여행 종료</button>
+      <button type="button" onClick={onAbort}>여행 중단</button>
+      <button type="button" onClick={onLeave}>홈으로 이동</button>
+    </div>
   ),
 }))
 vi.mock('@/components/screens/trip-end-screen', () => ({
@@ -247,22 +214,6 @@ beforeEach(() => {
       source: 'web',
     },
   })
-  vi.mocked(fetchRecommendedPlaces).mockReset().mockResolvedValue([
-    {
-      externalPlaceId: 'external-1',
-      name: '실제 추천 장소',
-      imageUrl: 'https://example.com/place.jpg',
-      latitude: 37.5444,
-      longitude: 127.0374,
-      address: '서울 성동구',
-      category: '관광지',
-      indoorOutdoorType: '실외',
-      allowedPetSize: null,
-      leashRequired: true,
-      carrierRequired: false,
-      caution: null,
-    },
-  ])
   vi.mocked(createRecommendedCourse).mockReset().mockResolvedValue({
     id: 'server-course-1',
     travelDate: '2026-09-12',
@@ -289,9 +240,8 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-async function selectPlaceAndContinue(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole('button', { name: '실제 추천 장소' }))
-  await user.click(screen.getByRole('button', { name: '최종 도착지 확정' }))
+async function createCourse(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: '중간 경유지 생성' }))
 }
 
 describe('MapRouteFlow location entry', () => {
@@ -414,7 +364,7 @@ describe('MapRouteFlow location entry', () => {
     expect(fetchSelectablePets).toHaveBeenCalledOnce()
   })
 
-  it('uses the pet selected on the options screen to request places', async () => {
+  it('uses the pet selected on the options screen to create the course', async () => {
     const user = userEvent.setup()
     vi.mocked(fetchSelectablePets).mockResolvedValueOnce([
       { id: 'pet-1', name: '골든이' },
@@ -425,44 +375,35 @@ describe('MapRouteFlow location entry', () => {
     await waitFor(() => expect(useTravelStore.getState().selectedPetId).toBe('pet-1'))
     await user.click(screen.getByRole('button', { name: '조건 설정으로 이동' }))
     await user.click(screen.getByRole('button', { name: '보리' }))
-    await user.click(screen.getByRole('button', { name: '추천 장소 요청' }))
+    await createCourse(user)
 
-    expect(fetchRecommendedPlaces).toHaveBeenCalledWith(
+    expect(createRecommendedCourse).toHaveBeenCalledWith(
       expect.objectContaining({ petId: 'pet-2' }),
       expect.any(AbortSignal)
     )
   })
 
-  it('creates a course after the user selects one recommended final destination', async () => {
+  it('fixes the entered destination and creates intermediate stops directly', async () => {
     const user = userEvent.setup()
     render(<MapRouteFlow />)
 
     await waitFor(() => expect(useTravelStore.getState().selectedPetId).toBe('pet-1'))
     await user.click(screen.getByRole('button', { name: '조건 설정으로 이동' }))
-    await user.click(screen.getByRole('button', { name: '추천 장소 요청' }))
-
-    expect(await screen.findByTestId('map-places')).toHaveTextContent('실제 추천 장소')
-    expect(fetchRecommendedPlaces).toHaveBeenCalledWith(
-      expect.objectContaining({
-        petId: 'pet-1',
-        lat: 37.5444,
-        lng: 127.0374,
-        radiusMeters: 5_000,
-        limit: 5,
-        temperature: 25,
-        humidity: 60,
-        weatherStatus: '맑음',
-      }),
-      expect.any(AbortSignal)
-    )
-    await selectPlaceAndContinue(user)
+    await createCourse(user)
 
     expect(await screen.findByTestId('map-route')).toHaveTextContent('서울숲')
     expect(createRecommendedCourse).toHaveBeenCalledWith(
       expect.objectContaining({
+        petId: 'pet-1',
+        startLocation: '서울역',
+        temperature: 25,
+        humidity: 60,
+        weatherStatus: '맑음',
         destination: expect.objectContaining({
-          externalPlaceId: 'external-1',
-          placeName: '실제 추천 장소',
+          externalPlaceId: 'destination',
+          placeName: '서울숲',
+          latitude: 37.5444,
+          longitude: 127.0374,
         }),
       }),
       expect.any(AbortSignal)
@@ -479,110 +420,31 @@ describe('MapRouteFlow location entry', () => {
     )
   })
 
-  it('keeps an empty place recommendation on the options step', async () => {
+  it('keeps failed course creation on the options step', async () => {
     const user = userEvent.setup()
-    vi.mocked(fetchRecommendedPlaces).mockResolvedValueOnce([])
+    vi.mocked(createRecommendedCourse).mockRejectedValueOnce({ type: 'network' })
     render(<MapRouteFlow />)
 
     await waitFor(() => expect(useTravelStore.getState().selectedPetId).toBe('pet-1'))
     await user.click(screen.getByRole('button', { name: '조건 설정으로 이동' }))
-    await user.click(screen.getByRole('button', { name: '추천 장소 요청' }))
-    expect(await screen.findByTestId('recommendation-status')).toHaveTextContent('empty')
+    await createCourse(user)
+
+    expect(await screen.findByTestId('course-creation-status')).toHaveTextContent('error')
+    expect(screen.getByText('코스 생성에 실패했습니다. 다시 시도해주세요.')).toBeInTheDocument()
     expect(screen.queryByTestId('map-route')).not.toBeInTheDocument()
   })
 
-  it('keeps failed recommendations on the options step', async () => {
-    const user = userEvent.setup()
-    vi.mocked(fetchRecommendedPlaces).mockRejectedValueOnce({ type: 'network' })
-    render(<MapRouteFlow />)
-
-    await waitFor(() => expect(useTravelStore.getState().selectedPetId).toBe('pet-1'))
-    await user.click(screen.getByRole('button', { name: '조건 설정으로 이동' }))
-    await user.click(screen.getByRole('button', { name: '추천 장소 요청' }))
-
-    expect(await screen.findByTestId('recommendation-status')).toHaveTextContent('error')
-    expect(screen.getByText(/네트워크 연결을 확인/)).toBeInTheDocument()
-  })
-
-  it('requires a final destination selection before creating a course', async () => {
-    const user = userEvent.setup()
-    render(<MapRouteFlow />)
-
-    await waitFor(() => expect(useTravelStore.getState().selectedPetId).toBe('pet-1'))
-    await user.click(screen.getByRole('button', { name: '조건 설정으로 이동' }))
-    await user.click(screen.getByRole('button', { name: '추천 장소 요청' }))
-    const confirmButton = await screen.findByRole('button', { name: '최종 도착지 확정' })
-    expect(confirmButton).toBeDisabled()
-    expect(createRecommendedCourse).not.toHaveBeenCalled()
-    expect(screen.queryByTestId('map-route')).not.toBeInTheDocument()
-  })
-
-  it('replaces the selected destination and sends only the latest place', async () => {
-    const user = userEvent.setup()
-    vi.mocked(fetchRecommendedPlaces).mockResolvedValueOnce([
-      {
-        externalPlaceId: 'external-1',
-        name: '첫 번째 장소',
-        imageUrl: null,
-        latitude: 37.5444,
-        longitude: 127.0374,
-        address: '서울 성동구',
-        category: '관광지',
-        indoorOutdoorType: '실외',
-        allowedPetSize: null,
-        leashRequired: true,
-        carrierRequired: false,
-        caution: null,
-      },
-      {
-        externalPlaceId: 'external-2',
-        name: '두 번째 장소',
-        imageUrl: 'https://example.com/second.jpg',
-        latitude: 37.55,
-        longitude: 127.04,
-        address: '서울 광진구',
-        category: '카페',
-        indoorOutdoorType: '실내',
-        allowedPetSize: 'SMALL',
-        leashRequired: false,
-        carrierRequired: true,
-        caution: '이동장을 사용해주세요.',
-      },
-    ])
-    render(<MapRouteFlow />)
-
-    await waitFor(() => expect(useTravelStore.getState().selectedPetId).toBe('pet-1'))
-    await user.click(screen.getByRole('button', { name: '조건 설정으로 이동' }))
-    await user.click(screen.getByRole('button', { name: '추천 장소 요청' }))
-    await user.click(await screen.findByRole('button', { name: '두 번째 장소' }))
-    await user.click(screen.getByRole('button', { name: '첫 번째 장소' }))
-    await user.click(screen.getByRole('button', { name: '최종 도착지 확정' }))
-
-    await waitFor(() =>
-      expect(createRecommendedCourse).toHaveBeenCalledWith(
-        expect.objectContaining({
-          destination: expect.objectContaining({
-            externalPlaceId: 'external-1',
-            placeName: '첫 번째 장소',
-          }),
-        }),
-        expect.any(AbortSignal)
-      )
-    )
-  })
-
-  it('continues place recommendation when weather refresh fails', async () => {
+  it('continues course creation when weather refresh fails', async () => {
     const user = userEvent.setup()
     vi.mocked(fetchCourseWeather).mockRejectedValueOnce(new Error('weather failed'))
     render(<MapRouteFlow />)
 
     await waitFor(() => expect(useTravelStore.getState().selectedPetId).toBe('pet-1'))
     await user.click(screen.getByRole('button', { name: '조건 설정으로 이동' }))
-    await user.click(screen.getByRole('button', { name: '추천 장소 요청' }))
-    await selectPlaceAndContinue(user)
+    await createCourse(user)
 
     expect(await screen.findByTestId('map-route')).toBeInTheDocument()
-    expect(fetchRecommendedPlaces).toHaveBeenCalledWith(
+    expect(createRecommendedCourse).toHaveBeenCalledWith(
       expect.not.objectContaining({
         temperature: expect.anything(),
         humidity: expect.anything(),
@@ -592,30 +454,53 @@ describe('MapRouteFlow location entry', () => {
     )
   })
 
-  it('does not call the recommendation API when the user has no registered pet', async () => {
+  it('does not create a course when the user has no registered pet', async () => {
     const user = userEvent.setup()
     vi.mocked(fetchSelectablePets).mockResolvedValueOnce([])
     render(<MapRouteFlow />)
 
     await waitFor(() => expect(fetchSelectablePets).toHaveBeenCalledOnce())
     await user.click(screen.getByRole('button', { name: '조건 설정으로 이동' }))
-    await user.click(screen.getByRole('button', { name: '추천 장소 요청' }))
+    await createCourse(user)
 
-    expect(await screen.findByText(/등록된 반려동물이 없습니다/)).toBeInTheDocument()
-    expect(fetchRecommendedPlaces).not.toHaveBeenCalled()
+    expect(createRecommendedCourse).not.toHaveBeenCalled()
   })
 
-  it('shows the empty state when the backend reports no nearby places', async () => {
+  it('keeps the active course state when leaving progress for home', async () => {
     const user = userEvent.setup()
-    vi.mocked(fetchRecommendedPlaces).mockResolvedValueOnce([])
     render(<MapRouteFlow />)
 
     await waitFor(() => expect(useTravelStore.getState().selectedPetId).toBe('pet-1'))
     await user.click(screen.getByRole('button', { name: '조건 설정으로 이동' }))
-    await user.click(screen.getByRole('button', { name: '추천 장소 요청' }))
+    await createCourse(user)
+    await user.click(await screen.findByRole('button', { name: '여행 시작' }))
+    await user.click(screen.getByRole('button', { name: '홈으로 이동' }))
 
-    expect(await screen.findByTestId('recommendation-status')).toHaveTextContent('empty')
-    expect(screen.queryByTestId('map-route')).not.toBeInTheDocument()
+    expect(useTravelStore.getState()).toMatchObject({
+      draftCourseId: 'server-course-1',
+      recommendedCourse: expect.objectContaining({ id: 'server-course-1' }),
+      travelStage: 'in-progress',
+    })
+  })
+
+  it('clears the local course state after an aborted course is deleted', async () => {
+    const user = userEvent.setup()
+    render(<MapRouteFlow />)
+
+    await waitFor(() => expect(useTravelStore.getState().selectedPetId).toBe('pet-1'))
+    await user.click(screen.getByRole('button', { name: '조건 설정으로 이동' }))
+    await createCourse(user)
+    await user.click(await screen.findByRole('button', { name: '여행 시작' }))
+
+    expect(useTravelStore.getState().recommendedCourse?.id).toBe('server-course-1')
+    await user.click(screen.getByRole('button', { name: '여행 중단' }))
+
+    expect(useTravelStore.getState()).toMatchObject({
+      draftCourseId: null,
+      recommendedCourse: null,
+      travelStage: 'idle',
+      visitedPlaceIds: [],
+    })
   })
 
   it('keeps the trip end screen mounted and passes its overall review to the share sheet', async () => {
@@ -624,8 +509,7 @@ describe('MapRouteFlow location entry', () => {
 
     await waitFor(() => expect(useTravelStore.getState().selectedPetId).toBe('pet-1'))
     await user.click(screen.getByRole('button', { name: '조건 설정으로 이동' }))
-    await user.click(screen.getByRole('button', { name: '추천 장소 요청' }))
-    await selectPlaceAndContinue(user)
+    await createCourse(user)
     await user.click(screen.getByRole('button', { name: '여행 시작' }))
     await waitFor(() => expect(createRecommendedCourse).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -635,8 +519,8 @@ describe('MapRouteFlow location entry', () => {
         humidity: 60,
         weatherStatus: '맑음',
         destination: expect.objectContaining({
-          externalPlaceId: 'external-1',
-          placeName: '실제 추천 장소',
+          externalPlaceId: 'destination',
+          placeName: '서울숲',
         }),
       }),
       expect.any(AbortSignal)
