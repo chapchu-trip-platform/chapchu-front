@@ -10,6 +10,9 @@ const MIME_FORMATS: Record<string, ImageFormat> = {
   'image/jpeg': 'jpeg',
   'image/png': 'png',
   'image/webp': 'webp',
+  // Some mobile browsers expose HEIC/HEIF files with legacy vendor MIME aliases.
+  'image/x-heic': 'heic',
+  'image/x-heif': 'heif',
 }
 
 const EXTENSION_FORMATS: Record<string, ImageFormat> = {
@@ -51,6 +54,8 @@ export const METADATA_SAFE_IMAGE_ACCEPT = [
   'image/heic',
   'image/heif',
   'image/avif',
+  'image/x-heic',
+  'image/x-heif',
 ].join(',')
 
 export class ImageMetadataSanitizationError extends Error {
@@ -96,10 +101,13 @@ function concatBytes(parts: Uint8Array[]) {
 
 function imageFormat(file: File): ImageFormat {
   const mimeFormat = MIME_FORMATS[file.type.toLowerCase()]
-  const extension = file.name.split('.').at(-1)?.toLowerCase() ?? ''
+  const extension = /\.([^.]+)$/.exec(file.name.trim().toLowerCase())?.[1] ?? ''
   const extensionFormat = EXTENSION_FORMATS[extension]
   if (file.type && !mimeFormat) {
     throw new ImageMetadataSanitizationError('Unsupported image content type.')
+  }
+  if (extension && !extensionFormat) {
+    throw new ImageMetadataSanitizationError('Unsupported image extension.')
   }
   if (!mimeFormat && !extensionFormat) {
     throw new ImageMetadataSanitizationError('Unsupported image format.')

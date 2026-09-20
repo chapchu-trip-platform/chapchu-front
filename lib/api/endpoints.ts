@@ -47,6 +47,7 @@ export const API_ENDPOINTS = {
   pets: {
     list: '/pets',
     detail: (petId: string) => `/pets/${pathId(petId)}`,
+    photo: (petId: string) => `/pets/${pathId(petId)}/photo`,
   },
   photos: {
     list: '/photos',

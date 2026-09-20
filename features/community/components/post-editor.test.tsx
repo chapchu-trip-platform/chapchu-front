@@ -289,6 +289,47 @@ describe('free-board post editor', () => {
     }, expect.any(AbortSignal))
   })
 
+  it('accepts common web and mobile photo formats for post attachments', async () => {
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn((file: File) => `blob:${file.name}`),
+    })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+    const user = userEvent.setup()
+    render(<PostEditor />)
+    const input = screen.getByLabelText('게시글 사진 선택')
+
+    expect(input).toHaveAttribute(
+      'accept',
+      '.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.avif,image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,image/avif,image/x-heic,image/x-heif'
+    )
+
+    const mobilePhotos = [
+      new File(['ios'], 'ios-photo.heic', { type: 'image/heic' }),
+      new File(['ios-legacy'], 'ios-legacy.heif', { type: 'image/x-heif' }),
+      new File(['android'], 'android-photo.avif', { type: 'image/avif' }),
+    ]
+    await user.upload(input, mobilePhotos)
+
+    expect(screen.getByText('3 / 10장')).toBeInTheDocument()
+    for (const photo of mobilePhotos) {
+      expect(screen.getByRole('button', { name: `${photo.name} 삭제` })).toBeInTheDocument()
+    }
+  })
+
+  it('rejects unsupported photo formats before adding a post attachment', () => {
+    render(<PostEditor />)
+
+    fireEvent.change(screen.getByLabelText('게시글 사진 선택'), {
+      target: { files: [new File(['svg'], 'illustration.svg', { type: 'image/svg+xml' })] },
+    })
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'JPG, PNG, WebP, GIF, HEIC, HEIF, AVIF 사진만 첨부할 수 있어요.'
+    )
+    expect(screen.getByText('0 / 10장')).toBeInTheDocument()
+  })
+
   it('identifies a likely object-storage CORS failure and keeps the draft', async () => {
     vi.mocked(uploadPhotoFiles).mockRejectedValueOnce({
       name: 'PhotoUploadError',

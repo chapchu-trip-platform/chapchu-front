@@ -17,6 +17,7 @@ import {
   removeWishlistPlace,
   updateNickname,
   updatePet,
+  updatePetPhoto,
   updateProfilePhoto,
   withdrawAccount,
 } from '@/features/profile/api/profile-api'
@@ -54,6 +55,7 @@ const petResponse = {
   breedName: ' 골든리트리버 ',
   size: 'MEDIUM',
   age: 3,
+  profilePhoto: null,
   activities: [{ id: 'activity-id', name: ' 산책 ' }],
   createdAt: null,
   updatedAt: null,
@@ -264,6 +266,7 @@ describe('Profile API', () => {
         breedName: '골든리트리버',
         size: 'MEDIUM',
         age: 3,
+        profilePhoto: null,
         activities: [{ id: 'activity-id', name: '산책' }],
       },
     ])
@@ -314,6 +317,38 @@ describe('Profile API', () => {
       { method: 'post', url: '/pets', body: input },
       { method: 'patch', url: '/pets/pet%2Fid', body: input },
       { method: 'delete', url: '/pets/pet%2Fid', body: undefined },
+    ])
+  })
+
+  it('sets and removes a pet profile photo with the documented response', async () => {
+    const requests: Array<{ method?: string; url?: string; body?: unknown }> = []
+    apiClient.defaults.adapter = async (config) => {
+      const body = typeof config.data === 'string' ? JSON.parse(config.data) : config.data
+      requests.push({ method: config.method, url: config.url, body })
+      return response(config, {
+        ...petResponse,
+        profilePhoto: body.photoId
+          ? {
+              photoId: body.photoId,
+              downloadUrl: 'https://bucket.example/profile/pet.jpg?signature=test',
+            }
+          : null,
+      })
+    }
+
+    await expect(updatePetPhoto('pet/id', 'photo-1')).resolves.toMatchObject({
+      id: 'pet-id',
+      profilePhoto: {
+        photoId: 'photo-1',
+        downloadUrl: 'https://bucket.example/profile/pet.jpg?signature=test',
+      },
+    })
+    await expect(updatePetPhoto('pet/id', null)).resolves.toMatchObject({
+      profilePhoto: null,
+    })
+    expect(requests).toEqual([
+      { method: 'patch', url: '/pets/pet%2Fid/photo', body: { photoId: 'photo-1' } },
+      { method: 'patch', url: '/pets/pet%2Fid/photo', body: { photoId: null } },
     ])
   })
 

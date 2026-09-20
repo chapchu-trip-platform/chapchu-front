@@ -135,6 +135,16 @@ function parseProfilePhotoResponse(value: unknown): ProfilePhoto {
   return { photoId, downloadUrl }
 }
 
+function parseNullablePhoto(value: unknown, label: string): ProfilePhoto | null {
+  if (value === null) return null
+  if (!isObject(value) || !isIdentifier(value.photoId, 200)) {
+    throw new Error(`${label} response was invalid.`)
+  }
+  const downloadUrl = safePhotoUrl(value.downloadUrl)
+  if (!downloadUrl) throw new Error(`${label} response was invalid.`)
+  return { photoId: value.photoId.trim(), downloadUrl }
+}
+
 function parsePet(value: unknown): ProfilePet {
   if (
     !isObject(value) ||
@@ -148,6 +158,7 @@ function parsePet(value: unknown): ProfilePet {
     !PET_SIZES.has(value.size) ||
     !isNonNegativeInteger(value.age) ||
     value.age > 100 ||
+    !(value.profilePhoto === null || isObject(value.profilePhoto)) ||
     !Array.isArray(value.activities) ||
     value.activities.length > MAX_PET_ACTIVITIES ||
     !value.activities.every(isNamedOption)
@@ -170,6 +181,7 @@ function parsePet(value: unknown): ProfilePet {
     breedName: value.breedName.trim(),
     size: value.size as ProfilePet['size'],
     age: value.age,
+    profilePhoto: parseNullablePhoto(value.profilePhoto, 'Pet photo'),
     activities,
   }
 }
@@ -400,6 +412,23 @@ export async function updatePet(petId: string, input: Partial<PetMutationInput>)
   const { data }: { data: unknown } = await apiClient.patch(
     API_ENDPOINTS.pets.detail(normalizedPetId),
     input
+  )
+  return parsePet(data)
+}
+
+export async function updatePetPhoto(
+  petId: string,
+  photoId: string | null,
+  signal?: AbortSignal
+) {
+  const normalizedPetId = requireIdentifier(petId, 'Pet ID')
+  if (!(photoId === null || isIdentifier(photoId, 200))) {
+    throw new Error('Pet photo ID was invalid.')
+  }
+  const { data }: { data: unknown } = await apiClient.patch(
+    API_ENDPOINTS.pets.photo(normalizedPetId),
+    { photoId },
+    { signal }
   )
   return parsePet(data)
 }
