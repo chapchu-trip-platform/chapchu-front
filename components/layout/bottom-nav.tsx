@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { Home, BookOpen, MapPin, Image, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -7,18 +8,18 @@ export type NavTab = 'home' | 'board' | 'map' | 'album' | 'profile'
 
 interface BottomNavProps {
   active: NavTab
-  onChange: (tab: NavTab) => void
+  onReselect?: (tab: NavTab) => void
 }
 
-const tabs: { id: NavTab; icon: React.ElementType; label: string }[] = [
-  { id: 'home', icon: Home, label: '홈' },
-  { id: 'board', icon: BookOpen, label: '게시판' },
-  { id: 'map', icon: MapPin, label: '지도' },
-  { id: 'album', icon: Image, label: '앨범' },
-  { id: 'profile', icon: User, label: '내정보' },
+const tabs: { id: NavTab; icon: React.ElementType; label: string; href: string }[] = [
+  { id: 'home', icon: Home, label: '홈', href: '/home' },
+  { id: 'board', icon: BookOpen, label: '게시판', href: '/community' },
+  { id: 'map', icon: MapPin, label: '지도', href: '/map' },
+  { id: 'album', icon: Image, label: '앨범', href: '/album' },
+  { id: 'profile', icon: User, label: '내정보', href: '/my' },
 ]
 
-export default function BottomNav({ active, onChange }: BottomNavProps) {
+export default function BottomNav({ active, onReselect }: BottomNavProps) {
   return (
     <nav data-bottom-nav className="fixed bottom-0 left-0 right-0 z-50 flex justify-center">
       <div className="w-full max-w-[430px] border-t border-border bg-card-surface">
@@ -30,9 +31,14 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
 
             if (isMap) {
               return (
-                <button
+                <Link
                   key={tab.id}
-                  onClick={() => onChange(tab.id)}
+                  href={tab.href}
+                  onClick={(event) => {
+                    if (!isActive) return
+                    onReselect?.(tab.id)
+                    if (tab.id === 'album') event.preventDefault()
+                  }}
                   className="flex flex-col items-center -mt-5"
                   aria-label={tab.label}
                   aria-current={isActive ? 'page' : undefined}
@@ -55,14 +61,19 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
                   >
                     {tab.label}
                   </span>
-                </button>
+                </Link>
               )
             }
 
             return (
-              <button
+              <Link
                 key={tab.id}
-                onClick={() => onChange(tab.id)}
+                href={tab.href}
+                onClick={(event) => {
+                  if (!isActive) return
+                  onReselect?.(tab.id)
+                  if (tab.id === 'album') event.preventDefault()
+                }}
                 className="flex flex-col items-center gap-1 py-1 px-3"
                 aria-label={tab.label}
                 aria-current={isActive ? 'page' : undefined}
@@ -81,7 +92,7 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
                 >
                   {tab.label}
                 </span>
-              </button>
+              </Link>
             )
           })}
         </div>

@@ -173,7 +173,12 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   usePetStore.setState({ pets: [], selectedPetId: null })
-  useAuthStore.setState({ status: 'authenticated', accessToken: 'test-token', sessionEpoch: 0 })
+  useAuthStore.setState({
+    status: 'authenticated',
+    accessToken: 'test-token',
+    sessionEpoch: 0,
+    withdrawalAttemptEpoch: null,
+  })
   resetNextNavigationMocks()
   vi.clearAllMocks()
 })
@@ -500,7 +505,7 @@ describe('ProfileRoute', () => {
     render(<ProfileRoute />)
 
     await screen.findByRole('heading', { name: '초코맘' })
-    await user.click(screen.getByRole('button', { name: /스탬프.*17개 지역 도감/ }))
+    await user.click(screen.getByRole('button', { name: /스탬프.*여행지에서 모은 스탬프를 확인해요/ }))
 
     expect(await screen.findByRole('heading', { name: '지역 스탬프' })).toBeInTheDocument()
     expect(fetchStampCollection).toHaveBeenCalledWith(expect.any(AbortSignal))
@@ -532,7 +537,7 @@ describe('ProfileRoute', () => {
     render(<ProfileRoute />)
 
     await screen.findByRole('heading', { name: '초코맘' })
-    await user.click(screen.getByRole('button', { name: /스탬프.*17개 지역 도감/ }))
+    await user.click(screen.getByRole('button', { name: /스탬프.*여행지에서 모은 스탬프를 확인해요/ }))
     expect(await screen.findByRole('heading', { name: '스탬프를 불러오지 못했어요' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '다시 불러오기' }))
@@ -560,9 +565,11 @@ describe('ProfileRoute', () => {
     render(<ProfileRoute />)
 
     await screen.findByRole('heading', { name: '초코맘' })
-    await user.click(screen.getByRole('button', { name: /추억 앨범.*1마리의 추억/ }))
+    await user.click(screen.getByRole('button', { name: /추억 앨범.*함께한 여행의 추억을 다시 만나요/ }))
 
-    expect(await screen.findByRole('button', { name: '별이의 추억 앨범 보기' })).toBeInTheDocument()
+    const memoryPetButton = await screen.findByRole('button', { name: '별이의 추억 앨범 보기' })
+    expect(memoryPetButton).toBeInTheDocument()
+    expect(memoryPetButton.querySelector('svg')).toBeNull()
     expect(screen.queryByRole('button', { name: '초코의 추억 앨범 보기' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '별이의 추억 앨범 보기' }))
@@ -576,7 +583,7 @@ describe('ProfileRoute', () => {
     render(<ProfileRoute />)
 
     await screen.findByRole('heading', { name: '초코맘' })
-    await user.click(screen.getByRole('button', { name: /추억 앨범.*0마리의 추억/ }))
+    await user.click(screen.getByRole('button', { name: /추억 앨범.*함께한 여행의 추억을 다시 만나요/ }))
     expect(await screen.findByText('아직 추억 앨범이 없어요')).toBeInTheDocument()
     expect(screen.getByText(/추억으로 등록된 반려동물/)).toBeInTheDocument()
 
@@ -666,20 +673,78 @@ describe('ProfileRoute', () => {
     expect(await screen.findByText('보리')).toBeInTheDocument()
   })
 
-  it('withdraws only after the confirmation acknowledgement', async () => {
+  it('shows the withdrawal policy and withdraws only after confirmation', async () => {
     const user = userEvent.setup()
     render(<ProfileRoute />)
 
     await screen.findByRole('heading', { name: '초코맘' })
     await user.click(screen.getByRole('button', { name: '회원 탈퇴' }))
-    expect(screen.getByRole('button', { name: '탈퇴하기' })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: '위 내용을 확인했습니다' }))
-    await user.click(screen.getByRole('button', { name: '탈퇴하기' }))
+    const dialog = screen.getByRole('dialog', { name: '회원 탈퇴 전 확인해주세요' })
+    expect(dialog).toHaveTextContent('회원 탈퇴는 소프트 리셋 방식으로 처리됩니다.')
+    expect(dialog).toHaveTextContent('개인정보와 로그인 정보는 삭제됩니다.')
+    expect(dialog).toHaveTextContent('작성한 게시글은 서비스 기록으로 유지됩니다.')
+    expect(dialog).toHaveTextContent('자동 재가입은 어렵습니다.')
+    expect(screen.getByRole('link', { name: 'parksh1811@gmail.com' })).toHaveAttribute(
+      'href',
+      'mailto:parksh1811@gmail.com'
+    )
+    await user.click(screen.getByRole('button', { name: '확인' }))
 
     await waitFor(() => expect(withdrawAccount).toHaveBeenCalledOnce())
     expect(logout).toHaveBeenCalledOnce()
     expect(usePetStore.getState().pets).toEqual([])
     expect(mockRouter.replace).toHaveBeenCalledWith('/login')
+  })
+
+  it('closes withdrawal confirmation without calling the API', async () => {
+    const user = userEvent.setup()
+    render(<ProfileRoute />)
+
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: '회원 탈퇴' }))
+    await user.click(screen.getByRole('button', { name: '취소' }))
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: '회원 탈퇴 전 확인해주세요' })).not.toBeInTheDocument()
+    )
+    expect(withdrawAccount).not.toHaveBeenCalled()
+    expect(logout).not.toHaveBeenCalled()
+  })
+
+  it('shows a server error and blocks a retry after withdrawal fails', async () => {
+    const user = userEvent.setup()
+    vi.mocked(withdrawAccount).mockRejectedValueOnce({ type: 'server', status: 500 })
+    const { unmount } = render(<ProfileRoute />)
+
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: '회원 탈퇴' }))
+    const confirmButton = screen.getByRole('button', { name: '확인' })
+    await user.click(confirmButton)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '서버 오류로 회원 탈퇴를 처리하지 못했습니다.'
+    )
+    expect(confirmButton).toBeDisabled()
+    await user.click(confirmButton)
+    expect(withdrawAccount).toHaveBeenCalledOnce()
+    expect(logout).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: '취소' }))
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: '회원 탈퇴 전 확인해주세요' })).not.toBeInTheDocument()
+    )
+    await user.click(screen.getByRole('button', { name: '회원 탈퇴' }))
+    await user.click(screen.getByRole('button', { name: '확인' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('회원 탈퇴 요청에 실패했습니다.')
+    expect(withdrawAccount).toHaveBeenCalledOnce()
+
+    unmount()
+    render(<ProfileRoute />)
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: '회원 탈퇴' }))
+    await user.click(screen.getByRole('button', { name: '확인' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('회원 탈퇴 요청에 실패했습니다.')
+    expect(withdrawAccount).toHaveBeenCalledOnce()
   })
 
   it('clears stale pet state when the initial profile request fails', async () => {
@@ -779,7 +844,7 @@ describe('ProfileRoute', () => {
     expect(screen.getByText('등록된 반려견이 없습니다.')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '뒤로 가기' }))
-    expect(await screen.findByRole('button', { name: /추억 앨범.*1마리의 추억/ })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /추억 앨범.*함께한 여행의 추억을 다시 만나요/ })).toBeInTheDocument()
   })
 
   it('keeps the archive dialog open when the pet update fails', async () => {
@@ -929,13 +994,28 @@ describe('ProfileRoute', () => {
     render(<ProfileRoute />)
     await screen.findByRole('heading', { name: '초코맘' })
     await user.click(screen.getByRole('button', { name: '회원 탈퇴' }))
-    await user.click(screen.getByRole('button', { name: '위 내용을 확인했습니다' }))
-    await user.click(screen.getByRole('button', { name: '탈퇴하기' }))
+    await user.click(screen.getByRole('button', { name: '확인' }))
     await act(async () => {
       useAuthStore.setState({ sessionEpoch: useAuthStore.getState().sessionEpoch + 1 })
       request.resolve()
     })
     expect(logout).not.toHaveBeenCalled()
+    expect(mockRouter.replace).not.toHaveBeenCalled()
+  })
+
+  it('finishes logout after a successful withdrawal even if the profile unmounts', async () => {
+    const user = userEvent.setup()
+    const request = createDeferred<void>()
+    vi.mocked(withdrawAccount).mockReturnValueOnce(request.promise)
+    const { unmount } = render(<ProfileRoute />)
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: '회원 탈퇴' }))
+    await user.click(screen.getByRole('button', { name: '확인' }))
+
+    unmount()
+    await act(async () => request.resolve())
+
+    expect(logout).toHaveBeenCalledOnce()
     expect(mockRouter.replace).not.toHaveBeenCalled()
   })
 
@@ -1016,9 +1096,6 @@ describe('ProfileRoute', () => {
     const back = screen.getByRole('button', { name: '뒤로 가기' })
     expect(firstLink).toHaveAttribute('href', '/community?post=post%2Fwith%3Fquery%26value')
     expect(back).toHaveFocus()
-    await user.tab()
-    expect(within(screen.getByRole('dialog', { name: '내정보 설정' }))
-      .getByRole('button', { name: /알림/ })).toHaveFocus()
     await user.tab()
     expect(firstLink).toHaveFocus()
     await user.tab()

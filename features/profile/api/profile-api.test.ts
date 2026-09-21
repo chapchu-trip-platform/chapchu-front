@@ -449,15 +449,19 @@ describe('Profile API', () => {
     expect(protectedAdapter).not.toHaveBeenCalled()
   })
 
-  it('patches the documented withdrawn account status', async () => {
+  it('accepts only the documented 204 withdrawal response', async () => {
     let body: unknown
     apiClient.defaults.adapter = async (config) => {
       body = JSON.parse(config.data as string)
-      return response(config, { accountStatus: 'WITHDRAWN' })
+      return response(config, undefined, 204)
     }
 
     await withdrawAccount()
     expect(body).toEqual({ accountStatus: 'WITHDRAWN' })
+
+    apiClient.defaults.adapter = async (config) =>
+      response(config, { accountStatus: 'WITHDRAWN' })
+    await expect(withdrawAccount()).rejects.toMatchObject({ status: 200 })
   })
 
   it('loads posts, bookmarks, and reviews from their mypage endpoints', async () => {

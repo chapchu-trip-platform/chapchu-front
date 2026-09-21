@@ -8,7 +8,6 @@ import {
   Archive,
   Bookmark,
   Camera,
-  Check,
   Edit3,
   FileText,
   Heart,
@@ -309,19 +308,26 @@ function ArchivePetModal({
 }
 
 function WithdrawModal({ onClose, onConfirm }: { onClose: () => void; onConfirm: () => Promise<void> }) {
-  const [agreed, setAgreed] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [hasFailed, setHasFailed] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const dialogRef = useModalFocus(onClose, isSubmitting)
   const prefersReducedMotion = useReducedMotion()
 
   const handleConfirm = async () => {
+    if (isSubmitting || hasFailed) return
     setIsSubmitting(true)
     setErrorMessage(null)
     try {
       await onConfirm()
     } catch (error) {
-      setErrorMessage(getProfileErrorMessage(error))
+      const apiError = error as { status?: number; type?: string } | null
+      setErrorMessage(
+        apiError?.type === 'server' || (apiError?.status ?? 0) >= 500
+          ? '서버 오류로 회원 탈퇴를 처리하지 못했습니다. 화면을 닫고 잠시 후 다시 이용해주세요.'
+          : '회원 탈퇴 요청에 실패했습니다. 화면을 닫고 잠시 후 다시 이용해주세요.'
+      )
+      setHasFailed(true)
       setIsSubmitting(false)
     }
   }
@@ -350,23 +356,27 @@ function WithdrawModal({ onClose, onConfirm }: { onClose: () => void; onConfirm:
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-danger/10">
           <AlertTriangle className="h-6 w-6 text-danger" />
         </div>
-        <h3 id="withdraw-title" className="mb-2 text-center text-[17px] font-bold text-deep-brown">정말 탈퇴하시겠어요?</h3>
-        <p className="mb-4 text-center text-[13px] leading-relaxed text-warm-gray">
-          계정 상태가 탈퇴로 변경되어 서비스를 이용할 수 없어요.
-          <br />
-          <span className="font-semibold text-danger">탈퇴 후 복구 정책은 고객지원 확인이 필요합니다.</span>
-        </p>
-        <button type="button" aria-pressed={agreed} disabled={isSubmitting} onClick={() => setAgreed(!agreed)} className="mb-4 flex w-full items-center gap-2">
-          <div className={cn('flex h-5 w-5 items-center justify-center rounded border-2 transition-all', agreed ? 'border-danger bg-danger' : 'border-border')}>
-            {agreed && <Check className="h-3 w-3 text-white" />}
-          </div>
-          <span className="text-[13px] text-deep-brown">위 내용을 확인했습니다</span>
-        </button>
+        <h3 id="withdraw-title" className="mb-3 text-center text-[17px] font-bold text-deep-brown">회원 탈퇴 전 확인해주세요</h3>
+        <div className="mb-4 rounded-card bg-warm-beige px-4 py-3 text-[12px] leading-relaxed text-warm-gray">
+          <p className="font-semibold text-deep-brown">회원 탈퇴는 소프트 리셋 방식으로 처리됩니다.</p>
+          <ul className="mt-2 list-disc space-y-1 pl-4">
+            <li>닉네임, 이메일 등 개인정보와 로그인 정보는 삭제됩니다.</li>
+            <li>작성한 게시글은 서비스 기록으로 유지됩니다.</li>
+            <li>탈퇴 즉시 서비스를 이용할 수 없으며 자동 재가입은 어렵습니다.</li>
+          </ul>
+          <p className="mt-3">
+            재가입 문의는{' '}
+            <a className="font-semibold text-sage-green underline underline-offset-2" href="mailto:parksh1811@gmail.com">
+              parksh1811@gmail.com
+            </a>
+            으로 보내주세요.
+          </p>
+        </div>
         {errorMessage && <p className="mb-3 text-[12px] text-danger" role="alert">{errorMessage}</p>}
         <ModalActions>
           <Button onClick={onClose} variant="outline" disabled={isSubmitting}>취소</Button>
-          <Button onClick={handleConfirm} disabled={!agreed || isSubmitting} variant="destructive">
-            {isSubmitting ? '처리 중...' : '탈퇴하기'}
+          <Button onClick={handleConfirm} disabled={isSubmitting || hasFailed} variant="destructive">
+            {isSubmitting ? '처리 중...' : '확인'}
           </Button>
         </ModalActions>
       </m.div>
@@ -968,7 +978,6 @@ function MemoryAlbumSubScreen({
                     <span className="mt-1 block text-[12px] text-warm-gray">{pet.breedName} · {pet.age}살</span>
                     <span className="mt-1 block text-[11px] text-danger/80">함께한 여행 추억 보기</span>
                   </span>
-                  <Heart aria-hidden="true" className="h-5 w-5 flex-shrink-0 text-danger" />
                 </InteractiveCard>
               ))}
             </div>
@@ -1113,15 +1122,14 @@ export default function ProfileScreen({
   const totalPetCount = activePets.length
   const remainingPetCount = Math.max(totalPetCount - visiblePets.length, 0)
   const visiblePetNames = visiblePets.map((pet) => pet.petName).join(' · ')
-  const memoryPetCount = pets.filter((pet) => pet.isDie).length
   const menuItems = useMemo(() => [
     { icon: PawPrint, iconColor: 'text-sage-green', label: '반려동물 관리', sub: 'pets' as const, desc: status === 'loading' ? '반려동물 정보를 불러오는 중' : status === 'error' ? '반려동물 정보를 불러오지 못함' : '추가 · 수정 · 추억 보관' },
-    { icon: Stamp, iconColor: 'text-soft-orange', label: '스탬프', sub: 'stamps' as const, desc: '17개 지역 도감' },
-    { icon: Heart, iconColor: 'text-danger', label: '추억 앨범', sub: 'memory-album' as const, desc: status === 'success' ? `${memoryPetCount}마리의 추억` : '소중한 추억 모아보기' },
+    { icon: Stamp, iconColor: 'text-soft-orange', label: '스탬프', sub: 'stamps' as const, desc: '여행지에서 모은 스탬프를 확인해요' },
+    { icon: Heart, iconColor: 'text-danger', label: '추억 앨범', sub: 'memory-album' as const, desc: '함께한 여행의 추억을 다시 만나요' },
     { icon: FileText, iconColor: 'text-warm-gray', label: '작성한 글', tab: 'posts' as const, desc: '내 작성글 보기' },
     { icon: Bookmark, iconColor: 'text-sky-blue', label: '북마크', tab: 'bookmarks' as const, desc: '저장한 게시글 보기' },
     { icon: MessageSquareText, iconColor: 'text-sage-green', label: '작성한 리뷰', tab: 'reviews' as const, desc: '내 리뷰 보기' },
-  ], [memoryPetCount, status])
+  ], [status])
 
   return (
     <div className="relative flex min-h-0 flex-1 overflow-hidden bg-warm-beige">
@@ -1140,7 +1148,7 @@ export default function ProfileScreen({
         </ProfilePane>
       ) : (
     <ProfilePane key="profile-main" direction="back">
-      <TopBar title="내정보" rightAction={<span />} />
+      <TopBar title="내정보" />
       <div
         role="region"
         aria-label="내정보 콘텐츠"

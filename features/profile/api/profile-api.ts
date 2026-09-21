@@ -495,7 +495,14 @@ export async function updateNickname(currentNickname: string, nextNickname: stri
 }
 
 export async function withdrawAccount() {
-  await apiClient.patch(API_ENDPOINTS.users.me, { accountStatus: 'WITHDRAWN' })
+  const response = await apiClient.patch(API_ENDPOINTS.users.me, {
+    accountStatus: 'WITHDRAWN',
+  })
+  if (response.status !== 204) {
+    throw Object.assign(new Error('Account withdrawal response was invalid.'), {
+      status: response.status,
+    })
+  }
 }
 
 export async function fetchMyPosts(signal?: AbortSignal) {

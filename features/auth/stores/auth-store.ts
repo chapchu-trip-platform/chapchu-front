@@ -18,6 +18,8 @@ interface AuthState {
   sessionEpoch: number
   setupStage: 'registration' | null
   status: AuthStatus
+  withdrawalAttemptEpoch: number | null
+  claimWithdrawalAttempt: () => boolean
   setAccessToken: (accessToken: string) => void
   setAuthNotice: (authNotice: 'logout-failed' | null) => void
   setRegistrationToken: (registrationToken: string | null) => void
@@ -41,6 +43,16 @@ export const useAuthStore = create<AuthState>((set) => ({
   sessionEpoch: 0,
   setupStage: null,
   status: 'idle',
+  withdrawalAttemptEpoch: null,
+  claimWithdrawalAttempt: () => {
+    let claimed = false
+    set((state) => {
+      if (state.withdrawalAttemptEpoch === state.sessionEpoch) return state
+      claimed = true
+      return { withdrawalAttemptEpoch: state.sessionEpoch }
+    })
+    return claimed
+  },
   setAccessToken: (accessToken) =>
     set({
       accessToken,
@@ -63,6 +75,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       sessionEpoch: state.sessionEpoch + 1,
       setupStage: null,
       status: 'demo',
+      withdrawalAttemptEpoch: null,
     }))
   },
   clearSession: () => {
@@ -74,6 +87,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       sessionEpoch: state.sessionEpoch + 1,
       setupStage: null,
       status: 'unauthenticated',
+      withdrawalAttemptEpoch: null,
     }))
   },
 }))

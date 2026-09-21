@@ -297,8 +297,15 @@ export default function ProfileRoute({ initialSettingsTab }: { initialSettingsTa
 
   const handleWithdraw = async () => {
     const sessionEpoch = useAuthStore.getState().sessionEpoch
+    if (!useAuthStore.getState().claimWithdrawalAttempt()) {
+      throw Object.assign(new Error('Withdrawal was already attempted for this session.'), {
+        type: 'withdrawal-blocked',
+      })
+    }
     await withdrawAccount()
-    assertActiveSession(sessionEpoch)
+    if (useAuthStore.getState().sessionEpoch !== sessionEpoch) {
+      throw new DOMException('Profile session changed.', 'AbortError')
+    }
     await handleLogout()
   }
 

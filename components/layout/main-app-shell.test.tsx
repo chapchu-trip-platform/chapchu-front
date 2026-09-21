@@ -22,6 +22,7 @@ afterEach(() => {
     sessionEpoch: 0,
     setupStage: null,
     status: 'idle',
+    withdrawalAttemptEpoch: null,
   })
   resetNextNavigationMocks()
   vi.mocked(refreshAccessToken).mockReset()
@@ -108,7 +109,7 @@ describe('MainAppShell auth gate', () => {
       </MainAppShell>
     )
 
-    await screen.findByRole('button', { name: '앨범' }).then((button) => button.click())
+    await screen.findByRole('link', { name: '앨범' }).then((link) => link.click())
 
     expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({ type: 'album-scroll-top' }))
     expect(mockRouter.push).not.toHaveBeenCalled()

@@ -10,6 +10,7 @@ afterEach(() => {
     sessionEpoch: 0,
     setupStage: null,
     status: 'idle',
+    withdrawalAttemptEpoch: null,
   })
   localStorage.clear()
   sessionStorage.clear()
@@ -65,5 +66,14 @@ describe('auth store', () => {
       permission: 'unknown',
       status: 'idle',
     })
+  })
+
+  it('allows only one withdrawal attempt per auth session', () => {
+    const auth = useAuthStore.getState()
+    expect(auth.claimWithdrawalAttempt()).toBe(true)
+    expect(auth.claimWithdrawalAttempt()).toBe(false)
+
+    auth.clearSession()
+    expect(useAuthStore.getState().claimWithdrawalAttempt()).toBe(true)
   })
 })
