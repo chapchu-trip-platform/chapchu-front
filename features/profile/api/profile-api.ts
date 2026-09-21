@@ -418,6 +418,19 @@ export async function updatePet(petId: string, input: Partial<PetMutationInput>)
   return parsePet(data)
 }
 
+export async function archivePetToMemory(petId: string) {
+  const normalizedPetId = requireIdentifier(petId, 'Pet ID')
+  const { data }: { data: unknown } = await apiClient.patch(
+    API_ENDPOINTS.pets.detail(normalizedPetId),
+    { isDie: true }
+  )
+  const pet = parsePet(data)
+  if (pet.id !== normalizedPetId || !pet.isDie) {
+    throw new Error('Pet memory status response was invalid.')
+  }
+  return pet
+}
+
 export async function updatePetPhoto(
   petId: string,
   photoId: string | null,

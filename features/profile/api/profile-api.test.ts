@@ -1,6 +1,7 @@
 import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  archivePetToMemory,
   createPet,
   deletePet,
   fetchBookmarks,
@@ -322,6 +323,31 @@ describe('Profile API', () => {
     ])
   })
 
+  it('archives a pet with the documented isDie update and validates the response', async () => {
+    const requests: Array<{ method?: string; url?: string; body?: unknown }> = []
+    apiClient.defaults.adapter = async (config) => {
+      requests.push({
+        method: config.method,
+        url: config.url,
+        body: typeof config.data === 'string' ? JSON.parse(config.data) : config.data,
+      })
+      return response(config, { ...petResponse, id: 'pet/id', isDie: true })
+    }
+
+    await expect(archivePetToMemory('pet/id')).resolves.toMatchObject({
+      id: 'pet/id',
+      isDie: true,
+    })
+    expect(requests).toEqual([
+      { method: 'patch', url: '/pets/pet%2Fid', body: { isDie: true } },
+    ])
+
+    apiClient.defaults.adapter = async (config) => response(config, petResponse)
+    await expect(archivePetToMemory('pet-id')).rejects.toThrow(
+      'Pet memory status response was invalid.'
+    )
+  })
+
   it('sets and removes a pet profile photo with the documented response', async () => {
     const requests: Array<{ method?: string; url?: string; body?: unknown }> = []
     apiClient.defaults.adapter = async (config) => {
@@ -542,6 +568,7 @@ describe('Profile API', () => {
     apiClient.defaults.adapter = adapter
 
     await expect(fetchPets()).rejects.toThrow('duplicate activities')
+    await expect(archivePetToMemory('   ')).rejects.toThrow('Pet ID is required')
     await expect(deletePet('   ')).rejects.toThrow('Pet ID is required')
     await expect(removeWishlistPlace('')).rejects.toThrow('Place ID is required')
     await expect(removeBookmark('   ')).rejects.toThrow('Post ID is required')
