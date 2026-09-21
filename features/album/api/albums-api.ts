@@ -132,6 +132,24 @@ function sortAlbumPhotos(photos: AlbumPhoto[]) {
   return [...photos].sort(compareAlbumPhotos)
 }
 
+function parseAlbumSummaries(value: unknown): AlbumSummary[] {
+  if (
+    !Array.isArray(value) ||
+    value.length > MAX_ALBUMS ||
+    !value.every(isAlbumSummaryDto)
+  ) {
+    throw new Error('Album response was invalid.')
+  }
+
+  const hiddenPhotoIds = getHiddenTravelPhotoIds()
+  return value.map((album) => ({
+    ...album,
+    photos: sortAlbumPhotos(
+      album.photos.filter((photo) => !hiddenPhotoIds.has(photo.photoId))
+    ),
+  }))
+}
+
 function isAlbumPhotoDto(value: unknown): value is AlbumPhoto {
   if (!value || typeof value !== 'object') return false
   const photo = value as Partial<AlbumPhoto>
@@ -273,13 +291,6 @@ export async function fetchMyAlbums(signal?: AbortSignal): Promise<AlbumSummary[
   const albumData = albumResponse.data as unknown
   const courseData = courseResponse.data as unknown
   if (
-    !Array.isArray(albumData) ||
-    albumData.length > MAX_ALBUMS ||
-    !albumData.every(isAlbumSummaryDto)
-  ) {
-    throw new Error('Album response was invalid.')
-  }
-  if (
     !Array.isArray(courseData) ||
     courseData.length > MAX_ALBUMS ||
     !courseData.every(isCourseSummaryDto)
@@ -287,13 +298,7 @@ export async function fetchMyAlbums(signal?: AbortSignal): Promise<AlbumSummary[
     throw new Error('Course list response was invalid.')
   }
 
-  const hiddenPhotoIds = getHiddenTravelPhotoIds()
-  const visibleAlbums = albumData.map((album) => ({
-    ...album,
-    photos: sortAlbumPhotos(
-      album.photos.filter((photo) => !hiddenPhotoIds.has(photo.photoId))
-    ),
-  }))
+  const visibleAlbums = parseAlbumSummaries(albumData)
   const albumsByCourseId = new Map(
     visibleAlbums.map((album) => [album.courseId, album] as const)
   )
@@ -308,6 +313,24 @@ export async function fetchMyAlbums(signal?: AbortSignal): Promise<AlbumSummary[
   }
 
   return [...albumsByCourseId.values()]
+    .sort(compareAlbumSummaries)
+    .slice(0, MAX_ALBUMS)
+}
+
+export async function fetchAlbumsByPet(
+  petId: string,
+  signal?: AbortSignal
+): Promise<AlbumSummary[]> {
+  if (isDemoSessionActive()) return []
+  if (!petId.trim() || petId.length > 500) {
+    throw new Error('Pet ID was invalid.')
+  }
+
+  const { data }: { data: unknown } = await apiClient.get(
+    API_ENDPOINTS.albums.byPet(petId),
+    { signal }
+  )
+  return parseAlbumSummaries(data)
     .sort(compareAlbumSummaries)
     .slice(0, MAX_ALBUMS)
 }

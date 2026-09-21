@@ -158,6 +158,7 @@ function parsePet(value: unknown): ProfilePet {
     !PET_SIZES.has(value.size) ||
     !isNonNegativeInteger(value.age) ||
     value.age > 100 ||
+    typeof value.isDie !== 'boolean' ||
     !(value.profilePhoto === null || isObject(value.profilePhoto)) ||
     !Array.isArray(value.activities) ||
     value.activities.length > MAX_PET_ACTIVITIES ||
@@ -181,6 +182,7 @@ function parsePet(value: unknown): ProfilePet {
     breedName: value.breedName.trim(),
     size: value.size as ProfilePet['size'],
     age: value.age,
+    isDie: value.isDie,
     profilePhoto: parseNullablePhoto(value.profilePhoto, 'Pet photo'),
     activities,
   }

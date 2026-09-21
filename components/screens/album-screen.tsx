@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { InteractiveCard } from '@/components/ui/interactive-card'
 import {
   fetchAlbumDetail,
+  fetchAlbumsByPet,
   fetchMyAlbums,
   getAlbumErrorMessage,
 } from '@/features/album/api/albums-api'
@@ -38,6 +39,13 @@ const WEATHER_LABELS: Record<string, string> = {
   CLOUDY: '흐림',
   RAINY: '비',
   SNOWY: '눈',
+}
+
+interface AlbumScreenProps {
+  petId?: string
+  petName?: string
+  title?: string
+  onBack?: () => void
 }
 
 function formatDate(value: string | null) {
@@ -91,7 +99,12 @@ function AlbumCard({
   )
 }
 
-export default function AlbumScreen() {
+export default function AlbumScreen({
+  petId,
+  petName,
+  title = '여행 앨범',
+  onBack,
+}: AlbumScreenProps = {}) {
   const router = useRouter()
   const [albums, setAlbums] = useState<AlbumSummary[]>([])
   const [petNames, setPetNames] = useState(new Map<string, string>())
@@ -126,7 +139,11 @@ export default function AlbumScreen() {
   useEffect(() => {
     const controller = new AbortController()
 
-    void fetchMyAlbums(controller.signal)
+    const albumRequest = petId
+      ? fetchAlbumsByPet(petId, controller.signal)
+      : fetchMyAlbums(controller.signal)
+
+    void albumRequest
       .then((nextAlbums) => {
         if (controller.signal.aborted) return
         setAlbums(nextAlbums.map(prioritizeAlbumCover))
@@ -139,6 +156,10 @@ export default function AlbumScreen() {
         setListError(getAlbumErrorMessage(error))
       })
 
+    if (petId) {
+      return () => controller.abort()
+    }
+
     void fetchSelectablePets(controller.signal)
       .then((pets) => {
         if (controller.signal.aborted) return
@@ -150,7 +171,7 @@ export default function AlbumScreen() {
       })
 
     return () => controller.abort()
-  }, [reloadKey])
+  }, [petId, reloadKey])
 
   useEffect(() => {
     const loadMoreElement = loadMoreRef.current
@@ -261,7 +282,7 @@ export default function AlbumScreen() {
 
   if (selectedAlbum) {
     if (detailStatus === 'success' && detail) {
-      const petName = getPetName(selectedAlbum.petId, petNames)
+      const albumPetName = petName ?? getPetName(selectedAlbum.petId, petNames)
       const cachedDiary = cachedCourseId === selectedAlbum.courseId
         ? cachedOverallReview.trim()
         : ''
@@ -276,13 +297,13 @@ export default function AlbumScreen() {
       const recordedWeather = detail.stops.find(
         (stop) => stop.review?.weather
       )?.review?.weather
-      const tripTitle = `${petName}와의 ${detail.course.endLocation} 여행`
+      const tripTitle = `${albumPetName}와의 ${detail.course.endLocation} 여행`
 
       return (
         <div className="relative flex min-h-0 flex-1 overflow-hidden">
           <CourseDetailScreen
             detail={detail}
-            petName={petName}
+            petName={albumPetName}
             overallReview={overallReview}
             boardShareStatus={boardShareStatus}
             onBack={() => {
@@ -298,7 +319,7 @@ export default function AlbumScreen() {
               tripTitle={tripTitle}
               photos={sharePhotos}
               initialPhotoId={detail.summary.photos[0]?.photoId ?? null}
-              petName={petName}
+              petName={albumPetName}
               tripReview={overallReview}
               allowReviewEditing
               variant="travel-review"
@@ -336,7 +357,7 @@ export default function AlbumScreen() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-warm-beige">
-      <TopBar title="여행 앨범" />
+      <TopBar title={title} showBack={Boolean(onBack)} onBack={onBack} />
 
       <div ref={albumScrollRef} className="flex-1 overflow-y-auto pb-24 no-scrollbar">
         {listStatus === 'loading' && (
@@ -388,7 +409,7 @@ export default function AlbumScreen() {
                 <AlbumCard
                   key={album.courseId}
                   album={album}
-                  petName={getPetName(album.petId, petNames)}
+                  petName={petName ?? getPetName(album.petId, petNames)}
                   onClick={() => openAlbum(album)}
                 />
               ))}

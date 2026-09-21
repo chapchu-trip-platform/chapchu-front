@@ -19,6 +19,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import TopBar from '@/components/top-bar'
+import AlbumScreen from '@/components/screens/album-screen'
 import { PhotoImage } from '@/components/common/photo-image'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
@@ -938,16 +939,75 @@ function StampsSubScreen({
   )
 }
 
-function MemoryAlbumSubScreen({ onBack }: { onBack: () => void }) {
+function MemoryAlbumSubScreen({
+  pets,
+  onBack,
+}: {
+  pets: ProfilePet[]
+  onBack: () => void
+}) {
+  const [selectedPet, setSelectedPet] = useState<ProfilePet | null>(null)
+  const memoryPets = useMemo(() => pets.filter((pet) => pet.isDie), [pets])
+
+  if (selectedPet) {
+    return (
+      <AlbumScreen
+        key={selectedPet.id}
+        petId={selectedPet.id}
+        petName={selectedPet.petName}
+        title={`${selectedPet.petName}의 추억 앨범`}
+        onBack={() => setSelectedPet(null)}
+      />
+    )
+  }
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden bg-warm-beige">
       <TopBar title="추억 앨범" showBack onBack={onBack} />
       <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-24 pt-4">
         <p className="mb-1 text-[13px] leading-relaxed text-warm-gray">소중한 반려동물과의 추억을 간직할 공간이에요.</p>
-        <section aria-labelledby="memory-albums-unavailable-title" className="mt-4 rounded-card border border-border bg-card-surface px-4 py-8 text-center shadow-sm">
-          <Heart aria-hidden="true" className="mx-auto mb-3 h-8 w-8 text-danger" />
-          <h2 id="memory-albums-unavailable-title" className="text-[14px] font-semibold text-deep-brown">추억 앨범 기능을 준비하고 있어요</h2>
-          <p className="mt-2 text-[12px] leading-relaxed text-warm-gray">아직 추억 앨범 정보를 불러올 수 없어요. 기능이 연결되면 이곳에서 확인할 수 있어요.</p>
+        <section aria-labelledby="memory-pets-title" className="mt-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 id="memory-pets-title" className="text-[14px] font-semibold text-deep-brown">함께한 반려동물</h2>
+            <span className="rounded-full bg-danger/10 px-2 py-1 text-[11px] font-semibold text-danger">
+              {memoryPets.length}마리
+            </span>
+          </div>
+
+          {memoryPets.length > 0 ? (
+            <div className="space-y-3">
+              {memoryPets.map((pet) => (
+                <InteractiveCard
+                  key={pet.id}
+                  aria-label={`${pet.petName}의 추억 앨범 보기`}
+                  onClick={() => setSelectedPet(pet)}
+                  className="flex items-center gap-4"
+                >
+                  <PhotoImage
+                    src={pet.profilePhoto?.downloadUrl}
+                    photoId={pet.profilePhoto?.photoId}
+                    alt={`${pet.petName} 프로필 사진`}
+                    className="h-14 w-14 flex-shrink-0 rounded-full border-2 border-danger/15"
+                    fallbackSrc="/images/dog-hero.png"
+                    fallbackAlt="반려동물 기본 이미지"
+                    sizes="56px"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[15px] font-semibold text-deep-brown">{pet.petName}</span>
+                    <span className="mt-1 block text-[12px] text-warm-gray">{pet.breedName} · {pet.age}살</span>
+                    <span className="mt-1 block text-[11px] text-danger/80">함께한 여행 추억 보기</span>
+                  </span>
+                  <Heart aria-hidden="true" className="h-5 w-5 flex-shrink-0 text-danger" />
+                </InteractiveCard>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-card border border-border bg-card-surface px-4 py-8 text-center shadow-sm">
+              <Heart aria-hidden="true" className="mx-auto mb-3 h-8 w-8 text-danger/60" />
+              <p className="text-[14px] font-semibold text-deep-brown">아직 추억 앨범이 없어요</p>
+              <p className="mt-2 text-[12px] leading-relaxed text-warm-gray">추억으로 등록된 반려동물의 여행 앨범이 이곳에 표시돼요.</p>
+            </div>
+          )}
         </section>
       </div>
     </div>
@@ -1081,14 +1141,15 @@ export default function ProfileScreen({
   const totalPetCount = pets.length
   const remainingPetCount = Math.max(totalPetCount - visiblePets.length, 0)
   const visiblePetNames = visiblePets.map((pet) => pet.petName).join(' · ')
+  const memoryPetCount = pets.filter((pet) => pet.isDie).length
   const menuItems = useMemo(() => [
     { icon: PawPrint, iconColor: 'text-sage-green', label: '반려동물 관리', sub: 'pets' as const, desc: status === 'loading' ? '반려동물 정보를 불러오는 중' : status === 'error' ? '반려동물 정보를 불러오지 못함' : '추가 · 수정 · 삭제' },
     { icon: Stamp, iconColor: 'text-soft-orange', label: '스탬프', sub: 'stamps' as const, desc: '17개 지역 도감' },
-    { icon: Heart, iconColor: 'text-danger', label: '추억 앨범', sub: 'memory-album' as const, desc: 'API 준비 중' },
+    { icon: Heart, iconColor: 'text-danger', label: '추억 앨범', sub: 'memory-album' as const, desc: status === 'success' ? `${memoryPetCount}마리의 추억` : '소중한 추억 모아보기' },
     { icon: FileText, iconColor: 'text-warm-gray', label: '작성한 글', tab: 'posts' as const, desc: '내 작성글 보기' },
     { icon: Bookmark, iconColor: 'text-sky-blue', label: '북마크', tab: 'bookmarks' as const, desc: '저장한 게시글 보기' },
     { icon: MessageSquareText, iconColor: 'text-sage-green', label: '작성한 리뷰', tab: 'reviews' as const, desc: '내 리뷰 보기' },
-  ], [status])
+  ], [memoryPetCount, status])
 
   return (
     <div className="relative flex min-h-0 flex-1 overflow-hidden bg-warm-beige">
@@ -1103,7 +1164,7 @@ export default function ProfileScreen({
         </ProfilePane>
       ) : subScreen === 'memory-album' ? (
         <ProfilePane key="memory-album" direction="forward">
-          <MemoryAlbumSubScreen onBack={() => setSubScreen(null)} />
+          <MemoryAlbumSubScreen pets={pets} onBack={() => setSubScreen(null)} />
         </ProfilePane>
       ) : (
     <ProfilePane key="profile-main" direction="back">

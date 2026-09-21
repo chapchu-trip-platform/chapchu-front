@@ -2,7 +2,7 @@ import { act, cleanup, render, screen, waitFor, within } from '@testing-library/
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AlbumScreen from '@/components/screens/album-screen'
-import { fetchAlbumDetail, fetchMyAlbums } from '@/features/album/api/albums-api'
+import { fetchAlbumDetail, fetchAlbumsByPet, fetchMyAlbums } from '@/features/album/api/albums-api'
 import { fetchMyPosts } from '@/features/community/api/community-api'
 import { createTripPost } from '@/features/community/api/posts-api'
 import { fetchSelectablePets } from '@/features/profile/api/pets-api'
@@ -14,6 +14,7 @@ vi.mock('@/features/album/api/albums-api', async (importOriginal) => {
   return {
     ...actual,
     fetchMyAlbums: vi.fn(),
+    fetchAlbumsByPet: vi.fn(),
     fetchAlbumDetail: vi.fn(),
   }
 })
@@ -77,6 +78,7 @@ beforeEach(() => {
   })
   vi.mocked(fetchMyPosts).mockResolvedValue([])
   vi.mocked(createTripPost).mockResolvedValue(undefined)
+  vi.mocked(fetchAlbumsByPet).mockResolvedValue([])
 })
 
 afterEach(() => {
@@ -86,6 +88,30 @@ afterEach(() => {
 })
 
 describe('AlbumScreen', () => {
+  it('reuses the album list for a selected memory pet', async () => {
+    const onBack = vi.fn()
+    const user = userEvent.setup()
+    vi.mocked(fetchAlbumsByPet).mockResolvedValue([album])
+
+    render(
+      <AlbumScreen
+        petId="pet-1"
+        petName="초코"
+        title="초코의 추억 앨범"
+        onBack={onBack}
+      />
+    )
+
+    expect(await screen.findByText('초코와 함께한 여행')).toBeInTheDocument()
+    expect(screen.getByText('초코의 추억 앨범')).toBeInTheDocument()
+    expect(fetchAlbumsByPet).toHaveBeenCalledWith('pet-1', expect.any(AbortSignal))
+    expect(fetchMyAlbums).not.toHaveBeenCalled()
+    expect(fetchSelectablePets).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: '뒤로 가기' }))
+    expect(onBack).toHaveBeenCalledOnce()
+  })
+
   it('reveals albums 20 at a time as the user reaches the bottom', async () => {
     let intersectionCallback: IntersectionObserverCallback | null = null
 

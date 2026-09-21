@@ -25,6 +25,7 @@ import {
   withdrawAccount,
 } from '@/features/profile/api/profile-api'
 import { fetchPhotoDownload, savePhotos, uploadPhotoFiles } from '@/features/photos/api/photo-api'
+import { fetchAlbumsByPet } from '@/features/album/api/albums-api'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
 import { usePetStore } from '@/features/profile/stores/pet-store'
 import { mockRouter, resetNextNavigationMocks } from '@/test/mocks/next-navigation'
@@ -69,6 +70,14 @@ vi.mock('@/features/photos/api/photo-api', () => ({
   savePhotos: vi.fn(),
   uploadPhotoFiles: vi.fn(),
 }))
+
+vi.mock('@/features/album/api/albums-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/features/album/api/albums-api')>()
+  return {
+    ...actual,
+    fetchAlbumsByPet: vi.fn(),
+  }
+})
 
 const pet = mockProfilePets[0]
 
@@ -125,6 +134,7 @@ beforeEach(() => {
   vi.mocked(fetchBookmarks).mockResolvedValue([])
   vi.mocked(fetchWishlist).mockResolvedValue([])
   vi.mocked(fetchMyReviews).mockResolvedValue([])
+  vi.mocked(fetchAlbumsByPet).mockResolvedValue([])
   vi.mocked(getProfileErrorMessage).mockReturnValue(
     '요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요.'
   )
@@ -530,17 +540,45 @@ describe('ProfileRoute', () => {
     expect(fetchStampCollection).toHaveBeenCalledTimes(2)
   })
 
-  it('shows an unavailable notice instead of fabricated memory albums and returns to mypage', async () => {
+  it('shows only deceased pets and opens their documented pet album list', async () => {
+    const livingPet = { ...pet, id: 'living-pet', petName: '초코', isDie: false }
+    const memoryPet = { ...pet, id: 'memory-pet', petName: '별이', isDie: true }
+    vi.mocked(fetchPets).mockResolvedValue([livingPet, memoryPet])
+    vi.mocked(fetchAlbumsByPet).mockResolvedValue([{
+      courseId: 'memory-course',
+      travelDate: '2026-08-01',
+      petId: 'memory-pet',
+      photos: [{
+        photoId: 'memory-photo',
+        downloadUrl: '/images/album-cover.png',
+        takenAt: '2026-08-01',
+        externalPlaceId: null,
+        isPublic: false,
+      }],
+    }])
     const user = userEvent.setup()
     render(<ProfileRoute />)
 
     await screen.findByRole('heading', { name: '초코맘' })
-    await user.click(screen.getByRole('button', { name: /추억 앨범.*API 준비 중/ }))
-    expect(await screen.findByRole('heading', { name: '추억 앨범 기능을 준비하고 있어요' })).toBeInTheDocument()
-    expect(screen.getByText(/아직 추억 앨범 정보를 불러올 수 없어요/)).toBeInTheDocument()
-    expect(screen.queryByText('하루')).not.toBeInTheDocument()
-    expect(screen.queryByText(/\d+개의 여행 앨범/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/예시 데이터/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /추억 앨범.*1마리의 추억/ }))
+
+    expect(await screen.findByRole('button', { name: '별이의 추억 앨범 보기' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '초코의 추억 앨범 보기' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '별이의 추억 앨범 보기' }))
+    expect(await screen.findByText('별이와 함께한 여행')).toBeInTheDocument()
+    expect(screen.getByText('별이의 추억 앨범')).toBeInTheDocument()
+    expect(fetchAlbumsByPet).toHaveBeenCalledWith('memory-pet', expect.any(AbortSignal))
+  })
+
+  it('shows an empty memory album state and returns to mypage', async () => {
+    const user = userEvent.setup()
+    render(<ProfileRoute />)
+
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: /추억 앨범.*0마리의 추억/ }))
+    expect(await screen.findByText('아직 추억 앨범이 없어요')).toBeInTheDocument()
+    expect(screen.getByText(/추억으로 등록된 반려동물/)).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '뒤로 가기' }))
     expect(await screen.findByRole('heading', { name: '초코맘' })).toBeInTheDocument()
