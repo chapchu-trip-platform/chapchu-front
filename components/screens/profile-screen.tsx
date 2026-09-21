@@ -366,8 +366,8 @@ function WithdrawModal({ onClose, onConfirm }: { onClose: () => void; onConfirm:
           </ul>
           <p className="mt-3">
             재가입 문의는{' '}
-            <a className="font-semibold text-sage-green underline underline-offset-2" href="mailto:parksh1811@gmail.com">
-              parksh1811@gmail.com
+            <a className="font-semibold text-sage-green underline underline-offset-2" href="mailto:support.chapchu@gmail.com">
+              support.chapchu@gmail.com
             </a>
             으로 보내주세요.
           </p>

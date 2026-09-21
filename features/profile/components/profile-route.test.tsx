@@ -693,9 +693,9 @@ describe('ProfileRoute', () => {
     expect(dialog).toHaveTextContent('개인정보와 로그인 정보는 삭제됩니다.')
     expect(dialog).toHaveTextContent('작성한 게시글은 서비스 기록으로 유지됩니다.')
     expect(dialog).toHaveTextContent('자동 재가입은 어렵습니다.')
-    expect(screen.getByRole('link', { name: 'parksh1811@gmail.com' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'support.chapchu@gmail.com' })).toHaveAttribute(
       'href',
-      'mailto:parksh1811@gmail.com'
+      'mailto:support.chapchu@gmail.com'
     )
     await user.click(screen.getByRole('button', { name: '확인' }))
 
