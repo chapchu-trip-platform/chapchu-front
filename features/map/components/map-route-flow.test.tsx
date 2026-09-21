@@ -14,6 +14,7 @@ import {
 import { webLocationProvider } from '@/features/location/providers/web-location-provider'
 import { useLocationStore } from '@/features/location/stores/location-store'
 import { fetchSelectablePets } from '@/features/profile/api/pets-api'
+import { completeCourse } from '@/features/travel/api/course-completion-api'
 import { useTravelStore } from '@/features/travel/stores/travel-store'
 
 vi.mock('next/navigation', () => ({
@@ -48,6 +49,16 @@ vi.mock('@/features/map/api/walking-time-api', () => ({
 vi.mock('@/features/profile/api/pets-api', () => ({
   fetchSelectablePets: vi.fn(),
 }))
+
+vi.mock('@/features/travel/api/course-completion-api', async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import('@/features/travel/api/course-completion-api')
+  >()
+  return {
+    ...actual,
+    completeCourse: vi.fn(),
+  }
+})
 
 vi.mock('@/components/screens/map-setup-screen', () => ({
   default: ({
@@ -168,8 +179,17 @@ vi.mock('@/components/screens/travel-progress-screen', () => ({
   ),
 }))
 vi.mock('@/components/screens/trip-end-screen', () => ({
-  default: ({ onShare }: { onShare: (review: string) => void }) => (
+  default: ({
+    onSave,
+    onShare,
+  }: {
+    onSave: (review: string, coverPhotoId: string | null) => Promise<void>
+    onShare: (review: string) => void
+  }) => (
     <div data-testid="trip-end">
+      <button type="button" onClick={() => void onSave('전체 후기 내용', null)}>
+        앨범 저장
+      </button>
       <button type="button" onClick={() => onShare('전체 후기 내용')}>후기 공유</button>
     </div>
   ),
@@ -202,6 +222,7 @@ beforeEach(() => {
       { lat: 37.5444, lng: 127.0374 },
     ],
   })
+  vi.mocked(completeCourse).mockReset().mockResolvedValue(undefined)
   vi.mocked(webLocationProvider.checkPermission).mockReset().mockResolvedValue('granted')
   vi.mocked(webLocationProvider.requestCurrentPosition).mockReset().mockResolvedValue({
     ok: true,
@@ -530,5 +551,27 @@ describe('MapRouteFlow location entry', () => {
 
     expect(screen.getByTestId('trip-end')).toBeInTheDocument()
     expect(screen.getByTestId('post-share-sheet')).toHaveTextContent('전체 후기 내용')
+  })
+
+  it('clears the previous route after saving a completed trip', async () => {
+    const user = userEvent.setup()
+    render(<MapRouteFlow />)
+
+    await waitFor(() => expect(useTravelStore.getState().selectedPetId).toBe('pet-1'))
+    await user.click(screen.getByRole('button', { name: '조건 설정으로 이동' }))
+    await createCourse(user)
+    await user.click(await screen.findByRole('button', { name: '여행 시작' }))
+    await user.click(screen.getByRole('button', { name: '여행 종료' }))
+    await user.click(screen.getByRole('button', { name: '앨범 저장' }))
+
+    await waitFor(() => {
+      expect(completeCourse).toHaveBeenCalledWith('server-course-1')
+      expect(useTravelStore.getState()).toMatchObject({
+        routeOrigin: null,
+        routeDestination: null,
+        recommendedCourse: null,
+        travelStage: 'idle',
+      })
+    })
   })
 })

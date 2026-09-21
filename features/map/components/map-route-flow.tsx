@@ -484,6 +484,9 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
       recommendedCourse.id,
       coverPhotoId && availablePhotoIds.has(coverPhotoId) ? coverPhotoId : null
     )
+    // The completed course is now persisted on the server. Clear the in-memory
+    // planning state so a later map visit starts with empty location inputs.
+    resetTravel()
     router.push('/album')
   }
 
