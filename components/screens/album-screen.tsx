@@ -2,7 +2,8 @@
 
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { AnimatePresence, motion, useIsPresent, useReducedMotion } from 'motion/react'
 import {
   BookOpen,
   Camera,
@@ -33,6 +34,27 @@ import { useTravelStore } from '@/features/travel/stores/travel-store'
 import { formatPetName } from '@/lib/format-pet-name'
 
 const ALBUM_PAGE_SIZE = 20
+const ALBUM_MOTION_EASE = [0.22, 1, 0.36, 1] as const
+
+function AlbumPane({ children, screen }: { children: ReactNode; screen: 'list' | 'detail' }) {
+  const prefersReducedMotion = useReducedMotion()
+  const isPresent = useIsPresent()
+  const offset = screen === 'detail' ? 24 : -16
+
+  return (
+    <motion.div
+      inert={isPresent ? undefined : true}
+      aria-hidden={isPresent ? undefined : true}
+      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: offset }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: offset }}
+      transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: ALBUM_MOTION_EASE }}
+      className="absolute inset-0 flex min-h-0 flex-col overflow-hidden bg-warm-beige has-[[aria-modal=true]]:z-[60]"
+    >
+      {children}
+    </motion.div>
+  )
+}
 
 const WEATHER_LABELS: Record<string, string> = {
   SUNNY: '맑음',
@@ -122,8 +144,13 @@ export default function AlbumScreen({
   >('checking')
   const [showShareSheet, setShowShareSheet] = useState(false)
   const [visibleAlbumCount, setVisibleAlbumCount] = useState(ALBUM_PAGE_SIZE)
+  const [albumScrollElement, setAlbumScrollElement] = useState<HTMLDivElement | null>(null)
   const albumScrollRef = useRef<HTMLDivElement>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
+  const handleAlbumScrollRef = useCallback((element: HTMLDivElement | null) => {
+    albumScrollRef.current = element
+    setAlbumScrollElement(element)
+  }, [])
   const cachedCourseId = useTravelStore((state) => state.draftCourseId)
   const cachedOverallReview = useTravelStore((state) => state.overallReview)
   const hydrateTravelDrafts = useTravelStore((state) => state.hydrateTravelDrafts)
@@ -177,9 +204,9 @@ export default function AlbumScreen({
 
   useEffect(() => {
     const loadMoreElement = loadMoreRef.current
-    const scrollElement = albumScrollRef.current
     if (
       listStatus !== 'success' ||
+      !albumScrollElement ||
       !loadMoreElement ||
       visibleAlbumCount >= albums.length
     ) return
@@ -190,14 +217,14 @@ export default function AlbumScreen({
         setVisibleAlbumCount((current) => Math.min(current + ALBUM_PAGE_SIZE, albums.length))
       },
       {
-        root: scrollElement,
+        root: albumScrollElement,
         rootMargin: '0px 0px 240px 0px',
       }
     )
 
     observer.observe(loadMoreElement)
     return () => observer.disconnect()
-  }, [albums.length, listStatus, visibleAlbumCount])
+  }, [albumScrollElement, albums.length, listStatus, visibleAlbumCount])
 
   useEffect(() => {
     if (!selectedAlbum) return
@@ -282,6 +309,7 @@ export default function AlbumScreen({
     [albums, visibleAlbumCount]
   )
 
+  let detailContent: ReactNode = null
   if (selectedAlbum) {
     if (detailStatus === 'success' && detail) {
       const albumPetName = petName ?? getPetName(selectedAlbum.petId, petNames)
@@ -301,7 +329,7 @@ export default function AlbumScreen({
       )?.review?.weather
       const tripTitle = `${albumPetName}와의 ${detail.course.endLocation} 여행`
 
-      return (
+      detailContent = (
         <div className="relative flex min-h-0 flex-1 overflow-hidden">
           <CourseDetailScreen
             detail={detail}
@@ -333,35 +361,36 @@ export default function AlbumScreen({
           )}
         </div>
       )
-    }
-    return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-warm-beige">
-        <TopBar title="앨범 상세" showBack onBack={() => setSelectedAlbum(null)} />
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
-          {detailStatus === 'loading' ? (
-            <><Loader2 className="size-8 animate-spin text-sage-green" /><p className="text-[13px] text-warm-gray">앨범 상세를 불러오는 중이에요.</p></>
-          ) : (
-            <>
-              <p className="text-[13px] leading-relaxed text-danger" role="alert">{detailError}</p>
-              <Button onClick={() => {
-                setDetail(null)
-                setDetailStatus('loading')
-                setDetailError(null)
-                setBoardShareStatus('checking')
-                setDetailReloadKey((value) => value + 1)
-              }} variant="outline">다시 시도</Button>
-            </>
-          )}
+    } else {
+      detailContent = (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-warm-beige">
+          <TopBar title="앨범 상세" showBack onBack={() => setSelectedAlbum(null)} />
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
+            {detailStatus === 'loading' ? (
+              <><Loader2 className="size-8 animate-spin text-sage-green" /><p className="text-[13px] text-warm-gray">앨범 상세를 불러오는 중이에요.</p></>
+            ) : (
+              <>
+                <p className="text-[13px] leading-relaxed text-danger" role="alert">{detailError}</p>
+                <Button onClick={() => {
+                  setDetail(null)
+                  setDetailStatus('loading')
+                  setDetailError(null)
+                  setBoardShareStatus('checking')
+                  setDetailReloadKey((value) => value + 1)
+                }} variant="outline">다시 시도</Button>
+              </>
+            )}
+          </div>
         </div>
-      </div>
-    )
+      )
+    }
   }
 
-  return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-warm-beige">
+  const listContent = (
+    <>
       <TopBar title={title} showBack={Boolean(onBack)} onBack={onBack} />
 
-      <div ref={albumScrollRef} className="flex-1 overflow-y-auto pb-24 no-scrollbar">
+      <div ref={handleAlbumScrollRef} className="flex-1 overflow-y-auto pb-24 no-scrollbar">
         {listStatus === 'loading' && (
           <div className="flex flex-col items-center justify-center gap-3 py-28">
             <Loader2 className="size-8 animate-spin text-sage-green" />
@@ -429,6 +458,22 @@ export default function AlbumScreen({
           </div>
         )}
       </div>
+    </>
+  )
+
+  return (
+    <div className="relative flex min-h-0 flex-1 overflow-hidden bg-warm-beige">
+      <AnimatePresence initial={false} mode="sync">
+        {selectedAlbum ? (
+          <AlbumPane key="detail" screen="detail">
+            {detailContent}
+          </AlbumPane>
+        ) : (
+          <AlbumPane key="list" screen="list">
+            {listContent}
+          </AlbumPane>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

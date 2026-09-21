@@ -165,6 +165,46 @@ describe('AlbumScreen', () => {
     unmount()
   })
 
+  it('restores album pagination after returning from the detail transition', async () => {
+    let activeCallback: IntersectionObserverCallback | null = null
+    class AlbumIntersectionObserverMock {
+      readonly root = null
+      readonly rootMargin = ''
+      readonly thresholds = []
+      constructor(private readonly callback: IntersectionObserverCallback) {}
+      observe() { activeCallback = this.callback }
+      unobserve() {}
+      disconnect() {
+        if (activeCallback === this.callback) activeCallback = null
+      }
+      takeRecords() { return [] }
+    }
+    globalThis.IntersectionObserver = AlbumIntersectionObserverMock as typeof IntersectionObserver
+    vi.mocked(fetchMyAlbums).mockResolvedValue(Array.from({ length: 25 }, (_, index) => ({
+      ...album,
+      courseId: `course-${index + 1}`,
+      photos: [],
+    })))
+    vi.mocked(fetchSelectablePets).mockResolvedValue([{ id: 'pet-1', name: '초코' }])
+    vi.mocked(fetchAlbumDetail).mockReturnValue(new Promise(() => undefined))
+    const user = userEvent.setup()
+
+    render(<AlbumScreen />)
+
+    await screen.findAllByText('초코와 함께한 여행')
+    await waitFor(() => expect(activeCallback).not.toBeNull())
+    await user.click(screen.getAllByText('초코와 함께한 여행')[0])
+    expect(await screen.findByText('앨범 상세를 불러오는 중이에요.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '뒤로 가기' }))
+
+    expect(screen.getAllByText('초코와 함께한 여행')).toHaveLength(20)
+    await waitFor(() => expect(activeCallback).not.toBeNull())
+    await act(async () => {
+      activeCallback?.([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver)
+    })
+    expect(screen.getAllByText('초코와 함께한 여행')).toHaveLength(25)
+  })
+
   it('uses the generated album cover when a saved album has no photos', async () => {
     const photoLessAlbum = { ...album, photos: [] }
     vi.mocked(fetchMyAlbums).mockResolvedValue([photoLessAlbum])

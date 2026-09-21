@@ -930,19 +930,7 @@ function MemoryAlbumSubScreen({
   const [selectedPet, setSelectedPet] = useState<ProfilePet | null>(null)
   const memoryPets = useMemo(() => pets.filter((pet) => pet.isDie), [pets])
 
-  if (selectedPet) {
-    return (
-      <AlbumScreen
-        key={selectedPet.id}
-        petId={selectedPet.id}
-        petName={selectedPet.petName}
-        title={`${selectedPet.petName}의 추억 앨범`}
-        onBack={() => setSelectedPet(null)}
-      />
-    )
-  }
-
-  return (
+  const petListContent = (
     <div className="flex flex-1 flex-col overflow-hidden bg-warm-beige">
       <TopBar title="추억 앨범" showBack onBack={onBack} />
       <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-24 pt-4">
@@ -990,6 +978,27 @@ function MemoryAlbumSubScreen({
           )}
         </section>
       </div>
+    </div>
+  )
+
+  return (
+    <div className="relative flex min-h-0 flex-1 overflow-hidden">
+      <AnimatePresence initial={false} mode="sync">
+        {selectedPet ? (
+          <ProfilePane key={selectedPet.id} direction="forward">
+            <AlbumScreen
+              petId={selectedPet.id}
+              petName={selectedPet.petName}
+              title={`${selectedPet.petName}의 추억 앨범`}
+              onBack={() => setSelectedPet(null)}
+            />
+          </ProfilePane>
+        ) : (
+          <ProfilePane key="memory-pets" direction="back">
+            {petListContent}
+          </ProfilePane>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

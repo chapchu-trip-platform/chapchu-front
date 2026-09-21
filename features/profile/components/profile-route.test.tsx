@@ -577,6 +577,11 @@ describe('ProfileRoute', () => {
     expect(screen.getByText('별이의 추억 앨범')).toBeInTheDocument()
     expect(fetchAlbumsByPet).toHaveBeenCalledWith('memory-pet', expect.any(AbortSignal))
 
+    await user.click(screen.getByRole('button', { name: '뒤로 가기' }))
+    expect(await screen.findByRole('button', { name: '별이의 추억 앨범 보기' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '별이의 추억 앨범 보기' }))
+    expect(await screen.findByText('별이의 추억 앨범')).toBeInTheDocument()
+
     act(() => window.dispatchEvent(new Event('profile-return-to-root')))
     expect(await screen.findByRole('region', { name: '내정보 콘텐츠' })).toBeInTheDocument()
     expect(screen.queryByText('별이의 추억 앨범')).not.toBeInTheDocument()
