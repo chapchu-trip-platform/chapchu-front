@@ -7,6 +7,7 @@ import { fetchMyPosts } from '@/features/community/api/community-api'
 import { createTripPost } from '@/features/community/api/posts-api'
 import { fetchSelectablePets } from '@/features/profile/api/pets-api'
 import { useTravelStore } from '@/features/travel/stores/travel-store'
+import { mockRouter, resetNextNavigationMocks } from '@/test/mocks/next-navigation'
 
 vi.mock('@/features/album/api/albums-api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/features/album/api/albums-api')>()
@@ -64,6 +65,7 @@ const album = {
 const originalIntersectionObserver = globalThis.IntersectionObserver
 
 beforeEach(() => {
+  resetNextNavigationMocks()
   window.localStorage.removeItem('chapchu.travel-drafts')
   window.sessionStorage.removeItem('chapchu.travel-drafts')
   useTravelStore.setState({
@@ -344,6 +346,7 @@ describe('AlbumScreen', () => {
         takenAt: '2026-09-15',
       })
     })
+    expect(mockRouter.push).toHaveBeenCalledWith('/community?tab=review')
     expect(await screen.findByRole('button', { name: '게시판 공유 완료' })).toBeDisabled()
   })
 

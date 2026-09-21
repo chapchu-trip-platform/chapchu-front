@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   BookOpen,
@@ -91,6 +92,7 @@ function AlbumCard({
 }
 
 export default function AlbumScreen() {
+  const router = useRouter()
   const [albums, setAlbums] = useState<AlbumSummary[]>([])
   const [petNames, setPetNames] = useState(new Map<string, string>())
   const [listStatus, setListStatus] = useState<'loading' | 'success' | 'error'>('loading')
@@ -236,14 +238,16 @@ export default function AlbumScreen() {
         coverPhotoUrl: post.image,
         takenAt: selectedAlbum.travelDate,
       })
-      setServerDiaries((current) => ({
-        ...current,
-        [selectedAlbum.courseId]: post.content,
-      }))
-      setBoardShareStatus('shared')
     } catch (error: unknown) {
       throw new Error(getTripPostErrorMessage(error))
     }
+
+    setServerDiaries((current) => ({
+      ...current,
+      [selectedAlbum.courseId]: post.content,
+    }))
+    setBoardShareStatus('shared')
+    router.push('/community?tab=review')
   }
 
   const stats = useMemo(() => ({
