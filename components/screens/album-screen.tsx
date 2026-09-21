@@ -129,11 +129,13 @@ export default function AlbumScreen({
   const hydrateTravelDrafts = useTravelStore((state) => state.hydrateTravelDrafts)
 
   useEffect(() => {
-    const handleScrollTop = () => {
+    const handleReturnToRoot = () => {
+      setShowShareSheet(false)
+      setSelectedAlbum(null)
       albumScrollRef.current?.scrollTo?.({ top: 0, behavior: 'smooth' })
     }
-    window.addEventListener('album-scroll-top', handleScrollTop)
-    return () => window.removeEventListener('album-scroll-top', handleScrollTop)
+    window.addEventListener('album-return-to-root', handleReturnToRoot)
+    return () => window.removeEventListener('album-return-to-root', handleReturnToRoot)
   }, [])
 
   useEffect(() => {

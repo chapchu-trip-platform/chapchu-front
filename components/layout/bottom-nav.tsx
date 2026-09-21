@@ -37,7 +37,7 @@ export default function BottomNav({ active, onReselect }: BottomNavProps) {
                   onClick={(event) => {
                     if (!isActive) return
                     onReselect?.(tab.id)
-                    if (tab.id === 'album') event.preventDefault()
+                    if (tab.id === 'album' || tab.id === 'profile') event.preventDefault()
                   }}
                   className="flex flex-col items-center -mt-5"
                   aria-label={tab.label}
@@ -72,7 +72,7 @@ export default function BottomNav({ active, onReselect }: BottomNavProps) {
                 onClick={(event) => {
                   if (!isActive) return
                   onReselect?.(tab.id)
-                  if (tab.id === 'album') event.preventDefault()
+                  if (tab.id === 'album' || tab.id === 'profile') event.preventDefault()
                 }}
                 className="flex flex-col items-center gap-1 py-1 px-3"
                 aria-label={tab.label}

@@ -1116,6 +1116,17 @@ export default function ProfileScreen({
   const [subScreen, setSubScreen] = useState<SubScreen>(null)
   const [showWithdraw, setShowWithdraw] = useState(false)
   const [showProfilePhotoEditor, setShowProfilePhotoEditor] = useState(false)
+  const profileScrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleReturnToRoot = () => {
+      setSubScreen(null)
+      profileScrollRef.current?.scrollTo?.({ top: 0, behavior: 'smooth' })
+    }
+    window.addEventListener('profile-return-to-root', handleReturnToRoot)
+    return () => window.removeEventListener('profile-return-to-root', handleReturnToRoot)
+  }, [])
+
   const prefersReducedMotion = useReducedMotion()
   const activePets = useMemo(() => pets.filter((pet) => !pet.isDie), [pets])
   const visiblePets = activePets.slice(0, 3)
@@ -1150,6 +1161,7 @@ export default function ProfileScreen({
     <ProfilePane key="profile-main" direction="back">
       <TopBar title="내정보" />
       <div
+        ref={profileScrollRef}
         role="region"
         aria-label="내정보 콘텐츠"
         aria-busy={status === 'loading'}

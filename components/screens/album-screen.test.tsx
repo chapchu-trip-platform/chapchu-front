@@ -307,6 +307,10 @@ describe('AlbumScreen', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(historyBack).toHaveBeenCalledOnce()
     historyBack.mockRestore()
+
+    act(() => window.dispatchEvent(new Event('album-return-to-root')))
+    expect(await screen.findByText('초코와 함께한 여행')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '앨범 상세 내용' })).not.toBeInTheDocument()
   })
 
   it('shares an unposted cached travel diary from the album detail', async () => {

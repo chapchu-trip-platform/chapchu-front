@@ -40,6 +40,17 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('live community board', () => {
+  it('returns to the HOT first tab when the active bottom tab is reselected', async () => {
+    const user = userEvent.setup()
+    render(<CommunityBoard />)
+
+    await user.click(screen.getByRole('button', { name: '여행 리뷰' }))
+    expect(screen.getByRole('button', { name: '여행 리뷰' })).toHaveAttribute('aria-pressed', 'true')
+
+    act(() => window.dispatchEvent(new Event('board-return-to-root')))
+    expect(screen.getByRole('button', { name: 'HOT' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('restores both server reaction flags with no session memory and replaces outdated memory on re-entry', async () => {
     const { rerender } = render(<CommunityBoard initialPostId="post-1" />)
     await screen.findByRole('button', { name: '게시글 추천' })

@@ -53,9 +53,10 @@ export default function MainAppShell({ children }: { children: React.ReactNode }
         <BottomNav
           active={activeTab}
           onReselect={(tab) => {
-            if (tab === 'album' && activeTab === 'album') {
-              window.dispatchEvent(new Event('album-scroll-top'))
-            }
+            if (tab === 'home') window.dispatchEvent(new Event('home-return-to-root'))
+            if (tab === 'board') window.dispatchEvent(new Event('board-return-to-root'))
+            if (tab === 'album') window.dispatchEvent(new Event('album-return-to-root'))
+            if (tab === 'profile') window.dispatchEvent(new Event('profile-return-to-root'))
           }}
         />
       )}

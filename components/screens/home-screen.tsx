@@ -2,6 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
+import { useEffect, useRef } from 'react'
 import { MessageCircle, ThumbsUp } from 'lucide-react'
 import { LazyMotion, domAnimation, m, useReducedMotion } from 'motion/react'
 import { Button } from '@/components/ui/button'
@@ -72,6 +73,14 @@ export default function HomeScreen({
   onRetryWeather,
 }: HomeScreenProps) {
   const prefersReducedMotion = useReducedMotion()
+  const homeScrollRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const handleReturnToRoot = () => {
+      homeScrollRef.current?.scrollTo?.({ top: 0, behavior: 'smooth' })
+    }
+    window.addEventListener('home-return-to-root', handleReturnToRoot)
+    return () => window.removeEventListener('home-return-to-root', handleReturnToRoot)
+  }, [])
   const petCompanion =
     petNamesStatus === 'loading' ? '반려동물 정보 확인 중' : formatPetCompanion(petNames)
 
@@ -93,7 +102,7 @@ export default function HomeScreen({
         </div>
       </m.header>
 
-      <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
+      <div ref={homeScrollRef} className="flex-1 overflow-y-auto no-scrollbar pb-24">
       {/* Current Location Map Card */}
       <m.div
         initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}

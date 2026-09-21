@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { act, cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import HomeScreen from '@/components/screens/home-screen'
 import type { HotPost } from '@/features/home/types/home'
@@ -82,6 +82,18 @@ const defaultProps = {
 afterEach(() => cleanup())
 
 describe('HomeScreen', () => {
+  it('scrolls to the beginning when the active bottom tab is reselected', () => {
+    const { container } = render(<HomeScreen {...defaultProps} />)
+    const scrollArea = container.querySelector<HTMLDivElement>('.overflow-y-auto')
+    expect(scrollArea).not.toBeNull()
+    const scrollTo = vi.fn()
+    scrollArea!.scrollTo = scrollTo
+
+    act(() => window.dispatchEvent(new Event('home-return-to-root')))
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
+  })
+
   it('renders the current position without the compact Home zoom control', () => {
     render(<HomeScreen {...defaultProps} />)
 

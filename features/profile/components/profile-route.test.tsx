@@ -576,6 +576,10 @@ describe('ProfileRoute', () => {
     expect(await screen.findByText('별이와 함께한 여행')).toBeInTheDocument()
     expect(screen.getByText('별이의 추억 앨범')).toBeInTheDocument()
     expect(fetchAlbumsByPet).toHaveBeenCalledWith('memory-pet', expect.any(AbortSignal))
+
+    act(() => window.dispatchEvent(new Event('profile-return-to-root')))
+    expect(await screen.findByRole('region', { name: '내정보 콘텐츠' })).toBeInTheDocument()
+    expect(screen.queryByText('별이의 추억 앨범')).not.toBeInTheDocument()
   })
 
   it('shows an empty memory album state and returns to mypage', async () => {
