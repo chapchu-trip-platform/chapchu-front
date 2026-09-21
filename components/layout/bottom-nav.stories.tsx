@@ -24,13 +24,13 @@ type Story = StoryObj<typeof meta>
 function InteractiveBottomNav() {
   const [active, setActive] = useState<NavTab>('home')
 
-  return <BottomNav active={active} onChange={setActive} />
+  return <BottomNav active={active} onReselect={setActive} />
 }
 
 export const Interactive: Story = {
   args: {
     active: 'home',
-    onChange: () => undefined,
+    onReselect: () => undefined,
   },
   render: () => <InteractiveBottomNav />,
 }
@@ -38,6 +38,6 @@ export const Interactive: Story = {
 export const MapActive: Story = {
   args: {
     active: 'map',
-    onChange: () => undefined,
+    onReselect: () => undefined,
   },
 }

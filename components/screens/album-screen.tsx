@@ -1,7 +1,9 @@
 'use client'
 
 import Image from 'next/image'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { AnimatePresence, motion, useIsPresent, useReducedMotion } from 'motion/react'
 import {
   BookOpen,
   Camera,
@@ -9,10 +11,12 @@ import {
 } from 'lucide-react'
 import TopBar from '@/components/top-bar'
 import CourseDetailScreen from '@/components/screens/course-detail-screen'
+import PostShareSheet, { type SharedPost } from '@/components/screens/post-share-sheet'
 import { Button } from '@/components/ui/button'
 import { InteractiveCard } from '@/components/ui/interactive-card'
 import {
   fetchAlbumDetail,
+  fetchAlbumsByPet,
   fetchMyAlbums,
   getAlbumErrorMessage,
 } from '@/features/album/api/albums-api'
@@ -21,10 +25,50 @@ import type { AlbumDetail, AlbumSummary } from '@/features/album/types/album'
 import { prioritizeAlbumCover } from '@/features/album/lib/album-cover-preference'
 import { findTravelDiaryForCourse } from '@/features/album/lib/album-diary'
 import { fetchMyPosts } from '@/features/community/api/community-api'
+import {
+  createTripPost,
+  getTripPostErrorMessage,
+} from '@/features/community/api/posts-api'
 import { fetchSelectablePets } from '@/features/profile/api/pets-api'
+import { useTravelStore } from '@/features/travel/stores/travel-store'
 import { formatPetName } from '@/lib/format-pet-name'
 
 const ALBUM_PAGE_SIZE = 20
+const ALBUM_MOTION_EASE = [0.22, 1, 0.36, 1] as const
+
+function AlbumPane({ children, screen }: { children: ReactNode; screen: 'list' | 'detail' }) {
+  const prefersReducedMotion = useReducedMotion()
+  const isPresent = useIsPresent()
+  const offset = screen === 'detail' ? 24 : -16
+
+  return (
+    <motion.div
+      inert={isPresent ? undefined : true}
+      aria-hidden={isPresent ? undefined : true}
+      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: offset }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: offset }}
+      transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: ALBUM_MOTION_EASE }}
+      className="absolute inset-0 flex min-h-0 flex-col overflow-hidden bg-warm-beige has-[[aria-modal=true]]:z-[60]"
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+const WEATHER_LABELS: Record<string, string> = {
+  SUNNY: '맑음',
+  CLOUDY: '흐림',
+  RAINY: '비',
+  SNOWY: '눈',
+}
+
+interface AlbumScreenProps {
+  petId?: string
+  petName?: string
+  title?: string
+  onBack?: () => void
+}
 
 function formatDate(value: string | null) {
   if (!value) return '여행 날짜 미정'
@@ -77,7 +121,13 @@ function AlbumCard({
   )
 }
 
-export default function AlbumScreen() {
+export default function AlbumScreen({
+  petId,
+  petName,
+  title = '여행 앨범',
+  onBack,
+}: AlbumScreenProps = {}) {
+  const router = useRouter()
   const [albums, setAlbums] = useState<AlbumSummary[]>([])
   const [petNames, setPetNames] = useState(new Map<string, string>())
   const [listStatus, setListStatus] = useState<'loading' | 'success' | 'error'>('loading')
@@ -89,22 +139,40 @@ export default function AlbumScreen() {
   const [detailError, setDetailError] = useState<string | null>(null)
   const [detailReloadKey, setDetailReloadKey] = useState(0)
   const [serverDiaries, setServerDiaries] = useState<Record<string, string>>({})
+  const [boardShareStatus, setBoardShareStatus] = useState<
+    'checking' | 'ready' | 'shared' | 'unavailable'
+  >('checking')
+  const [showShareSheet, setShowShareSheet] = useState(false)
   const [visibleAlbumCount, setVisibleAlbumCount] = useState(ALBUM_PAGE_SIZE)
+  const [albumScrollElement, setAlbumScrollElement] = useState<HTMLDivElement | null>(null)
   const albumScrollRef = useRef<HTMLDivElement>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
+  const handleAlbumScrollRef = useCallback((element: HTMLDivElement | null) => {
+    albumScrollRef.current = element
+    setAlbumScrollElement(element)
+  }, [])
+  const cachedCourseId = useTravelStore((state) => state.draftCourseId)
+  const cachedOverallReview = useTravelStore((state) => state.overallReview)
+  const hydrateTravelDrafts = useTravelStore((state) => state.hydrateTravelDrafts)
 
   useEffect(() => {
-    const handleScrollTop = () => {
+    const handleReturnToRoot = () => {
+      setShowShareSheet(false)
+      setSelectedAlbum(null)
       albumScrollRef.current?.scrollTo?.({ top: 0, behavior: 'smooth' })
     }
-    window.addEventListener('album-scroll-top', handleScrollTop)
-    return () => window.removeEventListener('album-scroll-top', handleScrollTop)
+    window.addEventListener('album-return-to-root', handleReturnToRoot)
+    return () => window.removeEventListener('album-return-to-root', handleReturnToRoot)
   }, [])
 
   useEffect(() => {
     const controller = new AbortController()
 
-    void fetchMyAlbums(controller.signal)
+    const albumRequest = petId
+      ? fetchAlbumsByPet(petId, controller.signal)
+      : fetchMyAlbums(controller.signal)
+
+    void albumRequest
       .then((nextAlbums) => {
         if (controller.signal.aborted) return
         setAlbums(nextAlbums.map(prioritizeAlbumCover))
@@ -117,6 +185,10 @@ export default function AlbumScreen() {
         setListError(getAlbumErrorMessage(error))
       })
 
+    if (petId) {
+      return () => controller.abort()
+    }
+
     void fetchSelectablePets(controller.signal)
       .then((pets) => {
         if (controller.signal.aborted) return
@@ -128,13 +200,13 @@ export default function AlbumScreen() {
       })
 
     return () => controller.abort()
-  }, [reloadKey])
+  }, [petId, reloadKey])
 
   useEffect(() => {
     const loadMoreElement = loadMoreRef.current
-    const scrollElement = albumScrollRef.current
     if (
       listStatus !== 'success' ||
+      !albumScrollElement ||
       !loadMoreElement ||
       visibleAlbumCount >= albums.length
     ) return
@@ -145,14 +217,14 @@ export default function AlbumScreen() {
         setVisibleAlbumCount((current) => Math.min(current + ALBUM_PAGE_SIZE, albums.length))
       },
       {
-        root: scrollElement,
+        root: albumScrollElement,
         rootMargin: '0px 0px 240px 0px',
       }
     )
 
     observer.observe(loadMoreElement)
     return () => observer.disconnect()
-  }, [albums.length, listStatus, visibleAlbumCount])
+  }, [albumScrollElement, albums.length, listStatus, visibleAlbumCount])
 
   useEffect(() => {
     if (!selectedAlbum) return
@@ -183,19 +255,49 @@ export default function AlbumScreen() {
           delete next[selectedAlbum.courseId]
           return next
         })
+        setBoardShareStatus(serverDiary ? 'shared' : 'ready')
       })
       .catch(() => {
+        if (controller.signal.aborted) return
         // The album remains available even if the separate post request fails.
+        setBoardShareStatus('unavailable')
       })
 
     return () => controller.abort()
   }, [detailReloadKey, selectedAlbum])
 
   const openAlbum = (album: AlbumSummary) => {
+    hydrateTravelDrafts(album.courseId)
     setDetail(null)
     setDetailStatus('loading')
     setDetailError(null)
+    setBoardShareStatus('checking')
+    setShowShareSheet(false)
     setSelectedAlbum(album)
+  }
+
+  const shareAlbumReview = async (post: SharedPost) => {
+    if (!selectedAlbum) throw new Error('공유할 앨범을 찾지 못했어요.')
+
+    try {
+      await createTripPost({
+        title: post.title,
+        content: post.content,
+        petId: selectedAlbum.petId,
+        courseId: selectedAlbum.courseId,
+        coverPhotoUrl: post.image,
+        takenAt: selectedAlbum.travelDate,
+      })
+    } catch (error: unknown) {
+      throw new Error(getTripPostErrorMessage(error))
+    }
+
+    setServerDiaries((current) => ({
+      ...current,
+      [selectedAlbum.courseId]: post.content,
+    }))
+    setBoardShareStatus('shared')
+    router.push('/community?tab=review')
   }
 
   const stats = useMemo(() => ({
@@ -207,44 +309,88 @@ export default function AlbumScreen() {
     [albums, visibleAlbumCount]
   )
 
+  let detailContent: ReactNode = null
   if (selectedAlbum) {
     if (detailStatus === 'success' && detail) {
-      return (
-        <CourseDetailScreen
-          detail={detail}
-          petName={getPetName(selectedAlbum.petId, petNames)}
-          overallReview={serverDiaries[selectedAlbum.courseId]}
-          onBack={() => setSelectedAlbum(null)}
-        />
-      )
-    }
-    return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-warm-beige">
-        <TopBar title="앨범 상세" showBack onBack={() => setSelectedAlbum(null)} />
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
-          {detailStatus === 'loading' ? (
-            <><Loader2 className="size-8 animate-spin text-sage-green" /><p className="text-[13px] text-warm-gray">앨범 상세를 불러오는 중이에요.</p></>
-          ) : (
-            <>
-              <p className="text-[13px] leading-relaxed text-danger" role="alert">{detailError}</p>
-              <Button onClick={() => {
-                setDetail(null)
-                setDetailStatus('loading')
-                setDetailError(null)
-                setDetailReloadKey((value) => value + 1)
-              }} variant="outline">다시 시도</Button>
-            </>
+      const albumPetName = petName ?? getPetName(selectedAlbum.petId, petNames)
+      const cachedDiary = cachedCourseId === selectedAlbum.courseId
+        ? cachedOverallReview.trim()
+        : ''
+      const overallReview = serverDiaries[selectedAlbum.courseId] ?? cachedDiary
+      const sharePhotos = detail.summary.photos.map((photo) => ({
+        photoId: photo.photoId,
+        downloadUrl: photo.downloadUrl,
+        placeName: detail.stops.find(
+          (stop) => photo.externalPlaceId && stop.externalPlaceId === photo.externalPlaceId
+        )?.placeName ?? '여행 사진',
+      }))
+      const recordedWeather = detail.stops.find(
+        (stop) => stop.review?.weather
+      )?.review?.weather
+      const tripTitle = `${albumPetName}와의 ${detail.course.endLocation} 여행`
+
+      detailContent = (
+        <div className="relative flex min-h-0 flex-1 overflow-hidden">
+          <CourseDetailScreen
+            detail={detail}
+            petName={albumPetName}
+            overallReview={overallReview}
+            boardShareStatus={boardShareStatus}
+            onBack={() => {
+              setShowShareSheet(false)
+              setSelectedAlbum(null)
+            }}
+            onShareToBoard={() => setShowShareSheet(true)}
+          />
+          {showShareSheet && (
+            <PostShareSheet
+              onClose={() => setShowShareSheet(false)}
+              onShare={shareAlbumReview}
+              tripTitle={tripTitle}
+              photos={sharePhotos}
+              initialPhotoId={detail.summary.photos[0]?.photoId ?? null}
+              petName={albumPetName}
+              tripReview={overallReview}
+              allowReviewEditing
+              variant="travel-review"
+              course={detail.course}
+              weather={recordedWeather
+                ? { weatherStatus: WEATHER_LABELS[recordedWeather] ?? recordedWeather }
+                : undefined}
+            />
           )}
         </div>
-      </div>
-    )
+      )
+    } else {
+      detailContent = (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-warm-beige">
+          <TopBar title="앨범 상세" showBack onBack={() => setSelectedAlbum(null)} />
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
+            {detailStatus === 'loading' ? (
+              <><Loader2 className="size-8 animate-spin text-sage-green" /><p className="text-[13px] text-warm-gray">앨범 상세를 불러오는 중이에요.</p></>
+            ) : (
+              <>
+                <p className="text-[13px] leading-relaxed text-danger" role="alert">{detailError}</p>
+                <Button onClick={() => {
+                  setDetail(null)
+                  setDetailStatus('loading')
+                  setDetailError(null)
+                  setBoardShareStatus('checking')
+                  setDetailReloadKey((value) => value + 1)
+                }} variant="outline">다시 시도</Button>
+              </>
+            )}
+          </div>
+        </div>
+      )
+    }
   }
 
-  return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-warm-beige">
-      <TopBar title="여행 앨범" />
+  const listContent = (
+    <>
+      <TopBar title={title} showBack={Boolean(onBack)} onBack={onBack} />
 
-      <div ref={albumScrollRef} className="flex-1 overflow-y-auto pb-24 no-scrollbar">
+      <div ref={handleAlbumScrollRef} className="flex-1 overflow-y-auto pb-24 no-scrollbar">
         {listStatus === 'loading' && (
           <div className="flex flex-col items-center justify-center gap-3 py-28">
             <Loader2 className="size-8 animate-spin text-sage-green" />
@@ -294,7 +440,7 @@ export default function AlbumScreen() {
                 <AlbumCard
                   key={album.courseId}
                   album={album}
-                  petName={getPetName(album.petId, petNames)}
+                  petName={petName ?? getPetName(album.petId, petNames)}
                   onClick={() => openAlbum(album)}
                 />
               ))}
@@ -312,6 +458,22 @@ export default function AlbumScreen() {
           </div>
         )}
       </div>
+    </>
+  )
+
+  return (
+    <div className="relative flex min-h-0 flex-1 overflow-hidden bg-warm-beige">
+      <AnimatePresence initial={false} mode="sync">
+        {selectedAlbum ? (
+          <AlbumPane key="detail" screen="detail">
+            {detailContent}
+          </AlbumPane>
+        ) : (
+          <AlbumPane key="list" screen="list">
+            {listContent}
+          </AlbumPane>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

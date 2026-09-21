@@ -7,14 +7,6 @@ import BottomNav, { type NavTab } from '@/components/layout/bottom-nav'
 import { refreshAccessToken } from '@/lib/api/client'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
 
-const routeByTab: Record<NavTab, string> = {
-  home: '/home',
-  board: '/community',
-  map: '/map',
-  album: '/album',
-  profile: '/my',
-}
-
 function getActiveTab(pathname: string): NavTab {
   if (pathname.startsWith('/community')) return 'board'
   if (pathname.startsWith('/map')) return 'map'
@@ -60,12 +52,11 @@ export default function MainAppShell({ children }: { children: React.ReactNode }
       {showBottomNav && (
         <BottomNav
           active={activeTab}
-          onChange={(tab) => {
-            if (tab === 'album' && activeTab === 'album') {
-              window.dispatchEvent(new Event('album-scroll-top'))
-              return
-            }
-            router.push(routeByTab[tab])
+          onReselect={(tab) => {
+            if (tab === 'home') window.dispatchEvent(new Event('home-return-to-root'))
+            if (tab === 'board') window.dispatchEvent(new Event('board-return-to-root'))
+            if (tab === 'album') window.dispatchEvent(new Event('album-return-to-root'))
+            if (tab === 'profile') window.dispatchEvent(new Event('profile-return-to-root'))
           }}
         />
       )}

@@ -4,6 +4,7 @@ import {
   compareAlbumPhotos,
   compareAlbumSummaries,
   fetchAlbumDetail,
+  fetchAlbumsByPet,
   fetchMyAlbums,
 } from '@/features/album/api/albums-api'
 import type { AlbumSummary } from '@/features/album/types/album'
@@ -68,6 +69,20 @@ describe('album API', () => {
     expect(captured.map((request) => [request.method, request.url])).toEqual([
       ['get', '/users/me/album'],
       ['get', '/users/me/courses'],
+    ])
+  })
+
+  it('loads and sorts the documented pet album groups', async () => {
+    const olderAlbum = { ...summary, courseId: 'course-older', travelDate: '2026-08-01' }
+    const captured: InternalAxiosRequestConfig[] = []
+    apiClient.defaults.adapter = async (config) => {
+      captured.push(config)
+      return response(config, [olderAlbum, summary])
+    }
+
+    await expect(fetchAlbumsByPet('pet/1')).resolves.toEqual([summary, olderAlbum])
+    expect(captured.map((request) => [request.method, request.url])).toEqual([
+      ['get', '/users/me/pets/pet%2F1/album'],
     ])
   })
 

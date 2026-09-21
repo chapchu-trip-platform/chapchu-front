@@ -30,6 +30,7 @@ describe('shared UI primitives', () => {
     expect(screen.getByTestId('sheet-root')).toHaveClass(
       'absolute',
       'inset-0',
+      'z-[60]',
       'justify-end'
     )
     expect(screen.getByTestId('sheet-backdrop')).toHaveClass('absolute', 'bg-black/40')

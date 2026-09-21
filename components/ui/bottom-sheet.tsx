@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 function BottomSheetRoot({ className, ...props }: ComponentProps<'div'>) {
   return (
     <div
-      className={cn('absolute inset-0 z-50 flex flex-col justify-end', className)}
+      className={cn('absolute inset-0 z-[60] flex flex-col justify-end', className)}
       {...props}
     />
   )

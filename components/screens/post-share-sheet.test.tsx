@@ -152,4 +152,31 @@ describe('PostShareSheet', () => {
     expect(screen.getByText('여행 리뷰 전용 게시글')).toBeInTheDocument()
     expect(screen.queryByText('함께한 반려동물')).not.toBeInTheDocument()
   })
+
+  it('allows an album share flow to compose a missing travel review', async () => {
+    const user = userEvent.setup()
+    const onShare = vi.fn()
+
+    render(
+      <PostShareSheet
+        onClose={vi.fn()}
+        onShare={onShare}
+        tripTitle="앨범 여행"
+        photos={[]}
+        petName="초코"
+        tripReview=""
+        allowReviewEditing
+        variant="travel-review"
+      />
+    )
+
+    await user.type(screen.getByLabelText('여행 후기'), '나중에 앨범에서 작성한 후기')
+    await user.click(screen.getByRole('button', { name: '공유하기' }))
+
+    await waitFor(() => {
+      expect(onShare).toHaveBeenCalledWith(expect.objectContaining({
+        content: '나중에 앨범에서 작성한 후기',
+      }))
+    })
+  })
 })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { PenLine } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -26,6 +26,15 @@ function Board({ initialPostId, initialTab }: CommunityBoardProps) {
   const router = useRouter()
   const prefersReducedMotion = usePrefersReducedMotion()
   const [activeTab, setActiveTab] = useState(initialTab === 'free' ? 1 : initialTab === 'review' ? 2 : 0)
+  const boardScrollRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const handleReturnToRoot = () => {
+      setActiveTab(0)
+      boardScrollRef.current?.scrollTo?.({ top: 0, behavior: 'smooth' })
+    }
+    window.addEventListener('board-return-to-root', handleReturnToRoot)
+    return () => window.removeEventListener('board-return-to-root', handleReturnToRoot)
+  }, [])
   const transition = prefersReducedMotion
     ? { duration: 0 }
     : { duration: 0.22, ease: [0.22, 1, 0.36, 1] as const }
@@ -37,7 +46,7 @@ function Board({ initialPostId, initialTab }: CommunityBoardProps) {
     <div className="flex border-b border-border bg-card-surface">
       {tabs.map((tab, index) => <Button key={tab} variant="ghost" aria-pressed={activeTab === index} onClick={() => setActiveTab(index)} className={cn('relative h-auto flex-1 rounded-none py-3 text-[13px] font-medium', activeTab === index ? 'text-sage-green' : 'text-warm-gray')}>{tab}{activeTab === index && <motion.span layoutId={prefersReducedMotion ? undefined : 'community-active-tab'} transition={transition} aria-hidden className="absolute inset-x-0 bottom-0 h-0.5 bg-sage-green" />}</Button>)}
     </div>
-    <div className="no-scrollbar flex-1 overflow-y-auto pb-24">
+    <div ref={boardScrollRef} className="no-scrollbar flex-1 overflow-y-auto pb-24">
       <motion.div key={activeTab} initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={transition}>
         {activeTab === 1 && <div className="flex justify-end px-4 pt-3"><motion.div whileTap={prefersReducedMotion ? undefined : { scale: 0.96 }}><Link href="/community/write" className="inline-flex items-center gap-2 rounded-full bg-sage-green px-4 py-2 text-[13px] font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-green focus-visible:ring-offset-2"><PenLine className="h-4 w-4" />글쓰기</Link></motion.div></div>}
         {activeTab === 2 ?

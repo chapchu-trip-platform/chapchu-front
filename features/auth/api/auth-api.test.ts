@@ -28,8 +28,10 @@ function okResponse(config: InternalAxiosRequestConfig): AxiosResponse {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks()
   sessionApiClient.defaults.adapter = originalSessionAdapter
   sessionStorage.clear()
+  localStorage.clear()
   useAuthStore.setState({
     accessToken: null,
     authNotice: null,
@@ -37,6 +39,7 @@ afterEach(() => {
     sessionEpoch: 0,
     setupStage: null,
     status: 'idle',
+    withdrawalAttemptEpoch: null,
   })
   vi.mocked(navigateBrowser).mockReset()
 })
@@ -92,6 +95,12 @@ describe('logout', () => {
       return pendingResponse
     }
     sessionStorage.setItem('chapchu.auth.post-login-destination', 'pet-setup')
+    sessionStorage.setItem('chapchu.travel-drafts', 'private-session-draft')
+    sessionStorage.setItem('unrelated-session-key', 'keep')
+    localStorage.setItem('chapchu.album-cover-preferences', '{"course":"photo"}')
+    localStorage.setItem('chapchu.hidden-travel-photo-ids', '["photo"]')
+    localStorage.setItem('chapchu.location.recent-searches.v1', '[]')
+    localStorage.setItem('unrelated-local-key', 'keep')
     useAuthStore.setState({
       accessToken: 'access-token',
       registrationToken: 'registration-token',
@@ -109,9 +118,13 @@ describe('logout', () => {
       setupStage: null,
       status: 'unauthenticated',
     })
-    expect(
-      sessionStorage.getItem('chapchu.auth.post-login-destination')
-    ).toBeNull()
+    expect(sessionStorage.getItem('chapchu.auth.post-login-destination')).toBeNull()
+    expect(sessionStorage.getItem('chapchu.travel-drafts')).toBeNull()
+    expect(sessionStorage.getItem('unrelated-session-key')).toBe('keep')
+    expect(localStorage.getItem('chapchu.album-cover-preferences')).toBeNull()
+    expect(localStorage.getItem('chapchu.hidden-travel-photo-ids')).toBeNull()
+    expect(localStorage.getItem('chapchu.location.recent-searches.v1')).toBeNull()
+    expect(localStorage.getItem('unrelated-local-key')).toBe('keep')
 
     await vi.waitFor(() => expect(logoutConfig).toBeDefined())
     finishLogoutRequest(okResponse(logoutConfig))
@@ -140,6 +153,61 @@ describe('logout', () => {
       registrationToken: null,
       setupStage: null,
       status: 'unauthenticated',
+    })
+  })
+
+  it('continues local and cookie logout when browser storage is unavailable', async () => {
+    const originalRemoveItem = Storage.prototype.removeItem
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(function (this: Storage, key) {
+      if (this === window.sessionStorage) throw new DOMException('blocked', 'SecurityError')
+      return originalRemoveItem.call(this, key)
+    })
+    const adapter = vi.fn(async (config: InternalAxiosRequestConfig) => okResponse(config))
+    sessionApiClient.defaults.adapter = adapter
+    useAuthStore.setState({ accessToken: 'access-token', status: 'authenticated' })
+
+    await expect(logout()).resolves.toBeUndefined()
+
+    expect(useAuthStore.getState()).toMatchObject({
+      accessToken: null,
+      status: 'unauthenticated',
+    })
+    expect(adapter).toHaveBeenCalledOnce()
+  })
+
+  it('continues logout when the sessionStorage getter is blocked', async () => {
+    vi.spyOn(window, 'sessionStorage', 'get').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError')
+    })
+    const adapter = vi.fn(async (config: InternalAxiosRequestConfig) => okResponse(config))
+    sessionApiClient.defaults.adapter = adapter
+    useAuthStore.setState({ accessToken: 'access-token', status: 'authenticated' })
+
+    await expect(logout()).resolves.toBeUndefined()
+
+    expect(useAuthStore.getState()).toMatchObject({
+      accessToken: null,
+      status: 'unauthenticated',
+    })
+    expect(adapter).toHaveBeenCalledOnce()
+  })
+
+  it('does not attach an old logout failure notice to a new session', async () => {
+    let rejectLogout!: (reason: unknown) => void
+    sessionApiClient.defaults.adapter = () =>
+      new Promise((_resolve, reject) => { rejectLogout = reject })
+    useAuthStore.setState({ accessToken: 'old-token', status: 'authenticated' })
+
+    const request = logout()
+    useAuthStore.getState().setAccessToken('new-token')
+    await vi.waitFor(() => expect(rejectLogout).toBeTypeOf('function'))
+    rejectLogout(new Error('old logout failed'))
+
+    await expect(request).rejects.toThrow('old logout failed')
+    expect(useAuthStore.getState()).toMatchObject({
+      accessToken: 'new-token',
+      authNotice: null,
+      status: 'authenticated',
     })
   })
 })

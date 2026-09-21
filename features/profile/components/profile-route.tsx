@@ -8,8 +8,8 @@ import ProfileSettings, { type SettingsTab } from '@/components/screens/profile-
 import { logout } from '@/features/auth/api/auth-api'
 import { useAuthStore } from '@/features/auth/stores/auth-store'
 import {
+  archivePetToMemory,
   createPet,
-  deletePet,
   fetchPetOptions,
   fetchPets,
   fetchProfilePhoto,
@@ -49,7 +49,6 @@ export default function ProfileRoute({ initialSettingsTab }: { initialSettingsTa
   const pets = usePetStore((state) => state.pets)
   const setPets = usePetStore((state) => state.setPets)
   const upsertPet = usePetStore((state) => state.upsertPet)
-  const removePet = usePetStore((state) => state.removePet)
 
   const requestProfile = useCallback((controller: AbortController) => {
     const sessionEpoch = useAuthStore.getState().sessionEpoch
@@ -227,14 +226,12 @@ export default function ProfileRoute({ initialSettingsTab }: { initialSettingsTa
     return pet
   }
 
-  const handleDeletePet = async (petId: string) => {
+  const handleArchivePet = async (petId: string) => {
     const sessionEpoch = useAuthStore.getState().sessionEpoch
-    await deletePet(petId)
+    const pet = await archivePetToMemory(petId)
     assertActiveSession(sessionEpoch)
-    removePet(petId)
-    setSummary((current) =>
-      current ? { ...current, petCount: Math.max(0, current.petCount - 1) } : current
-    )
+    upsertPet(pet)
+    return pet
   }
 
   const handleUpdatePetPhoto = async (petId: string, file: File | null) => {
@@ -300,8 +297,15 @@ export default function ProfileRoute({ initialSettingsTab }: { initialSettingsTa
 
   const handleWithdraw = async () => {
     const sessionEpoch = useAuthStore.getState().sessionEpoch
+    if (!useAuthStore.getState().claimWithdrawalAttempt()) {
+      throw Object.assign(new Error('Withdrawal was already attempted for this session.'), {
+        type: 'withdrawal-blocked',
+      })
+    }
     await withdrawAccount()
-    assertActiveSession(sessionEpoch)
+    if (useAuthStore.getState().sessionEpoch !== sessionEpoch) {
+      throw new DOMException('Profile session changed.', 'AbortError')
+    }
     await handleLogout()
   }
 
@@ -326,7 +330,7 @@ export default function ProfileRoute({ initialSettingsTab }: { initialSettingsTa
           onCreatePet={handleCreatePet}
           onUpdatePet={handleUpdatePet}
           onUpdatePetPhoto={handleUpdatePetPhoto}
-          onDeletePet={handleDeletePet}
+          onArchivePet={handleArchivePet}
           onUpdateProfilePhoto={handleUpdateProfilePhoto}
           onWithdraw={handleWithdraw}
         />
