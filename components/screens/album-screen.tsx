@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import TopBar from '@/components/top-bar'
 import CourseDetailScreen from '@/components/screens/course-detail-screen'
+import PostShareSheet, { type SharedPost } from '@/components/screens/post-share-sheet'
 import { Button } from '@/components/ui/button'
 import { InteractiveCard } from '@/components/ui/interactive-card'
 import {
@@ -21,10 +22,22 @@ import type { AlbumDetail, AlbumSummary } from '@/features/album/types/album'
 import { prioritizeAlbumCover } from '@/features/album/lib/album-cover-preference'
 import { findTravelDiaryForCourse } from '@/features/album/lib/album-diary'
 import { fetchMyPosts } from '@/features/community/api/community-api'
+import {
+  createTripPost,
+  getTripPostErrorMessage,
+} from '@/features/community/api/posts-api'
 import { fetchSelectablePets } from '@/features/profile/api/pets-api'
+import { useTravelStore } from '@/features/travel/stores/travel-store'
 import { formatPetName } from '@/lib/format-pet-name'
 
 const ALBUM_PAGE_SIZE = 20
+
+const WEATHER_LABELS: Record<string, string> = {
+  SUNNY: '맑음',
+  CLOUDY: '흐림',
+  RAINY: '비',
+  SNOWY: '눈',
+}
 
 function formatDate(value: string | null) {
   if (!value) return '여행 날짜 미정'
@@ -89,9 +102,16 @@ export default function AlbumScreen() {
   const [detailError, setDetailError] = useState<string | null>(null)
   const [detailReloadKey, setDetailReloadKey] = useState(0)
   const [serverDiaries, setServerDiaries] = useState<Record<string, string>>({})
+  const [boardShareStatus, setBoardShareStatus] = useState<
+    'checking' | 'ready' | 'shared' | 'unavailable'
+  >('checking')
+  const [showShareSheet, setShowShareSheet] = useState(false)
   const [visibleAlbumCount, setVisibleAlbumCount] = useState(ALBUM_PAGE_SIZE)
   const albumScrollRef = useRef<HTMLDivElement>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
+  const cachedCourseId = useTravelStore((state) => state.draftCourseId)
+  const cachedOverallReview = useTravelStore((state) => state.overallReview)
+  const hydrateTravelDrafts = useTravelStore((state) => state.hydrateTravelDrafts)
 
   useEffect(() => {
     const handleScrollTop = () => {
@@ -183,19 +203,47 @@ export default function AlbumScreen() {
           delete next[selectedAlbum.courseId]
           return next
         })
+        setBoardShareStatus(serverDiary ? 'shared' : 'ready')
       })
       .catch(() => {
+        if (controller.signal.aborted) return
         // The album remains available even if the separate post request fails.
+        setBoardShareStatus('unavailable')
       })
 
     return () => controller.abort()
   }, [detailReloadKey, selectedAlbum])
 
   const openAlbum = (album: AlbumSummary) => {
+    hydrateTravelDrafts(album.courseId)
     setDetail(null)
     setDetailStatus('loading')
     setDetailError(null)
+    setBoardShareStatus('checking')
+    setShowShareSheet(false)
     setSelectedAlbum(album)
+  }
+
+  const shareAlbumReview = async (post: SharedPost) => {
+    if (!selectedAlbum) throw new Error('공유할 앨범을 찾지 못했어요.')
+
+    try {
+      await createTripPost({
+        title: post.title,
+        content: post.content,
+        petId: selectedAlbum.petId,
+        courseId: selectedAlbum.courseId,
+        coverPhotoUrl: post.image,
+        takenAt: selectedAlbum.travelDate,
+      })
+      setServerDiaries((current) => ({
+        ...current,
+        [selectedAlbum.courseId]: post.content,
+      }))
+      setBoardShareStatus('shared')
+    } catch (error: unknown) {
+      throw new Error(getTripPostErrorMessage(error))
+    }
   }
 
   const stats = useMemo(() => ({
@@ -209,13 +257,54 @@ export default function AlbumScreen() {
 
   if (selectedAlbum) {
     if (detailStatus === 'success' && detail) {
+      const petName = getPetName(selectedAlbum.petId, petNames)
+      const cachedDiary = cachedCourseId === selectedAlbum.courseId
+        ? cachedOverallReview.trim()
+        : ''
+      const overallReview = serverDiaries[selectedAlbum.courseId] ?? cachedDiary
+      const sharePhotos = detail.summary.photos.map((photo) => ({
+        photoId: photo.photoId,
+        downloadUrl: photo.downloadUrl,
+        placeName: detail.stops.find(
+          (stop) => photo.externalPlaceId && stop.externalPlaceId === photo.externalPlaceId
+        )?.placeName ?? '여행 사진',
+      }))
+      const recordedWeather = detail.stops.find(
+        (stop) => stop.review?.weather
+      )?.review?.weather
+      const tripTitle = `${petName}와의 ${detail.course.endLocation} 여행`
+
       return (
-        <CourseDetailScreen
-          detail={detail}
-          petName={getPetName(selectedAlbum.petId, petNames)}
-          overallReview={serverDiaries[selectedAlbum.courseId]}
-          onBack={() => setSelectedAlbum(null)}
-        />
+        <div className="relative flex min-h-0 flex-1 overflow-hidden">
+          <CourseDetailScreen
+            detail={detail}
+            petName={petName}
+            overallReview={overallReview}
+            boardShareStatus={boardShareStatus}
+            onBack={() => {
+              setShowShareSheet(false)
+              setSelectedAlbum(null)
+            }}
+            onShareToBoard={() => setShowShareSheet(true)}
+          />
+          {showShareSheet && (
+            <PostShareSheet
+              onClose={() => setShowShareSheet(false)}
+              onShare={shareAlbumReview}
+              tripTitle={tripTitle}
+              photos={sharePhotos}
+              initialPhotoId={detail.summary.photos[0]?.photoId ?? null}
+              petName={petName}
+              tripReview={overallReview}
+              allowReviewEditing
+              variant="travel-review"
+              course={detail.course}
+              weather={recordedWeather
+                ? { weatherStatus: WEATHER_LABELS[recordedWeather] ?? recordedWeather }
+                : undefined}
+            />
+          )}
+        </div>
       )
     }
     return (
@@ -231,6 +320,7 @@ export default function AlbumScreen() {
                 setDetail(null)
                 setDetailStatus('loading')
                 setDetailError(null)
+                setBoardShareStatus('checking')
                 setDetailReloadKey((value) => value + 1)
               }} variant="outline">다시 시도</Button>
             </>

@@ -36,7 +36,6 @@ import {
   mockProfilePosts,
   mockProfileReviews,
   mockProfileSummary,
-  mockProfileWishlist,
 } from '@/data/mock/profile'
 
 vi.mock('@/features/auth/api/auth-api', () => ({
@@ -223,6 +222,9 @@ describe('ProfileRoute', () => {
     expect(await screen.findByRole('heading', { name: '초코맘' })).toBeInTheDocument()
     expect(screen.getByText('user@example.com')).toBeInTheDocument()
     expect(screen.getAllByText('초코').length).toBeGreaterThan(0)
+    expect(screen.queryByText('여행km')).not.toBeInTheDocument()
+    expect(screen.queryByText('방문지')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /장소 위시리스트/ })).not.toBeInTheDocument()
     expect(fetchProfileSummary).toHaveBeenCalledOnce()
     expect(fetchPets).toHaveBeenCalledOnce()
     expect(fetchProfilePhoto).toHaveBeenCalledOnce()
@@ -563,25 +565,6 @@ describe('ProfileRoute', () => {
     }
   })
 
-  it('renders every wishlist place with its removal action', async () => {
-    const user = userEvent.setup()
-    expectScrollSizedMock(mockProfileWishlist, PROFILE_MOCK_COUNTS.wishlist)
-    expectUnique(mockProfileWishlist.map((item) => item.placeId))
-    vi.mocked(fetchWishlist).mockResolvedValue(mockProfileWishlist)
-    render(<ProfileRoute />)
-
-    await screen.findByRole('heading', { name: '초코맘' })
-    await user.click(screen.getByRole('button', { name: /장소 위시리스트.*저장한 장소 보기/ }))
-    await screen.findByText(mockProfileWishlist[0].placeName)
-
-    for (const place of mockProfileWishlist) {
-      expect(screen.getByText(place.placeName)).toBeInTheDocument()
-      expect(screen.getByText(place.address)).toBeInTheDocument()
-      expect(screen.getByText(`리뷰 ${place.reviewCount}`)).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: `${place.placeName} 위시리스트에서 제거` })).toBeInTheDocument()
-    }
-  })
-
   it('renders every bookmarked post with its removal action', async () => {
     const user = userEvent.setup()
     expectScrollSizedMock(mockProfileBookmarks, PROFILE_MOCK_COUNTS.bookmarks)
@@ -917,38 +900,30 @@ describe('ProfileRoute', () => {
     expect(usePetStore.getState().pets).toEqual(newSessionPets)
   })
 
-  it.each(['wishlist', 'bookmarks'] as const)(
-    'serializes %s removal, retains failed rows and removes only confirmed rows',
-    async (tab) => {
-      const user = userEvent.setup()
-      const request = createDeferred<void>()
-      vi.mocked(fetchWishlist).mockResolvedValue(mockProfileWishlist.slice(0, 2))
-      vi.mocked(fetchBookmarks).mockResolvedValue(mockProfileBookmarks.slice(0, 2))
-      const remove = tab === 'wishlist' ? vi.mocked(removeWishlistPlace) : vi.mocked(removeBookmark)
-      remove.mockRejectedValueOnce(new Error('failed')).mockReturnValueOnce(request.promise)
-      render(<ProfileRoute />)
-      await screen.findByRole('heading', { name: '초코맘' })
-      await user.click(screen.getByRole('button', {
-        name: tab === 'wishlist' ? /장소 위시리스트.*저장한 장소 보기/ : /북마크.*저장한 게시글 보기/,
-      }))
-      const label = (index: number) => tab === 'wishlist'
-        ? `${mockProfileWishlist[index].placeName} 위시리스트에서 제거`
-        : `${mockProfileBookmarks[index].title} 북마크 해제`
-      const first = await screen.findByRole('button', { name: label(0) })
-      const second = screen.getByRole('button', { name: label(1) })
-      await user.click(first)
-      expect(await screen.findByRole('alert')).toBeInTheDocument()
-      expect(first).toBeEnabled()
-      await user.click(first)
-      expect(first).toBeDisabled()
-      expect(second).toBeDisabled()
-      await user.click(second)
-      expect(remove).toHaveBeenCalledTimes(2)
-      await act(async () => request.resolve())
-      await waitFor(() => expect(screen.queryByRole('button', { name: label(0) })).not.toBeInTheDocument())
-      expect(second).toBeEnabled()
-    }
-  )
+  it('serializes bookmark removal, retains failed rows and removes only confirmed rows', async () => {
+    const user = userEvent.setup()
+    const request = createDeferred<void>()
+    vi.mocked(fetchBookmarks).mockResolvedValue(mockProfileBookmarks.slice(0, 2))
+    const remove = vi.mocked(removeBookmark)
+    remove.mockRejectedValueOnce(new Error('failed')).mockReturnValueOnce(request.promise)
+    render(<ProfileRoute />)
+    await screen.findByRole('heading', { name: '초코맘' })
+    await user.click(screen.getByRole('button', { name: /북마크.*저장한 게시글 보기/ }))
+    const label = (index: number) => `${mockProfileBookmarks[index].title} 북마크 해제`
+    const first = await screen.findByRole('button', { name: label(0) })
+    const second = screen.getByRole('button', { name: label(1) })
+    await user.click(first)
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(first).toBeEnabled()
+    await user.click(first)
+    expect(first).toBeDisabled()
+    expect(second).toBeDisabled()
+    await user.click(second)
+    expect(remove).toHaveBeenCalledTimes(2)
+    await act(async () => request.resolve())
+    await waitFor(() => expect(screen.queryByRole('button', { name: label(0) })).not.toBeInTheDocument())
+    expect(second).toBeEnabled()
+  })
 
   it('traps focus in settings and restores it after the exit transition', async () => {
     const user = userEvent.setup()

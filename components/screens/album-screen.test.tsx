@@ -4,7 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AlbumScreen from '@/components/screens/album-screen'
 import { fetchAlbumDetail, fetchMyAlbums } from '@/features/album/api/albums-api'
 import { fetchMyPosts } from '@/features/community/api/community-api'
+import { createTripPost } from '@/features/community/api/posts-api'
 import { fetchSelectablePets } from '@/features/profile/api/pets-api'
+import { useTravelStore } from '@/features/travel/stores/travel-store'
 
 vi.mock('@/features/album/api/albums-api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/features/album/api/albums-api')>()
@@ -21,6 +23,11 @@ vi.mock('@/features/profile/api/pets-api', () => ({
 
 vi.mock('@/features/community/api/community-api', () => ({
   fetchMyPosts: vi.fn(),
+}))
+
+vi.mock('@/features/community/api/posts-api', () => ({
+  createTripPost: vi.fn(),
+  getTripPostErrorMessage: vi.fn(() => '게시글을 공유하지 못했어요. 다시 시도해주세요.'),
 }))
 
 const album = {
@@ -57,7 +64,17 @@ const album = {
 const originalIntersectionObserver = globalThis.IntersectionObserver
 
 beforeEach(() => {
+  window.localStorage.removeItem('chapchu.travel-drafts')
+  window.sessionStorage.removeItem('chapchu.travel-drafts')
+  useTravelStore.setState({
+    draftCourseId: null,
+    overallReview: '',
+    noteDrafts: [],
+    visitedPlaceIds: [],
+    skippedPlaceIds: [],
+  })
   vi.mocked(fetchMyPosts).mockResolvedValue([])
+  vi.mocked(createTripPost).mockResolvedValue(undefined)
 })
 
 afterEach(() => {
@@ -232,6 +249,7 @@ describe('AlbumScreen', () => {
     )
     await waitFor(() => expect(screen.getByRole('region', { name: '여행 완료 일기' })).toHaveTextContent('게시판에 등록된 최종 여행 일기'))
     expect(fetchMyPosts).toHaveBeenCalledWith(expect.any(AbortSignal))
+    expect(screen.getByRole('button', { name: '게시판 공유 완료' })).toBeDisabled()
     const emptyDiary = screen.getByRole('region', { name: '여행 완료 일기' })
     expect(emptyDiary).toBeInTheDocument()
     expect(emptyDiary.querySelector('p')).toHaveTextContent('게시판에 등록된 최종 여행 일기')
@@ -261,5 +279,114 @@ describe('AlbumScreen', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(historyBack).toHaveBeenCalledOnce()
     historyBack.mockRestore()
+  })
+
+  it('shares an unposted cached travel diary from the album detail', async () => {
+    vi.mocked(fetchMyAlbums).mockResolvedValue([album])
+    vi.mocked(fetchSelectablePets).mockResolvedValue([{ id: 'pet-1', name: '초코' }])
+    vi.mocked(fetchAlbumDetail).mockResolvedValue({
+      summary: album,
+      course: {
+        id: 'course-1',
+        travelDate: '2026-09-15',
+        startLocation: '서울역',
+        endLocation: '서울숲',
+        places: [{
+          id: 'course-place-1',
+          externalPlaceId: 'place-1',
+          name: '서울숲',
+          imageUrl: '/images/place-park.png',
+          latitude: 37.5,
+          longitude: 127,
+          visitOrder: 1,
+          isFinal: true,
+          petPolicy: null,
+        }],
+      },
+      stops: [{
+        coursePlaceId: 'course-place-1',
+        externalPlaceId: 'place-1',
+        placeName: '서울숲',
+        visitOrder: 1,
+        imageUrl: '/images/place-park.png',
+        review: {
+          reviewId: 'review-1',
+          rating: 5,
+          contents: '산책하기 좋았어요.',
+          weather: 'SUNNY',
+          createdAt: '2026-09-15T12:00:00',
+        },
+        photos: album.photos,
+      }],
+    })
+    useTravelStore.setState({
+      draftCourseId: 'course-1',
+      overallReview: '앨범에서 공유할 여행 일기',
+    })
+    const user = userEvent.setup()
+
+    render(<AlbumScreen />)
+
+    await user.click(await screen.findByText('초코와 함께한 여행'))
+    const shareButton = await screen.findByRole('button', { name: '게시판 공유' })
+    expect(shareButton).toBeEnabled()
+    await user.click(shareButton)
+    expect(await screen.findByRole('heading', { name: '여행 후기 공유' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '공유하기' }))
+
+    await waitFor(() => {
+      expect(createTripPost).toHaveBeenCalledWith({
+        title: '초코와의 서울숲 여행',
+        content: '앨범에서 공유할 여행 일기',
+        petId: 'pet-1',
+        courseId: 'course-1',
+        coverPhotoUrl: '/images/album-cover.png',
+        takenAt: '2026-09-15',
+      })
+    })
+    expect(await screen.findByRole('button', { name: '게시판 공유 완료' })).toBeDisabled()
+  })
+
+  it('waits for the existing-post lookup and lets the user write a missing diary', async () => {
+    let resolvePosts!: (posts: []) => void
+    vi.mocked(fetchMyPosts).mockReturnValue(new Promise((resolve) => {
+      resolvePosts = resolve
+    }))
+    vi.mocked(fetchMyAlbums).mockResolvedValue([album])
+    vi.mocked(fetchSelectablePets).mockResolvedValue([{ id: 'pet-1', name: '초코' }])
+    vi.mocked(fetchAlbumDetail).mockResolvedValue({
+      summary: album,
+      course: {
+        id: 'course-1', travelDate: '2026-09-15', startLocation: '서울역', endLocation: '서울숲',
+        places: [{
+          id: 'course-place-1', externalPlaceId: 'place-1', name: '서울숲', imageUrl: null,
+          latitude: 37.5, longitude: 127, visitOrder: 1, isFinal: true, petPolicy: null,
+        }],
+      },
+      stops: [{
+        coursePlaceId: 'course-place-1', externalPlaceId: 'place-1', placeName: '서울숲',
+        visitOrder: 1, imageUrl: null, review: null, photos: album.photos,
+      }],
+    })
+    const user = userEvent.setup()
+
+    render(<AlbumScreen />)
+    await user.click(await screen.findByText('초코와 함께한 여행'))
+
+    expect(await screen.findByRole('button', { name: '공유 여부 확인 중...' })).toBeDisabled()
+    await act(async () => resolvePosts([]))
+    const shareButton = await screen.findByRole('button', { name: '게시판 공유' })
+    expect(shareButton).toBeEnabled()
+    await user.click(shareButton)
+    await user.type(screen.getByLabelText('여행 후기'), '앨범에서 새로 작성한 여행 후기')
+    await user.click(screen.getByRole('button', { name: '공유하기' }))
+
+    await waitFor(() => {
+      expect(createTripPost).toHaveBeenCalledWith(expect.objectContaining({
+        content: '앨범에서 새로 작성한 여행 후기',
+        courseId: 'course-1',
+      }))
+    })
+    expect(await screen.findByRole('button', { name: '게시판 공유 완료' })).toBeDisabled()
   })
 })

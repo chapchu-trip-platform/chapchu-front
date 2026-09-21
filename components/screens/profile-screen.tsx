@@ -16,7 +16,6 @@ import {
   PawPrint,
   Plus,
   Stamp,
-  Star,
   Trash2,
 } from 'lucide-react'
 import TopBar from '@/components/top-bar'
@@ -1087,7 +1086,6 @@ export default function ProfileScreen({
     { icon: Stamp, iconColor: 'text-soft-orange', label: '스탬프', sub: 'stamps' as const, desc: '17개 지역 도감' },
     { icon: Heart, iconColor: 'text-danger', label: '추억 앨범', sub: 'memory-album' as const, desc: 'API 준비 중' },
     { icon: FileText, iconColor: 'text-warm-gray', label: '작성한 글', tab: 'posts' as const, desc: '내 작성글 보기' },
-    { icon: Star, iconColor: 'text-soft-orange', label: '장소 위시리스트', tab: 'wishlist' as const, desc: '저장한 장소 보기' },
     { icon: Bookmark, iconColor: 'text-sky-blue', label: '북마크', tab: 'bookmarks' as const, desc: '저장한 게시글 보기' },
     { icon: MessageSquareText, iconColor: 'text-sage-green', label: '작성한 리뷰', tab: 'reviews' as const, desc: '내 리뷰 보기' },
   ], [status])
@@ -1204,9 +1202,6 @@ export default function ProfileScreen({
                       <IconButton aria-label="닉네임 수정" size="sm" disabled={!summary} onClick={() => onOpenSettings?.('nickname')}><Edit3 className="h-4 w-4 text-warm-gray" /></IconButton>
                     </div>
                     <p className="text-[12px] text-warm-gray">{summary?.email ?? '이메일 정보 없음'}</p>
-                    <div className="mt-2 flex gap-4">
-                      {[{ val: '—', label: '여행km' }, { val: '—', label: '방문지' }, { val: '—', label: '스탬프' }].map((item) => <div key={item.label} className="text-center"><p className="text-[15px] font-bold text-deep-brown">{item.val}</p><p className="text-[10px] text-warm-gray">{item.label}</p></div>)}
-                    </div>
                   </m.div>
                 ) : (
                   <m.div

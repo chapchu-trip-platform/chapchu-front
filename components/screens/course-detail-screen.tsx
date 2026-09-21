@@ -6,6 +6,7 @@ import {
   BookOpen,
   CalendarDays,
   Camera,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Cloud,
@@ -13,12 +14,14 @@ import {
   CloudSun,
   MapPin,
   PawPrint,
+  Share2,
   Snowflake,
   Sun,
 } from 'lucide-react'
 import { useReducedMotion } from 'motion/react'
 import { PhotoViewerDialog } from '@/components/common/photo-viewer-dialog'
 import TopBar from '@/components/top-bar'
+import { Button } from '@/components/ui/button'
 import { DEFAULT_ALBUM_COVER_URL } from '@/features/album/constants'
 import type { AlbumDetail, AlbumStop } from '@/features/album/types/album'
 import { formatPetName } from '@/lib/format-pet-name'
@@ -27,7 +30,9 @@ interface CourseDetailScreenProps {
   detail: AlbumDetail
   petName: string
   overallReview?: string
+  boardShareStatus?: 'checking' | 'ready' | 'shared' | 'unavailable'
   onBack: () => void
+  onShareToBoard?: () => void
 }
 
 function formatDate(value: string | null) {
@@ -193,7 +198,14 @@ function StopCard({ stop, isLast }: { stop: AlbumStop; isLast: boolean }) {
   )
 }
 
-export default function CourseDetailScreen({ detail, petName, overallReview, onBack }: CourseDetailScreenProps) {
+export default function CourseDetailScreen({
+  detail,
+  petName,
+  overallReview,
+  boardShareStatus = 'ready',
+  onBack,
+  onShareToBoard,
+}: CourseDetailScreenProps) {
   const { course, summary, stops } = detail
   const coverImage = summary.photos[0]?.downloadUrl ?? DEFAULT_ALBUM_COVER_URL
   const companionName = formatPetName(petName)
@@ -257,6 +269,40 @@ export default function CourseDetailScreen({ detail, petName, overallReview, onB
           <p className="mt-2 min-h-4 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-warm-gray">
             {overallReview?.trim() || '작성한 여행 일기가 없어요.'}
           </p>
+          {onShareToBoard && (
+            <div className="mt-3 border-t border-border pt-3">
+              <Button
+                type="button"
+                variant="outline"
+                fullWidth
+                disabled={boardShareStatus !== 'ready'}
+                onClick={onShareToBoard}
+              >
+                {boardShareStatus === 'shared' ? (
+                  <CheckCircle2 className="size-4 text-sage-green" />
+                ) : (
+                  <Share2 className="size-4 text-sage-green" />
+                )}
+                {boardShareStatus === 'shared'
+                  ? '게시판 공유 완료'
+                  : boardShareStatus === 'checking'
+                    ? '공유 여부 확인 중...'
+                    : boardShareStatus === 'unavailable'
+                      ? '공유 여부 확인 실패'
+                      : '게시판 공유'}
+              </Button>
+              {!overallReview?.trim() && boardShareStatus === 'ready' && (
+                <p className="mt-2 text-center text-[10px] text-warm-gray">
+                  공유 화면에서 여행 후기를 새로 작성할 수 있어요.
+                </p>
+              )}
+              {boardShareStatus === 'unavailable' && (
+                <p className="mt-2 text-center text-[10px] text-warm-gray">
+                  기존 게시글을 확인하지 못했어요. 잠시 후 앨범을 다시 열어주세요.
+                </p>
+              )}
+            </div>
+          )}
         </section>
 
         <div className="mx-4 mt-4">
