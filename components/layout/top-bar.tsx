@@ -2,7 +2,6 @@
 
 import { ArrowLeft } from 'lucide-react'
 import { IconButton } from '@/components/ui/icon-button'
-import { NotificationButton } from '@/components/ui/notification-button'
 import { cn } from '@/lib/utils'
 
 interface TopBarProps {
@@ -11,8 +10,6 @@ interface TopBarProps {
   onBack?: () => void
   backDisabled?: boolean
   rightAction?: React.ReactNode
-  hasUnreadNotifications?: boolean
-  onNotificationClick?: () => void
   transparent?: boolean
   className?: string
 }
@@ -23,8 +20,6 @@ export default function TopBar({
   onBack,
   backDisabled,
   rightAction,
-  hasUnreadNotifications = true,
-  onNotificationClick,
   transparent,
   className,
 }: TopBarProps) {
@@ -57,12 +52,7 @@ export default function TopBar({
         )}
 
         <div className="w-10 flex items-center justify-end">
-          {rightAction ?? (
-            <NotificationButton
-              hasUnread={hasUnreadNotifications}
-              onClick={onNotificationClick}
-            />
-          )}
+          {rightAction}
         </div>
       </header>
     </>

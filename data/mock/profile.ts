@@ -67,6 +67,7 @@ export const mockProfilePets: ProfilePet[] = Array.from(
       breedName: breed.name,
       size: petSizes[index % petSizes.length],
       age: (index % 9) + 1,
+      isDie: false,
       profilePhoto: null,
       activities: [activity, nextActivity],
     }

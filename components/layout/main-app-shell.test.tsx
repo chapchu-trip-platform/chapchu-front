@@ -22,6 +22,7 @@ afterEach(() => {
     sessionEpoch: 0,
     setupStage: null,
     status: 'idle',
+    withdrawalAttemptEpoch: null,
   })
   resetNextNavigationMocks()
   vi.mocked(refreshAccessToken).mockReset()
@@ -97,7 +98,7 @@ describe('MainAppShell auth gate', () => {
     expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
   })
 
-  it('scrolls the album screen to the top when the active album tab is pressed', async () => {
+  it('requests the album root when the active album tab is pressed', async () => {
     setMockPathname('/album')
     useAuthStore.getState().startDemoSession()
     const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
@@ -108,10 +109,48 @@ describe('MainAppShell auth gate', () => {
       </MainAppShell>
     )
 
-    await screen.findByRole('button', { name: '앨범' }).then((button) => button.click())
+    await screen.findByRole('link', { name: '앨범' }).then((link) => link.click())
 
-    expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({ type: 'album-scroll-top' }))
+    expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({ type: 'album-return-to-root' }))
     expect(mockRouter.push).not.toHaveBeenCalled()
+    dispatchSpy.mockRestore()
+  })
+
+  it('requests the profile root when the active profile tab is pressed', async () => {
+    setMockPathname('/my')
+    useAuthStore.getState().startDemoSession()
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
+
+    render(
+      <MainAppShell>
+        <p>profile content</p>
+      </MainAppShell>
+    )
+
+    await screen.findByRole('link', { name: '내정보' }).then((link) => link.click())
+
+    expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({ type: 'profile-return-to-root' }))
+    expect(mockRouter.push).not.toHaveBeenCalled()
+    dispatchSpy.mockRestore()
+  })
+
+  it.each([
+    ['/home', '홈', 'home-return-to-root'],
+    ['/community', '게시판', 'board-return-to-root'],
+  ])('requests the first screen when %s is reselected', (pathname, label, eventType) => {
+    setMockPathname(pathname)
+    useAuthStore.getState().startDemoSession()
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
+
+    render(
+      <MainAppShell>
+        <p>tab content</p>
+      </MainAppShell>
+    )
+
+    screen.getByRole('link', { name: label }).click()
+
+    expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({ type: eventType }))
     dispatchSpy.mockRestore()
   })
 })

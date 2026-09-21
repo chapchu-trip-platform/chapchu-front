@@ -1,6 +1,7 @@
 import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  archivePetToMemory,
   createPet,
   deletePet,
   fetchBookmarks,
@@ -55,6 +56,7 @@ const petResponse = {
   breedName: ' 골든리트리버 ',
   size: 'MEDIUM',
   age: 3,
+  isDie: false,
   profilePhoto: null,
   activities: [{ id: 'activity-id', name: ' 산책 ' }],
   createdAt: null,
@@ -266,6 +268,7 @@ describe('Profile API', () => {
         breedName: '골든리트리버',
         size: 'MEDIUM',
         age: 3,
+        isDie: false,
         profilePhoto: null,
         activities: [{ id: 'activity-id', name: '산책' }],
       },
@@ -318,6 +321,31 @@ describe('Profile API', () => {
       { method: 'patch', url: '/pets/pet%2Fid', body: input },
       { method: 'delete', url: '/pets/pet%2Fid', body: undefined },
     ])
+  })
+
+  it('archives a pet with the documented isDie update and validates the response', async () => {
+    const requests: Array<{ method?: string; url?: string; body?: unknown }> = []
+    apiClient.defaults.adapter = async (config) => {
+      requests.push({
+        method: config.method,
+        url: config.url,
+        body: typeof config.data === 'string' ? JSON.parse(config.data) : config.data,
+      })
+      return response(config, { ...petResponse, id: 'pet/id', isDie: true })
+    }
+
+    await expect(archivePetToMemory('pet/id')).resolves.toMatchObject({
+      id: 'pet/id',
+      isDie: true,
+    })
+    expect(requests).toEqual([
+      { method: 'patch', url: '/pets/pet%2Fid', body: { isDie: true } },
+    ])
+
+    apiClient.defaults.adapter = async (config) => response(config, petResponse)
+    await expect(archivePetToMemory('pet-id')).rejects.toThrow(
+      'Pet memory status response was invalid.'
+    )
   })
 
   it('sets and removes a pet profile photo with the documented response', async () => {
@@ -421,15 +449,19 @@ describe('Profile API', () => {
     expect(protectedAdapter).not.toHaveBeenCalled()
   })
 
-  it('patches the documented withdrawn account status', async () => {
+  it('accepts only the documented 204 withdrawal response', async () => {
     let body: unknown
     apiClient.defaults.adapter = async (config) => {
       body = JSON.parse(config.data as string)
-      return response(config, { accountStatus: 'WITHDRAWN' })
+      return response(config, undefined, 204)
     }
 
     await withdrawAccount()
     expect(body).toEqual({ accountStatus: 'WITHDRAWN' })
+
+    apiClient.defaults.adapter = async (config) =>
+      response(config, { accountStatus: 'WITHDRAWN' })
+    await expect(withdrawAccount()).rejects.toMatchObject({ status: 200 })
   })
 
   it('loads posts, bookmarks, and reviews from their mypage endpoints', async () => {
@@ -540,6 +572,7 @@ describe('Profile API', () => {
     apiClient.defaults.adapter = adapter
 
     await expect(fetchPets()).rejects.toThrow('duplicate activities')
+    await expect(archivePetToMemory('   ')).rejects.toThrow('Pet ID is required')
     await expect(deletePet('   ')).rejects.toThrow('Pet ID is required')
     await expect(removeWishlistPlace('')).rejects.toThrow('Place ID is required')
     await expect(removeBookmark('   ')).rejects.toThrow('Post ID is required')

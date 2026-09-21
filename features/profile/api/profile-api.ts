@@ -158,6 +158,7 @@ function parsePet(value: unknown): ProfilePet {
     !PET_SIZES.has(value.size) ||
     !isNonNegativeInteger(value.age) ||
     value.age > 100 ||
+    typeof value.isDie !== 'boolean' ||
     !(value.profilePhoto === null || isObject(value.profilePhoto)) ||
     !Array.isArray(value.activities) ||
     value.activities.length > MAX_PET_ACTIVITIES ||
@@ -181,6 +182,7 @@ function parsePet(value: unknown): ProfilePet {
     breedName: value.breedName.trim(),
     size: value.size as ProfilePet['size'],
     age: value.age,
+    isDie: value.isDie,
     profilePhoto: parseNullablePhoto(value.profilePhoto, 'Pet photo'),
     activities,
   }
@@ -416,6 +418,19 @@ export async function updatePet(petId: string, input: Partial<PetMutationInput>)
   return parsePet(data)
 }
 
+export async function archivePetToMemory(petId: string) {
+  const normalizedPetId = requireIdentifier(petId, 'Pet ID')
+  const { data }: { data: unknown } = await apiClient.patch(
+    API_ENDPOINTS.pets.detail(normalizedPetId),
+    { isDie: true }
+  )
+  const pet = parsePet(data)
+  if (pet.id !== normalizedPetId || !pet.isDie) {
+    throw new Error('Pet memory status response was invalid.')
+  }
+  return pet
+}
+
 export async function updatePetPhoto(
   petId: string,
   photoId: string | null,
@@ -480,7 +495,14 @@ export async function updateNickname(currentNickname: string, nextNickname: stri
 }
 
 export async function withdrawAccount() {
-  await apiClient.patch(API_ENDPOINTS.users.me, { accountStatus: 'WITHDRAWN' })
+  const response = await apiClient.patch(API_ENDPOINTS.users.me, {
+    accountStatus: 'WITHDRAWN',
+  })
+  if (response.status !== 204) {
+    throw Object.assign(new Error('Account withdrawal response was invalid.'), {
+      status: response.status,
+    })
+  }
 }
 
 export async function fetchMyPosts(signal?: AbortSignal) {

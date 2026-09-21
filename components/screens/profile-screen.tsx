@@ -8,7 +8,6 @@ import {
   Archive,
   Bookmark,
   Camera,
-  Check,
   Edit3,
   FileText,
   Heart,
@@ -16,10 +15,9 @@ import {
   PawPrint,
   Plus,
   Stamp,
-  Star,
-  Trash2,
 } from 'lucide-react'
 import TopBar from '@/components/top-bar'
+import AlbumScreen from '@/components/screens/album-screen'
 import { PhotoImage } from '@/components/common/photo-image'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
@@ -60,7 +58,7 @@ interface ProfileScreenProps {
   onCreatePet: (input: PetMutationInput) => Promise<ProfilePet>
   onUpdatePet: (petId: string, input: PetMutationInput) => Promise<ProfilePet>
   onUpdatePetPhoto: (petId: string, file: File | null) => Promise<ProfilePet>
-  onDeletePet: (petId: string) => Promise<void>
+  onArchivePet: (petId: string) => Promise<ProfilePet>
   onUpdateProfilePhoto: (file: File | null) => Promise<ProfilePhoto>
   onWithdraw: () => Promise<void>
 }
@@ -240,31 +238,29 @@ function useModalFocus(onClose: () => void, isBlocked = false) {
   return dialogRef
 }
 
-function DeletePetModal({
+function ArchivePetModal({
   pet,
   onClose,
-  onDelete,
-  onMemory,
+  onArchive,
 }: {
   pet: ProfilePet
   onClose: () => void
-  onDelete: () => Promise<void>
-  onMemory: () => void
+  onArchive: () => Promise<void>
 }) {
-  const [isDeleting, setIsDeleting] = useState(false)
+  const [isArchiving, setIsArchiving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const dialogRef = useModalFocus(onClose, isDeleting)
+  const dialogRef = useModalFocus(onClose, isArchiving)
   const prefersReducedMotion = useReducedMotion()
 
-  const handleDelete = async () => {
-    if (isDeleting) return
-    setIsDeleting(true)
+  const handleArchive = async () => {
+    if (isArchiving) return
+    setIsArchiving(true)
     setErrorMessage(null)
     try {
-      await onDelete()
+      await onArchive()
     } catch (error) {
       setErrorMessage(getProfileErrorMessage(error))
-      setIsDeleting(false)
+      setIsArchiving(false)
     }
   }
 
@@ -276,12 +272,12 @@ function DeletePetModal({
       transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
       className="absolute inset-0 z-[70] flex items-end justify-center"
     >
-      <m.div className="absolute inset-0 bg-black/40" aria-hidden="true" onClick={() => !isDeleting && onClose()} />
+      <m.div className="absolute inset-0 bg-black/40" aria-hidden="true" onClick={() => !isArchiving && onClose()} />
       <m.div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="delete-pet-title"
+        aria-labelledby="archive-pet-title"
         tabIndex={-1}
         initial={prefersReducedMotion ? false : { y: '100%' }}
         animate={{ y: 0 }}
@@ -289,29 +285,22 @@ function DeletePetModal({
         transition={{ duration: prefersReducedMotion ? 0 : 0.32, ease: PROFILE_MOTION_EASE }}
         className="relative w-full rounded-t-[24px] bg-card-surface p-5 pb-10"
       >
-        <h3 id="delete-pet-title" className="mb-2 text-[16px] font-bold text-deep-brown">{pet.petName} 삭제</h3>
-        <p className="mb-5 text-[13px] leading-relaxed text-warm-gray">삭제 방법을 선택해주세요.</p>
+        <h3 id="archive-pet-title" className="mb-2 text-[16px] font-bold text-deep-brown">
+          {pet.petName}를 추억으로 보관할까요?
+        </h3>
+        <p className="mb-5 text-[13px] leading-relaxed text-warm-gray">
+          반려동물 관리에서는 보이지 않게 되고, 함께한 여행은 추억 앨범에서 계속 확인할 수 있어요.
+        </p>
         <div className="flex flex-col gap-2">
-          <InteractiveCard onClick={onMemory} disabled={isDeleting} className="border-sage-green bg-sage-green-light hover:bg-sage-green-light/75">
+          <InteractiveCard onClick={handleArchive} disabled={isArchiving} className="border-sage-green bg-sage-green-light hover:bg-sage-green-light/75">
             <p className="flex items-center gap-2 text-[14px] font-semibold text-sage-green">
               <Archive className="h-4 w-4" />
-              추억으로 보관하기
+              {isArchiving ? '추억으로 보관 중...' : '추억으로 보관하기'}
             </p>
-            <p className="mt-0.5 text-[12px] text-warm-gray">추억 보관 API 준비 전까지 반려견 정보는 유지돼요</p>
-          </InteractiveCard>
-          <InteractiveCard
-            onClick={handleDelete}
-            disabled={isDeleting}
-            className="border-danger/30 bg-danger/5 hover:bg-danger/10"
-          >
-            <p className="flex items-center gap-2 text-[14px] font-semibold text-danger">
-              <Trash2 className="h-4 w-4" />
-              {isDeleting ? '삭제 중...' : '완전히 삭제하기'}
-            </p>
-            <p className="mt-0.5 text-[12px] text-warm-gray">반려견 정보를 삭제하며 되돌릴 수 없어요</p>
+            <p className="mt-0.5 text-[12px] text-warm-gray">반려견 정보와 여행 추억은 안전하게 유지돼요</p>
           </InteractiveCard>
           {errorMessage && <p className="text-[12px] text-danger" role="alert">{errorMessage}</p>}
-          <Button onClick={onClose} variant="ghost" fullWidth disabled={isDeleting}>취소</Button>
+          <Button onClick={onClose} variant="ghost" fullWidth disabled={isArchiving}>취소</Button>
         </div>
       </m.div>
     </m.div>
@@ -319,19 +308,26 @@ function DeletePetModal({
 }
 
 function WithdrawModal({ onClose, onConfirm }: { onClose: () => void; onConfirm: () => Promise<void> }) {
-  const [agreed, setAgreed] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [hasFailed, setHasFailed] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const dialogRef = useModalFocus(onClose, isSubmitting)
   const prefersReducedMotion = useReducedMotion()
 
   const handleConfirm = async () => {
+    if (isSubmitting || hasFailed) return
     setIsSubmitting(true)
     setErrorMessage(null)
     try {
       await onConfirm()
     } catch (error) {
-      setErrorMessage(getProfileErrorMessage(error))
+      const apiError = error as { status?: number; type?: string } | null
+      setErrorMessage(
+        apiError?.type === 'server' || (apiError?.status ?? 0) >= 500
+          ? '서버 오류로 회원 탈퇴를 처리하지 못했습니다. 화면을 닫고 잠시 후 다시 이용해주세요.'
+          : '회원 탈퇴 요청에 실패했습니다. 화면을 닫고 잠시 후 다시 이용해주세요.'
+      )
+      setHasFailed(true)
       setIsSubmitting(false)
     }
   }
@@ -360,23 +356,27 @@ function WithdrawModal({ onClose, onConfirm }: { onClose: () => void; onConfirm:
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-danger/10">
           <AlertTriangle className="h-6 w-6 text-danger" />
         </div>
-        <h3 id="withdraw-title" className="mb-2 text-center text-[17px] font-bold text-deep-brown">정말 탈퇴하시겠어요?</h3>
-        <p className="mb-4 text-center text-[13px] leading-relaxed text-warm-gray">
-          계정 상태가 탈퇴로 변경되어 서비스를 이용할 수 없어요.
-          <br />
-          <span className="font-semibold text-danger">탈퇴 후 복구 정책은 고객지원 확인이 필요합니다.</span>
-        </p>
-        <button type="button" aria-pressed={agreed} disabled={isSubmitting} onClick={() => setAgreed(!agreed)} className="mb-4 flex w-full items-center gap-2">
-          <div className={cn('flex h-5 w-5 items-center justify-center rounded border-2 transition-all', agreed ? 'border-danger bg-danger' : 'border-border')}>
-            {agreed && <Check className="h-3 w-3 text-white" />}
-          </div>
-          <span className="text-[13px] text-deep-brown">위 내용을 확인했습니다</span>
-        </button>
+        <h3 id="withdraw-title" className="mb-3 text-center text-[17px] font-bold text-deep-brown">회원 탈퇴 전 확인해주세요</h3>
+        <div className="mb-4 rounded-card bg-warm-beige px-4 py-3 text-[12px] leading-relaxed text-warm-gray">
+          <p className="font-semibold text-deep-brown">회원 탈퇴는 소프트 리셋 방식으로 처리됩니다.</p>
+          <ul className="mt-2 list-disc space-y-1 pl-4">
+            <li>닉네임, 이메일 등 개인정보와 로그인 정보는 삭제됩니다.</li>
+            <li>작성한 게시글은 서비스 기록으로 유지됩니다.</li>
+            <li>탈퇴 즉시 서비스를 이용할 수 없으며 자동 재가입은 어렵습니다.</li>
+          </ul>
+          <p className="mt-3">
+            재가입 문의는{' '}
+            <a className="font-semibold text-sage-green underline underline-offset-2" href="mailto:support.chapchu@gmail.com">
+              support.chapchu@gmail.com
+            </a>
+            으로 보내주세요.
+          </p>
+        </div>
         {errorMessage && <p className="mb-3 text-[12px] text-danger" role="alert">{errorMessage}</p>}
         <ModalActions>
           <Button onClick={onClose} variant="outline" disabled={isSubmitting}>취소</Button>
-          <Button onClick={handleConfirm} disabled={!agreed || isSubmitting} variant="destructive">
-            {isSubmitting ? '처리 중...' : '탈퇴하기'}
+          <Button onClick={handleConfirm} disabled={isSubmitting || hasFailed} variant="destructive">
+            {isSubmitting ? '처리 중...' : '확인'}
           </Button>
         </ModalActions>
       </m.div>
@@ -529,7 +529,7 @@ function PetsSubScreen({
   onCreate,
   onUpdate,
   onUpdatePhoto,
-  onDelete,
+  onArchive,
 }: {
   pets: ProfilePet[]
   onBack: () => void
@@ -537,16 +537,15 @@ function PetsSubScreen({
   onCreate: (input: PetMutationInput) => Promise<ProfilePet>
   onUpdate: (petId: string, input: PetMutationInput) => Promise<ProfilePet>
   onUpdatePhoto: (petId: string, file: File | null) => Promise<ProfilePet>
-  onDelete: (petId: string) => Promise<void>
+  onArchive: (petId: string) => Promise<ProfilePet>
 }) {
-  const [deleteTarget, setDeleteTarget] = useState<ProfilePet | null>(null)
+  const [archiveTarget, setArchiveTarget] = useState<ProfilePet | null>(null)
   const [editorPet, setEditorPet] = useState<ProfilePet | null>(null)
   const [photoEditorPet, setPhotoEditorPet] = useState<ProfilePet | null>(null)
   const [showEditor, setShowEditor] = useState(false)
   const [options, setOptions] = useState<PetOptions | null>(null)
   const [optionsError, setOptionsError] = useState<string | null>(null)
   const [optionsRequestKey, setOptionsRequestKey] = useState(0)
-  const [memoryNotice, setMemoryNotice] = useState<string | null>(null)
   const prefersReducedMotion = useReducedMotion()
 
   useEffect(() => {
@@ -573,20 +572,6 @@ function PetsSubScreen({
     <div className="relative flex flex-1 flex-col overflow-hidden bg-warm-beige">
       <TopBar title="반려동물 관리" showBack onBack={onBack} />
       <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-24 pt-4">
-        <AnimatePresence initial={false}>
-          {memoryNotice && (
-            <m.p
-              initial={{ opacity: 0, height: 0, y: prefersReducedMotion ? 0 : -6 }}
-              animate={{ opacity: 1, height: 'auto', y: 0 }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: prefersReducedMotion ? 0 : 0.22 }}
-              className="mb-3 rounded-card bg-sage-green-light p-3 text-[12px] text-sage-green"
-              role="status"
-            >
-              {memoryNotice}
-            </m.p>
-          )}
-        </AnimatePresence>
         {pets.length === 0 && <p className="py-8 text-center text-[13px] text-warm-gray">등록된 반려견이 없습니다.</p>}
         <AnimatePresence initial={false}>
           {pets.map((pet) => (
@@ -607,7 +592,7 @@ function PetsSubScreen({
                 onClick={() => {
                   setShowEditor(false)
                   setOptionsError(null)
-                  setDeleteTarget(null)
+                  setArchiveTarget(null)
                   setPhotoEditorPet(pet)
                 }}
               >
@@ -631,13 +616,13 @@ function PetsSubScreen({
                     <IconButton aria-label={`${pet.petName} 수정`} size="sm" onClick={() => openEditor(pet)}>
                       <Edit3 className="h-4 w-4 text-warm-gray" />
                     </IconButton>
-                    <IconButton aria-label={`${pet.petName} 삭제`} size="sm" variant="danger" onClick={() => {
+                    <IconButton aria-label={`${pet.petName} 추억으로 보관`} size="sm" onClick={() => {
                       setPhotoEditorPet(null)
                       setShowEditor(false)
                       setOptionsError(null)
-                      setDeleteTarget(pet)
+                      setArchiveTarget(pet)
                     }}>
-                      <Trash2 className="h-4 w-4 text-danger" />
+                      <Archive className="h-4 w-4 text-sage-green" />
                     </IconButton>
                   </div>
                 </div>
@@ -688,18 +673,14 @@ function PetsSubScreen({
       </div>
 
       <AnimatePresence initial={false}>
-        {deleteTarget && (
-          <DeletePetModal
-            key={`delete-${deleteTarget.id}`}
-            pet={deleteTarget}
-            onClose={() => setDeleteTarget(null)}
-            onDelete={async () => {
-              await onDelete(deleteTarget.id)
-              setDeleteTarget(null)
-            }}
-            onMemory={() => {
-              setDeleteTarget(null)
-              setMemoryNotice('추억 보관 API가 준비되면 연결할 예정입니다.')
+        {archiveTarget && (
+          <ArchivePetModal
+            key={`archive-${archiveTarget.id}`}
+            pet={archiveTarget}
+            onClose={() => setArchiveTarget(null)}
+            onArchive={async () => {
+              await onArchive(archiveTarget.id)
+              setArchiveTarget(null)
             }}
           />
         )}
@@ -939,18 +920,85 @@ function StampsSubScreen({
   )
 }
 
-function MemoryAlbumSubScreen({ onBack }: { onBack: () => void }) {
-  return (
+function MemoryAlbumSubScreen({
+  pets,
+  onBack,
+}: {
+  pets: ProfilePet[]
+  onBack: () => void
+}) {
+  const [selectedPet, setSelectedPet] = useState<ProfilePet | null>(null)
+  const memoryPets = useMemo(() => pets.filter((pet) => pet.isDie), [pets])
+
+  const petListContent = (
     <div className="flex flex-1 flex-col overflow-hidden bg-warm-beige">
       <TopBar title="추억 앨범" showBack onBack={onBack} />
       <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-24 pt-4">
         <p className="mb-1 text-[13px] leading-relaxed text-warm-gray">소중한 반려동물과의 추억을 간직할 공간이에요.</p>
-        <section aria-labelledby="memory-albums-unavailable-title" className="mt-4 rounded-card border border-border bg-card-surface px-4 py-8 text-center shadow-sm">
-          <Heart aria-hidden="true" className="mx-auto mb-3 h-8 w-8 text-danger" />
-          <h2 id="memory-albums-unavailable-title" className="text-[14px] font-semibold text-deep-brown">추억 앨범 기능을 준비하고 있어요</h2>
-          <p className="mt-2 text-[12px] leading-relaxed text-warm-gray">아직 추억 앨범 정보를 불러올 수 없어요. 기능이 연결되면 이곳에서 확인할 수 있어요.</p>
+        <section aria-labelledby="memory-pets-title" className="mt-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 id="memory-pets-title" className="text-[14px] font-semibold text-deep-brown">함께한 반려동물</h2>
+            <span className="rounded-full bg-danger/10 px-2 py-1 text-[11px] font-semibold text-danger">
+              {memoryPets.length}마리
+            </span>
+          </div>
+
+          {memoryPets.length > 0 ? (
+            <div className="space-y-3">
+              {memoryPets.map((pet) => (
+                <InteractiveCard
+                  key={pet.id}
+                  aria-label={`${pet.petName}의 추억 앨범 보기`}
+                  onClick={() => setSelectedPet(pet)}
+                  className="flex items-center gap-4"
+                >
+                  <PhotoImage
+                    src={pet.profilePhoto?.downloadUrl}
+                    photoId={pet.profilePhoto?.photoId}
+                    alt={`${pet.petName} 프로필 사진`}
+                    className="h-14 w-14 flex-shrink-0 rounded-full border-2 border-danger/15"
+                    fallbackSrc="/images/dog-hero.png"
+                    fallbackAlt="반려동물 기본 이미지"
+                    sizes="56px"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[15px] font-semibold text-deep-brown">{pet.petName}</span>
+                    <span className="mt-1 block text-[12px] text-warm-gray">{pet.breedName} · {pet.age}살</span>
+                    <span className="mt-1 block text-[11px] text-danger/80">함께한 여행 추억 보기</span>
+                  </span>
+                </InteractiveCard>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-card border border-border bg-card-surface px-4 py-8 text-center shadow-sm">
+              <Heart aria-hidden="true" className="mx-auto mb-3 h-8 w-8 text-danger/60" />
+              <p className="text-[14px] font-semibold text-deep-brown">아직 추억 앨범이 없어요</p>
+              <p className="mt-2 text-[12px] leading-relaxed text-warm-gray">추억으로 등록된 반려동물의 여행 앨범이 이곳에 표시돼요.</p>
+            </div>
+          )}
         </section>
       </div>
+    </div>
+  )
+
+  return (
+    <div className="relative flex min-h-0 flex-1 overflow-hidden">
+      <AnimatePresence initial={false} mode="sync">
+        {selectedPet ? (
+          <ProfilePane key={selectedPet.id} direction="forward">
+            <AlbumScreen
+              petId={selectedPet.id}
+              petName={selectedPet.petName}
+              title={`${selectedPet.petName}의 추억 앨범`}
+              onBack={() => setSelectedPet(null)}
+            />
+          </ProfilePane>
+        ) : (
+          <ProfilePane key="memory-pets" direction="back">
+            {petListContent}
+          </ProfilePane>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -1070,24 +1118,35 @@ export default function ProfileScreen({
   onCreatePet,
   onUpdatePet,
   onUpdatePetPhoto,
-  onDeletePet,
+  onArchivePet,
   onUpdateProfilePhoto,
   onWithdraw,
 }: ProfileScreenProps) {
   const [subScreen, setSubScreen] = useState<SubScreen>(null)
   const [showWithdraw, setShowWithdraw] = useState(false)
   const [showProfilePhotoEditor, setShowProfilePhotoEditor] = useState(false)
+  const profileScrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleReturnToRoot = () => {
+      setSubScreen(null)
+      profileScrollRef.current?.scrollTo?.({ top: 0, behavior: 'smooth' })
+    }
+    window.addEventListener('profile-return-to-root', handleReturnToRoot)
+    return () => window.removeEventListener('profile-return-to-root', handleReturnToRoot)
+  }, [])
+
   const prefersReducedMotion = useReducedMotion()
-  const visiblePets = pets.slice(0, 3)
-  const totalPetCount = pets.length
+  const activePets = useMemo(() => pets.filter((pet) => !pet.isDie), [pets])
+  const visiblePets = activePets.slice(0, 3)
+  const totalPetCount = activePets.length
   const remainingPetCount = Math.max(totalPetCount - visiblePets.length, 0)
   const visiblePetNames = visiblePets.map((pet) => pet.petName).join(' · ')
   const menuItems = useMemo(() => [
-    { icon: PawPrint, iconColor: 'text-sage-green', label: '반려동물 관리', sub: 'pets' as const, desc: status === 'loading' ? '반려동물 정보를 불러오는 중' : status === 'error' ? '반려동물 정보를 불러오지 못함' : '추가 · 수정 · 삭제' },
-    { icon: Stamp, iconColor: 'text-soft-orange', label: '스탬프', sub: 'stamps' as const, desc: '17개 지역 도감' },
-    { icon: Heart, iconColor: 'text-danger', label: '추억 앨범', sub: 'memory-album' as const, desc: 'API 준비 중' },
+    { icon: PawPrint, iconColor: 'text-sage-green', label: '반려동물 관리', sub: 'pets' as const, desc: status === 'loading' ? '반려동물 정보를 불러오는 중' : status === 'error' ? '반려동물 정보를 불러오지 못함' : '추가 · 수정 · 추억 보관' },
+    { icon: Stamp, iconColor: 'text-soft-orange', label: '스탬프', sub: 'stamps' as const, desc: '여행지에서 모은 스탬프를 확인해요' },
+    { icon: Heart, iconColor: 'text-danger', label: '추억 앨범', sub: 'memory-album' as const, desc: '함께한 여행의 추억을 다시 만나요' },
     { icon: FileText, iconColor: 'text-warm-gray', label: '작성한 글', tab: 'posts' as const, desc: '내 작성글 보기' },
-    { icon: Star, iconColor: 'text-soft-orange', label: '장소 위시리스트', tab: 'wishlist' as const, desc: '저장한 장소 보기' },
     { icon: Bookmark, iconColor: 'text-sky-blue', label: '북마크', tab: 'bookmarks' as const, desc: '저장한 게시글 보기' },
     { icon: MessageSquareText, iconColor: 'text-sage-green', label: '작성한 리뷰', tab: 'reviews' as const, desc: '내 리뷰 보기' },
   ], [status])
@@ -1097,7 +1156,7 @@ export default function ProfileScreen({
     <AnimatePresence initial={false} mode="wait">
       {subScreen === 'pets' ? (
         <ProfilePane key="pets" direction="forward">
-          <PetsSubScreen pets={pets} onBack={() => setSubScreen(null)} onLoadOptions={onLoadPetOptions} onCreate={onCreatePet} onUpdate={onUpdatePet} onUpdatePhoto={onUpdatePetPhoto} onDelete={onDeletePet} />
+          <PetsSubScreen pets={activePets} onBack={() => setSubScreen(null)} onLoadOptions={onLoadPetOptions} onCreate={onCreatePet} onUpdate={onUpdatePet} onUpdatePhoto={onUpdatePetPhoto} onArchive={onArchivePet} />
         </ProfilePane>
       ) : subScreen === 'stamps' ? (
         <ProfilePane key="stamps" direction="forward">
@@ -1105,12 +1164,13 @@ export default function ProfileScreen({
         </ProfilePane>
       ) : subScreen === 'memory-album' ? (
         <ProfilePane key="memory-album" direction="forward">
-          <MemoryAlbumSubScreen onBack={() => setSubScreen(null)} />
+          <MemoryAlbumSubScreen pets={pets} onBack={() => setSubScreen(null)} />
         </ProfilePane>
       ) : (
     <ProfilePane key="profile-main" direction="back">
-      <TopBar title="내정보" rightAction={<span />} />
+      <TopBar title="내정보" />
       <div
+        ref={profileScrollRef}
         role="region"
         aria-label="내정보 콘텐츠"
         aria-busy={status === 'loading'}
@@ -1204,9 +1264,6 @@ export default function ProfileScreen({
                       <IconButton aria-label="닉네임 수정" size="sm" disabled={!summary} onClick={() => onOpenSettings?.('nickname')}><Edit3 className="h-4 w-4 text-warm-gray" /></IconButton>
                     </div>
                     <p className="text-[12px] text-warm-gray">{summary?.email ?? '이메일 정보 없음'}</p>
-                    <div className="mt-2 flex gap-4">
-                      {[{ val: '—', label: '여행km' }, { val: '—', label: '방문지' }, { val: '—', label: '스탬프' }].map((item) => <div key={item.label} className="text-center"><p className="text-[15px] font-bold text-deep-brown">{item.val}</p><p className="text-[10px] text-warm-gray">{item.label}</p></div>)}
-                    </div>
                   </m.div>
                 ) : (
                   <m.div

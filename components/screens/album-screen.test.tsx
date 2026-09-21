@@ -2,15 +2,19 @@ import { act, cleanup, render, screen, waitFor, within } from '@testing-library/
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AlbumScreen from '@/components/screens/album-screen'
-import { fetchAlbumDetail, fetchMyAlbums } from '@/features/album/api/albums-api'
+import { fetchAlbumDetail, fetchAlbumsByPet, fetchMyAlbums } from '@/features/album/api/albums-api'
 import { fetchMyPosts } from '@/features/community/api/community-api'
+import { createTripPost } from '@/features/community/api/posts-api'
 import { fetchSelectablePets } from '@/features/profile/api/pets-api'
+import { useTravelStore } from '@/features/travel/stores/travel-store'
+import { mockRouter, resetNextNavigationMocks } from '@/test/mocks/next-navigation'
 
 vi.mock('@/features/album/api/albums-api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/features/album/api/albums-api')>()
   return {
     ...actual,
     fetchMyAlbums: vi.fn(),
+    fetchAlbumsByPet: vi.fn(),
     fetchAlbumDetail: vi.fn(),
   }
 })
@@ -21,6 +25,11 @@ vi.mock('@/features/profile/api/pets-api', () => ({
 
 vi.mock('@/features/community/api/community-api', () => ({
   fetchMyPosts: vi.fn(),
+}))
+
+vi.mock('@/features/community/api/posts-api', () => ({
+  createTripPost: vi.fn(),
+  getTripPostErrorMessage: vi.fn(() => '게시글을 공유하지 못했어요. 다시 시도해주세요.'),
 }))
 
 const album = {
@@ -57,7 +66,19 @@ const album = {
 const originalIntersectionObserver = globalThis.IntersectionObserver
 
 beforeEach(() => {
+  resetNextNavigationMocks()
+  window.localStorage.removeItem('chapchu.travel-drafts')
+  window.sessionStorage.removeItem('chapchu.travel-drafts')
+  useTravelStore.setState({
+    draftCourseId: null,
+    overallReview: '',
+    noteDrafts: [],
+    visitedPlaceIds: [],
+    skippedPlaceIds: [],
+  })
   vi.mocked(fetchMyPosts).mockResolvedValue([])
+  vi.mocked(createTripPost).mockResolvedValue(undefined)
+  vi.mocked(fetchAlbumsByPet).mockResolvedValue([])
 })
 
 afterEach(() => {
@@ -67,6 +88,30 @@ afterEach(() => {
 })
 
 describe('AlbumScreen', () => {
+  it('reuses the album list for a selected memory pet', async () => {
+    const onBack = vi.fn()
+    const user = userEvent.setup()
+    vi.mocked(fetchAlbumsByPet).mockResolvedValue([album])
+
+    render(
+      <AlbumScreen
+        petId="pet-1"
+        petName="초코"
+        title="초코의 추억 앨범"
+        onBack={onBack}
+      />
+    )
+
+    expect(await screen.findByText('초코와 함께한 여행')).toBeInTheDocument()
+    expect(screen.getByText('초코의 추억 앨범')).toBeInTheDocument()
+    expect(fetchAlbumsByPet).toHaveBeenCalledWith('pet-1', expect.any(AbortSignal))
+    expect(fetchMyAlbums).not.toHaveBeenCalled()
+    expect(fetchSelectablePets).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: '뒤로 가기' }))
+    expect(onBack).toHaveBeenCalledOnce()
+  })
+
   it('reveals albums 20 at a time as the user reaches the bottom', async () => {
     let intersectionCallback: IntersectionObserverCallback | null = null
 
@@ -118,6 +163,46 @@ describe('AlbumScreen', () => {
     })
 
     unmount()
+  })
+
+  it('restores album pagination after returning from the detail transition', async () => {
+    let activeCallback: IntersectionObserverCallback | null = null
+    class AlbumIntersectionObserverMock {
+      readonly root = null
+      readonly rootMargin = ''
+      readonly thresholds = []
+      constructor(private readonly callback: IntersectionObserverCallback) {}
+      observe() { activeCallback = this.callback }
+      unobserve() {}
+      disconnect() {
+        if (activeCallback === this.callback) activeCallback = null
+      }
+      takeRecords() { return [] }
+    }
+    globalThis.IntersectionObserver = AlbumIntersectionObserverMock as typeof IntersectionObserver
+    vi.mocked(fetchMyAlbums).mockResolvedValue(Array.from({ length: 25 }, (_, index) => ({
+      ...album,
+      courseId: `course-${index + 1}`,
+      photos: [],
+    })))
+    vi.mocked(fetchSelectablePets).mockResolvedValue([{ id: 'pet-1', name: '초코' }])
+    vi.mocked(fetchAlbumDetail).mockReturnValue(new Promise(() => undefined))
+    const user = userEvent.setup()
+
+    render(<AlbumScreen />)
+
+    await screen.findAllByText('초코와 함께한 여행')
+    await waitFor(() => expect(activeCallback).not.toBeNull())
+    await user.click(screen.getAllByText('초코와 함께한 여행')[0])
+    expect(await screen.findByText('앨범 상세를 불러오는 중이에요.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '뒤로 가기' }))
+
+    expect(screen.getAllByText('초코와 함께한 여행')).toHaveLength(20)
+    await waitFor(() => expect(activeCallback).not.toBeNull())
+    await act(async () => {
+      activeCallback?.([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver)
+    })
+    expect(screen.getAllByText('초코와 함께한 여행')).toHaveLength(25)
   })
 
   it('uses the generated album cover when a saved album has no photos', async () => {
@@ -232,6 +317,7 @@ describe('AlbumScreen', () => {
     )
     await waitFor(() => expect(screen.getByRole('region', { name: '여행 완료 일기' })).toHaveTextContent('게시판에 등록된 최종 여행 일기'))
     expect(fetchMyPosts).toHaveBeenCalledWith(expect.any(AbortSignal))
+    expect(screen.getByRole('button', { name: '게시판 공유 완료' })).toBeDisabled()
     const emptyDiary = screen.getByRole('region', { name: '여행 완료 일기' })
     expect(emptyDiary).toBeInTheDocument()
     expect(emptyDiary.querySelector('p')).toHaveTextContent('게시판에 등록된 최종 여행 일기')
@@ -261,5 +347,119 @@ describe('AlbumScreen', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(historyBack).toHaveBeenCalledOnce()
     historyBack.mockRestore()
+
+    act(() => window.dispatchEvent(new Event('album-return-to-root')))
+    expect(await screen.findByText('초코와 함께한 여행')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '앨범 상세 내용' })).not.toBeInTheDocument()
+  })
+
+  it('shares an unposted cached travel diary from the album detail', async () => {
+    vi.mocked(fetchMyAlbums).mockResolvedValue([album])
+    vi.mocked(fetchSelectablePets).mockResolvedValue([{ id: 'pet-1', name: '초코' }])
+    vi.mocked(fetchAlbumDetail).mockResolvedValue({
+      summary: album,
+      course: {
+        id: 'course-1',
+        travelDate: '2026-09-15',
+        startLocation: '서울역',
+        endLocation: '서울숲',
+        places: [{
+          id: 'course-place-1',
+          externalPlaceId: 'place-1',
+          name: '서울숲',
+          imageUrl: '/images/place-park.png',
+          latitude: 37.5,
+          longitude: 127,
+          visitOrder: 1,
+          isFinal: true,
+          petPolicy: null,
+        }],
+      },
+      stops: [{
+        coursePlaceId: 'course-place-1',
+        externalPlaceId: 'place-1',
+        placeName: '서울숲',
+        visitOrder: 1,
+        imageUrl: '/images/place-park.png',
+        review: {
+          reviewId: 'review-1',
+          rating: 5,
+          contents: '산책하기 좋았어요.',
+          weather: 'SUNNY',
+          createdAt: '2026-09-15T12:00:00',
+        },
+        photos: album.photos,
+      }],
+    })
+    useTravelStore.setState({
+      draftCourseId: 'course-1',
+      overallReview: '앨범에서 공유할 여행 일기',
+    })
+    const user = userEvent.setup()
+
+    render(<AlbumScreen />)
+
+    await user.click(await screen.findByText('초코와 함께한 여행'))
+    const shareButton = await screen.findByRole('button', { name: '게시판 공유' })
+    expect(shareButton).toBeEnabled()
+    await user.click(shareButton)
+    expect(await screen.findByRole('heading', { name: '여행 후기 공유' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '공유하기' }))
+
+    await waitFor(() => {
+      expect(createTripPost).toHaveBeenCalledWith({
+        title: '초코와의 서울숲 여행',
+        content: '앨범에서 공유할 여행 일기',
+        petId: 'pet-1',
+        courseId: 'course-1',
+        coverPhotoUrl: '/images/album-cover.png',
+        takenAt: '2026-09-15',
+      })
+    })
+    expect(mockRouter.push).toHaveBeenCalledWith('/community?tab=review')
+    expect(await screen.findByRole('button', { name: '게시판 공유 완료' })).toBeDisabled()
+  })
+
+  it('waits for the existing-post lookup and lets the user write a missing diary', async () => {
+    let resolvePosts!: (posts: []) => void
+    vi.mocked(fetchMyPosts).mockReturnValue(new Promise((resolve) => {
+      resolvePosts = resolve
+    }))
+    vi.mocked(fetchMyAlbums).mockResolvedValue([album])
+    vi.mocked(fetchSelectablePets).mockResolvedValue([{ id: 'pet-1', name: '초코' }])
+    vi.mocked(fetchAlbumDetail).mockResolvedValue({
+      summary: album,
+      course: {
+        id: 'course-1', travelDate: '2026-09-15', startLocation: '서울역', endLocation: '서울숲',
+        places: [{
+          id: 'course-place-1', externalPlaceId: 'place-1', name: '서울숲', imageUrl: null,
+          latitude: 37.5, longitude: 127, visitOrder: 1, isFinal: true, petPolicy: null,
+        }],
+      },
+      stops: [{
+        coursePlaceId: 'course-place-1', externalPlaceId: 'place-1', placeName: '서울숲',
+        visitOrder: 1, imageUrl: null, review: null, photos: album.photos,
+      }],
+    })
+    const user = userEvent.setup()
+
+    render(<AlbumScreen />)
+    await user.click(await screen.findByText('초코와 함께한 여행'))
+
+    expect(await screen.findByRole('button', { name: '공유 여부 확인 중...' })).toBeDisabled()
+    await act(async () => resolvePosts([]))
+    const shareButton = await screen.findByRole('button', { name: '게시판 공유' })
+    expect(shareButton).toBeEnabled()
+    await user.click(shareButton)
+    await user.type(screen.getByLabelText('여행 후기'), '앨범에서 새로 작성한 여행 후기')
+    await user.click(screen.getByRole('button', { name: '공유하기' }))
+
+    await waitFor(() => {
+      expect(createTripPost).toHaveBeenCalledWith(expect.objectContaining({
+        content: '앨범에서 새로 작성한 여행 후기',
+        courseId: 'course-1',
+      }))
+    })
+    expect(await screen.findByRole('button', { name: '게시판 공유 완료' })).toBeDisabled()
   })
 })

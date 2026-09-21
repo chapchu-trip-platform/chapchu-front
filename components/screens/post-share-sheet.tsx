@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
-import { Input } from '@/components/ui/input'
+import { Input, Textarea } from '@/components/ui/input'
 import { ModalActions } from '@/components/ui/modal-actions'
 import { cn } from '@/lib/utils'
 import { formatPetName } from '@/lib/format-pet-name'
@@ -38,6 +38,7 @@ interface PostShareSheetProps {
   initialPhotoId?: string | null
   petName: string
   tripReview: string
+  allowReviewEditing?: boolean
   variant?: 'free' | 'travel-review'
   course?: RecommendedCourse | null
   weather?: CourseWeatherInput
@@ -55,6 +56,7 @@ export default function PostShareSheet({
   initialPhotoId = null,
   petName,
   tripReview,
+  allowReviewEditing = false,
   variant = 'free',
   course,
   weather,
@@ -63,6 +65,7 @@ export default function PostShareSheet({
   const isTravelReview = variant === 'travel-review'
   const routePlaces = [...(course?.places ?? [])].sort((left, right) => left.visitOrder - right.visitOrder)
   const [title, setTitle] = useState(tripTitle || '')
+  const [review, setReview] = useState(tripReview)
   const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(initialPhotoId)
   const [shareStatus, setShareStatus] = useState<'idle' | 'sharing' | 'success' | 'error'>('idle')
   const [shareError, setShareError] = useState<string | null>(null)
@@ -97,7 +100,7 @@ export default function PostShareSheet({
   }
 
   const handleShare = async () => {
-    if (!title.trim() || !tripReview.trim()) {
+    if (!title.trim() || !review.trim()) {
       alert('제목과 전체 후기 내용을 확인해주세요.')
       return
     }
@@ -109,7 +112,7 @@ export default function PostShareSheet({
     try {
       await onShare({
         title: title.trim(),
-        content: tripReview.trim(),
+        content: review.trim(),
         image: photos.find((photo) => photo.photoId === selectedPhotoId)?.downloadUrl ?? null,
         pet: petName,
       })
@@ -246,6 +249,27 @@ export default function PostShareSheet({
               {title.length}/80
             </p>
           </div>
+
+          {allowReviewEditing && (
+            <div className="mb-4">
+              <label
+                htmlFor="post-share-review"
+                className="mb-2 block text-[12px] font-semibold text-warm-gray"
+              >
+                여행 후기
+              </label>
+              <Textarea
+                id="post-share-review"
+                value={review}
+                onChange={(event) => setReview(event.target.value)}
+                placeholder="여행에서 기억에 남은 순간을 작성해주세요."
+                rows={5}
+                maxLength={20_000}
+                className="rounded-xl border border-border bg-warm-beige/60 px-3.5 py-3 shadow-none"
+              />
+              <p className="mt-1 text-right text-[11px] text-warm-gray">{review.length}/20000</p>
+            </div>
+          )}
 
           <div className={cn('mb-5 flex items-start gap-2 rounded-xl px-3 py-2.5', isTravelReview ? 'bg-soft-orange/10' : 'bg-sage-green/10')}>
             <CheckCircle2 className={cn('mt-0.5 size-3.5 shrink-0', isTravelReview ? 'text-soft-orange' : 'text-sage-green')} />
