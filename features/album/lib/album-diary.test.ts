@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest'
-import { findTravelDiaryForCourse } from '@/features/album/lib/album-diary'
+import { afterEach, describe, expect, it } from 'vitest'
+import {
+  findLatestTravelDiaryForCourse,
+  findTravelDiaryForCourse,
+  getSavedFinalTravelReview,
+  saveFinalTravelReview,
+} from '@/features/album/lib/album-diary'
 import type { Post } from '@/features/community/types/community'
 
 function post(overrides: Partial<Post>): Post {
@@ -26,6 +31,8 @@ function post(overrides: Partial<Post>): Post {
 }
 
 describe('findTravelDiaryForCourse', () => {
+  afterEach(() => localStorage.clear())
+
   it('uses the latest travel-review post content for the matching course', () => {
     expect(findTravelDiaryForCourse([
       post({ id: 'older', content: '이전 일기', createdAt: '2026-09-15T10:00:00Z' }),
@@ -39,5 +46,25 @@ describe('findTravelDiaryForCourse', () => {
     expect(findTravelDiaryForCourse([
       post({ category: null, content: '기존 여행 후기 내용' }),
     ], 'course-1')).toBe('기존 여행 후기 내용')
+  })
+
+  it('keeps only the last final review saved for a course', () => {
+    saveFinalTravelReview('course-1', '첫 번째 최종 후기', 100)
+    saveFinalTravelReview('course-1', '마지막 최종 후기', 200)
+
+    expect(getSavedFinalTravelReview('course-1')).toEqual({
+      content: '마지막 최종 후기',
+      createdAt: 200,
+    })
+  })
+
+  it('exposes the timestamp of the latest matching server diary', () => {
+    expect(findLatestTravelDiaryForCourse([
+      post({ id: 'older', content: '이전 후기', createdAt: '2026-09-15T10:00:00Z' }),
+      post({ id: 'latest', content: '최종 후기', createdAt: '2026-09-16T10:00:00Z' }),
+    ], 'course-1')).toEqual({
+      content: '최종 후기',
+      createdAt: Date.parse('2026-09-16T10:00:00Z'),
+    })
   })
 })

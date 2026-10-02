@@ -20,10 +20,16 @@ function isBoundedString(value: unknown): value is string {
   )
 }
 
-function isPetListItem(value: unknown): value is { id: string; petName: string } {
+function isPetListItem(
+  value: unknown
+): value is { id: string; petName: string; isDie: boolean } {
   if (!value || typeof value !== 'object') return false
-  const pet = value as { id?: unknown; petName?: unknown }
-  return isBoundedString(pet.id) && isBoundedString(pet.petName)
+  const pet = value as { id?: unknown; petName?: unknown; isDie?: unknown }
+  return (
+    isBoundedString(pet.id) &&
+    isBoundedString(pet.petName) &&
+    typeof pet.isDie === 'boolean'
+  )
 }
 
 export async function fetchSelectablePets(signal?: AbortSignal): Promise<SelectablePet[]> {
@@ -36,8 +42,10 @@ export async function fetchSelectablePets(signal?: AbortSignal): Promise<Selecta
     throw new Error('Pets response was invalid.')
   }
 
-  return data.map((pet) => ({
-    id: pet.id.trim(),
-    name: pet.petName.trim(),
-  }))
+  return data
+    .filter((pet) => !pet.isDie)
+    .map((pet) => ({
+      id: pet.id.trim(),
+      name: pet.petName.trim(),
+    }))
 }

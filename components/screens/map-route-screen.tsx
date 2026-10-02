@@ -56,7 +56,7 @@ export default function MapRouteScreen({
   pedestrianRouteStatus = 'idle',
   startTripError = null,
 }: MapRouteScreenProps) {
-  const [bottomExpanded, setBottomExpanded] = useState(false)
+  const [bottomExpanded, setBottomExpanded] = useState(true)
   const mapPoints = [
     ...(origin ? [origin] : []),
     ...course.places,

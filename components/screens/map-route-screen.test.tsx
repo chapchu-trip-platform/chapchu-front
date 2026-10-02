@@ -241,17 +241,17 @@ describe('MapRouteScreen', () => {
     expect(startTripButton).toHaveClass('map-flow-dock-button')
     expect(startTripButton.parentElement).toBe(summaryDock)
 
-    const handle = screen.getByRole('button', { name: '방문 순서 펼치기' })
-    expect(handle).toHaveAttribute('aria-expanded', 'false')
+    const handle = screen.getByRole('button', { name: '방문 순서 접기' })
+    expect(handle).toHaveAttribute('aria-expanded', 'true')
     const detailsSheet = document.querySelector('#route-details-sheet') as HTMLDivElement
     expect(detailsSheet).toHaveClass('map-flow-detail-sheet')
     expect(detailsSheet).toHaveStyle({
-      transform: 'translate3d(0, calc(100% - 32px), 0)',
+      transform: 'translate3d(0, 0, 0)',
     })
     expect(handle.parentElement).toBe(detailsSheet)
   })
 
-  it('follows an upward drag and snaps to the expanded position', () => {
+  it('starts expanded and follows a downward drag to the collapsed position', () => {
     render(
       <MapRouteScreen
         course={course}
@@ -262,7 +262,7 @@ describe('MapRouteScreen', () => {
       />
     )
 
-    const handle = screen.getByRole('button', { name: '방문 순서 펼치기' })
+    const handle = screen.getByRole('button', { name: '방문 순서 접기' })
     const sheet = document.querySelector('#route-details-sheet') as HTMLDivElement
     vi.spyOn(sheet, 'getBoundingClientRect').mockReturnValue({
       bottom: 600,
@@ -276,15 +276,15 @@ describe('MapRouteScreen', () => {
       toJSON: () => ({}),
     })
 
-    fireEvent.pointerDown(handle, { pointerId: 1, clientY: 500 })
-    fireEvent.pointerMove(handle, { pointerId: 1, clientY: 350 })
-    expect(sheet).toHaveStyle({ transform: 'translate3d(0, 318px, 0)' })
+    fireEvent.pointerDown(handle, { pointerId: 1, clientY: 350 })
+    fireEvent.pointerMove(handle, { pointerId: 1, clientY: 500 })
+    expect(sheet).toHaveStyle({ transform: 'translate3d(0, 150px, 0)' })
 
-    fireEvent.pointerUp(handle, { pointerId: 1, clientY: 350 })
-    expect(screen.getByRole('button', { name: '방문 순서 접기' })).toHaveAttribute(
+    fireEvent.pointerUp(handle, { pointerId: 1, clientY: 500 })
+    expect(screen.getByRole('button', { name: '방문 순서 펼치기' })).toHaveAttribute(
       'aria-expanded',
-      'true'
+      'false'
     )
-    expect(sheet).toHaveStyle({ transform: 'translate3d(0, 0, 0)' })
+    expect(sheet).toHaveStyle({ transform: 'translate3d(0, calc(100% - 32px), 0)' })
   })
 })

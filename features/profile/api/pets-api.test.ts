@@ -41,6 +41,7 @@ describe('pets API', () => {
           breedName: '골든리트리버',
           size: 'MEDIUM',
           age: 3,
+          isDie: false,
           activities: [],
           createdAt: null,
           updatedAt: null,
@@ -55,9 +56,20 @@ describe('pets API', () => {
     expect(capturedConfig?.method).toBe('get')
   })
 
+  it('excludes deceased pets from course selection', async () => {
+    apiClient.defaults.adapter = async (config) => response(config, [
+      { id: 'pet-alive', petName: '초코', isDie: false },
+      { id: 'pet-memory', petName: '보리', isDie: true },
+    ])
+
+    await expect(fetchSelectablePets()).resolves.toEqual([
+      { id: 'pet-alive', name: '초코' },
+    ])
+  })
+
   it('rejects malformed pet identifiers', async () => {
     apiClient.defaults.adapter = async (config) =>
-      response(config, [{ id: '', petName: '초코' }])
+      response(config, [{ id: '', petName: '초코', isDie: false }])
 
     await expect(fetchSelectablePets()).rejects.toThrow('Pets response was invalid.')
   })
