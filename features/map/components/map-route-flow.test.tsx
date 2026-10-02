@@ -16,6 +16,7 @@ import { useLocationStore } from '@/features/location/stores/location-store'
 import { fetchSelectablePets } from '@/features/profile/api/pets-api'
 import { completeCourse } from '@/features/travel/api/course-completion-api'
 import { useTravelStore } from '@/features/travel/stores/travel-store'
+import { getSavedFinalTravelReview } from '@/features/album/lib/album-diary'
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
@@ -190,6 +191,9 @@ vi.mock('@/components/screens/trip-end-screen', () => ({
       <button type="button" onClick={() => void onSave('전체 후기 내용', null)}>
         앨범 저장
       </button>
+      <button type="button" onClick={() => void onSave('', null)}>
+        후기 없이 앨범 저장
+      </button>
       <button type="button" onClick={() => onShare('전체 후기 내용')}>후기 공유</button>
     </div>
   ),
@@ -202,6 +206,7 @@ vi.mock('@/components/screens/post-share-sheet', () => ({
 vi.mock('@/components/screens/error-screen', () => ({ default: () => null }))
 
 beforeEach(() => {
+  localStorage.removeItem('chapchu.album-final-reviews')
   useLocationStore.getState().reset()
   useTravelStore.getState().resetTravel()
   vi.mocked(fetchActiveCourse).mockReset().mockResolvedValue(null)
@@ -572,6 +577,25 @@ describe('MapRouteFlow location entry', () => {
         recommendedCourse: null,
         travelStage: 'idle',
       })
+      expect(getSavedFinalTravelReview('server-course-1')?.content).toBe('전체 후기 내용')
     })
+  })
+
+  it('completes and saves a trip without an overall review', async () => {
+    const user = userEvent.setup()
+    render(<MapRouteFlow />)
+
+    await waitFor(() => expect(useTravelStore.getState().selectedPetId).toBe('pet-1'))
+    await user.click(screen.getByRole('button', { name: '조건 설정으로 이동' }))
+    await createCourse(user)
+    await user.click(await screen.findByRole('button', { name: '여행 시작' }))
+    await user.click(screen.getByRole('button', { name: '여행 종료' }))
+    await user.click(screen.getByRole('button', { name: '후기 없이 앨범 저장' }))
+
+    await waitFor(() => {
+      expect(completeCourse).toHaveBeenCalledWith('server-course-1')
+      expect(useTravelStore.getState().travelStage).toBe('idle')
+    })
+    expect(getSavedFinalTravelReview('server-course-1')).toBeNull()
   })
 })

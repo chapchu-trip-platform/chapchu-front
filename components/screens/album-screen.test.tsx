@@ -68,6 +68,7 @@ const originalIntersectionObserver = globalThis.IntersectionObserver
 beforeEach(() => {
   resetNextNavigationMocks()
   window.localStorage.removeItem('chapchu.travel-drafts')
+  window.localStorage.removeItem('chapchu.album-final-reviews')
   window.sessionStorage.removeItem('chapchu.travel-drafts')
   useTravelStore.setState({
     draftCourseId: null,

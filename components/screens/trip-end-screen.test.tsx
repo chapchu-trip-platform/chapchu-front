@@ -39,6 +39,30 @@ afterEach(() => {
 })
 
 describe('TripEndScreen travel summary', () => {
+  it('saves the completed trip without an overall review', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn().mockResolvedValue(undefined)
+
+    render(<TripEndScreen onSave={onSave} onShare={vi.fn()} />)
+
+    const saveButton = screen.getByRole('button', { name: '앨범에 저장하기' })
+    expect(saveButton).toBeEnabled()
+    expect(screen.getByRole('button', { name: '게시판 공유' })).toBeDisabled()
+    await user.click(saveButton)
+
+    expect(onSave).toHaveBeenCalledWith('', null)
+  })
+
+  it('lets the user return to the in-progress course', async () => {
+    const user = userEvent.setup()
+    const onBack = vi.fn()
+
+    render(<TripEndScreen onBack={onBack} onSave={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: '뒤로 가기' }))
+    expect(onBack).toHaveBeenCalledOnce()
+  })
+
   it('shows route, weather, date, and lets route photos choose the album cover', async () => {
     const user = userEvent.setup()
     const onSave = vi.fn()

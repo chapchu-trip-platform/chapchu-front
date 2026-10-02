@@ -259,6 +259,46 @@ describe('TravelProgressScreen', () => {
     expect(await screen.findByRole('button', { name: '여행 완료' })).toBeInTheDocument()
   })
 
+  it('keeps the trip open and reveals a review that is missing its rating', async () => {
+    const user = userEvent.setup()
+    const onEndTrip = vi.fn()
+    render(
+      <TravelProgressScreen
+        course={course}
+        petName="골든이"
+        onEndTrip={onEndTrip}
+        onAbort={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: '성수 펫 카페 방문 체크인' }))
+    await user.click(screen.getByRole('button', { name: '성수 펫 카페 후기 펼치기' }))
+    await user.type(
+      screen.getByRole('textbox', { name: '성수 펫 카페 간단 후기' }),
+      '별점 없이 작성한 후기'
+    )
+    await user.click(screen.getByRole('button', { name: '서울숲 공원 방문 체크인' }))
+    await user.click(await screen.findByRole('button', { name: '여행 완료' }))
+
+    expect(onEndTrip).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      '성수 펫 카페 후기는 내용과 별점을 모두 입력해주세요.'
+    )
+    expect(screen.getByRole('button', { name: '여행 진행 상세 접기' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
+    expect(screen.getByRole('region', { name: '성수 펫 카페 후기 작성' })).toHaveAttribute(
+      'aria-hidden',
+      'false'
+    )
+
+    await user.click(screen.getByRole('button', { name: '성수 펫 카페 5점' }))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '여행 완료' }))
+    expect(onEndTrip).toHaveBeenCalledOnce()
+  })
+
   it('keeps selected photos in memory and uploads them once when the trip ends', async () => {
     const user = userEvent.setup()
     const onEndTrip = vi.fn()
@@ -340,28 +380,28 @@ describe('TravelProgressScreen', () => {
     )
     expect(screen.queryByRole('button', { name: '생략' })).not.toBeInTheDocument()
 
-    const handle = screen.getByRole('button', { name: '여행 진행 상세 펼치기' })
+    const handle = screen.getByRole('button', { name: '여행 진행 상세 접기' })
     const sheet = document.querySelector('#travel-details-sheet') as HTMLDivElement
     expect(sheet).toHaveClass('map-flow-detail-sheet')
-    expect(handle).toHaveAttribute('aria-expanded', 'false')
+    expect(handle).toHaveAttribute('aria-expanded', 'true')
     expect(sheet).toHaveStyle({
-      transform: 'translate3d(0, calc(100% - 32px), 0)',
+      transform: 'translate3d(0, 0, 0)',
     })
 
     await user.click(handle)
-    expect(screen.getByRole('button', { name: '여행 진행 상세 접기' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: '여행 진행 상세 펼치기' })).toHaveAttribute(
       'aria-expanded',
-      'true'
+      'false'
     )
-    expect(sheet).toHaveStyle({ transform: 'translate3d(0, 0, 0)' })
+    expect(sheet).toHaveStyle({ transform: 'translate3d(0, calc(100% - 32px), 0)' })
   })
 
-  it('follows an upward drag and completes the trip from the fixed action button', async () => {
+  it('follows a downward drag and completes the trip from the fixed action button', async () => {
     const user = userEvent.setup()
     const onEndTrip = vi.fn()
     render(<TravelProgressScreen course={course} petName="골든이" onEndTrip={onEndTrip} onAbort={vi.fn()} />)
 
-    const handle = screen.getByRole('button', { name: '여행 진행 상세 펼치기' })
+    const handle = screen.getByRole('button', { name: '여행 진행 상세 접기' })
     const sheet = document.querySelector('#travel-details-sheet') as HTMLDivElement
     vi.spyOn(sheet, 'getBoundingClientRect').mockReturnValue({
       bottom: 600,
@@ -375,11 +415,11 @@ describe('TravelProgressScreen', () => {
       toJSON: () => ({}),
     })
 
-    fireEvent.pointerDown(handle, { pointerId: 1, clientY: 500 })
-    fireEvent.pointerMove(handle, { pointerId: 1, clientY: 350 })
-    expect(sheet).toHaveStyle({ transform: 'translate3d(0, 318px, 0)' })
-    fireEvent.pointerUp(handle, { pointerId: 1, clientY: 350 })
-    expect(sheet).toHaveStyle({ transform: 'translate3d(0, 0, 0)' })
+    fireEvent.pointerDown(handle, { pointerId: 1, clientY: 350 })
+    fireEvent.pointerMove(handle, { pointerId: 1, clientY: 500 })
+    expect(sheet).toHaveStyle({ transform: 'translate3d(0, 150px, 0)' })
+    fireEvent.pointerUp(handle, { pointerId: 1, clientY: 500 })
+    expect(sheet).toHaveStyle({ transform: 'translate3d(0, calc(100% - 32px), 0)' })
 
     await user.click(screen.getByRole('button', { name: '성수 펫 카페 방문 체크인' }))
     await user.click(await screen.findByRole('button', { name: '서울숲 공원 방문 체크인' }))

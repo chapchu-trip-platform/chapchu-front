@@ -44,6 +44,7 @@ import { useLocationStore } from '@/features/location/stores/location-store'
 import type { ErrorType } from '@/types'
 import MapFlowPageTransition from '@/features/map/components/map-flow-page-transition'
 import { saveAlbumCoverPreference } from '@/features/album/lib/album-cover-preference'
+import { saveFinalTravelReview } from '@/features/album/lib/album-diary'
 
 type MapStep = 'setup' | 'options' | 'route' | 'progress' | 'end'
 
@@ -477,6 +478,7 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
     }
 
     setOverallReview(review)
+    saveFinalTravelReview(recommendedCourse.id, review)
     const availablePhotoIds = new Set(
       noteDrafts.flatMap((draft) => (draft.photos ?? []).map((photo) => photo.photoId))
     )
@@ -523,6 +525,10 @@ export default function MapRouteFlow({ initialErrorType }: MapRouteFlowProps) {
           weather={courseWeather}
           initialReview={overallReview}
           isBoardShared={boardShared}
+          onBack={() => {
+            setTravelStage('in-progress')
+            setStep('progress')
+          }}
           onReviewChange={setOverallReview}
           onSave={saveAlbum}
           onShare={(review, coverPhotoId, title) => {

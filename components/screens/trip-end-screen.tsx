@@ -40,6 +40,7 @@ interface TripEndScreenProps {
   weather?: CourseWeatherInput
   initialReview?: string
   isBoardShared?: boolean
+  onBack?: () => void
   onReviewChange?: (review: string) => void
   onSave: (review: string, coverPhotoId: string | null) => void | Promise<void>
   onShare?: (review: string, coverPhotoId: string | null, title: string) => void
@@ -78,6 +79,7 @@ export default function TripEndScreen({
   weather,
   initialReview = '',
   isBoardShared = false,
+  onBack,
   onReviewChange,
   onSave,
   onShare,
@@ -127,7 +129,7 @@ export default function TripEndScreen({
     DEFAULT_ALBUM_COVER_URL
 
   const handleSave = async () => {
-    if (!review.trim() || saveStatus === 'saving') return
+    if (saveStatus === 'saving') return
     setSaveStatus('saving')
     setSaveError(null)
     try {
@@ -170,7 +172,7 @@ export default function TripEndScreen({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-warm-beige">
-      <TopBar title="여행 기록 완성" />
+      <TopBar title="여행 기록 완성" showBack={Boolean(onBack)} onBack={onBack} />
 
       <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar">
         <section className="mx-4 mt-4 overflow-hidden rounded-2xl border border-border bg-card-surface shadow-sm">
@@ -312,13 +314,13 @@ export default function TripEndScreen({
             rows={5}
             className="rounded-xl border border-border bg-warm-beige/60 px-3.5 py-3 shadow-none"
           />
-          <p className="mt-2 text-[11px] leading-relaxed text-warm-gray">전체 후기는 게시판에 공유할 때 코스와 함께 저장됩니다.</p>
+          <p className="mt-2 text-[11px] leading-relaxed text-warm-gray">전체 후기는 선택 사항이며, 게시판에 공유할 때 코스와 함께 저장됩니다.</p>
           {saveError && <p className="mt-3 text-[12px] leading-relaxed text-danger" role="alert">{saveError}</p>}
         </section>
       </div>
 
       <div className="shrink-0 border-t border-border bg-card-surface/95 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_22px_rgba(72,56,45,0.06)] backdrop-blur-xl">
-        <Button onClick={() => void handleSave()} disabled={!review.trim() || saveStatus === 'saving'} fullWidth size="lg" className="shadow-sm">
+        <Button onClick={() => void handleSave()} disabled={saveStatus === 'saving'} fullWidth size="lg" className="shadow-sm">
           {saveStatus === 'saving' ? <Loader2 className="size-4 animate-spin" /> : <BookOpen className="size-4" />}
           {saveStatus === 'saving' ? '앨범 저장 중' : '앨범에 저장하기'}
         </Button>
