@@ -171,7 +171,7 @@ export default function TravelProgressScreen({
 }: TravelProgressScreenProps) {
   const [showAbortConfirm, setShowAbortConfirm] = useState(false)
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
-  const [bottomExpanded, setBottomExpanded] = useState(false)
+  const [bottomExpanded, setBottomExpanded] = useState(true)
   const [expandedPlaceIds, setExpandedPlaceIds] = useState<string[]>([])
   const [photoStatuses, setPhotoStatuses] = useState<
     Record<string, { status: 'idle' | 'loading' | 'success' | 'error'; error: string | null }>
@@ -182,6 +182,7 @@ export default function TravelProgressScreen({
   const [finalPhotoUploadStatus, setFinalPhotoUploadStatus] = useState<
     'idle' | 'loading' | 'error'
   >('idle')
+  const [reviewValidationError, setReviewValidationError] = useState<string | null>(null)
   const [courseDeletionStatus, setCourseDeletionStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [courseDeletionError, setCourseDeletionError] = useState<string | null>(null)
   const deletionControllerRef = useRef<AbortController | null>(null)
@@ -307,6 +308,7 @@ export default function TravelProgressScreen({
       saved: true,
       ...(current?.reviewId ? { reviewId: current.reviewId } : {}),
     })
+    setReviewValidationError(null)
   }
 
   const stagePhotos = (placeId: string, files: File[]) => {
@@ -399,6 +401,27 @@ export default function TravelProgressScreen({
 
   const handleEndTrip = async () => {
     if (finalPhotoUploadStatus === 'loading' || photoUploadControllerRef.current) return
+    const incompleteReviewPlace = places.find((place) => {
+      if (!visitedPlaceIdSet.has(place.id)) return false
+      const draft = noteDrafts.find((item) => item.waypointId === place.id)
+      if (!draft) return false
+      const hasContent = Boolean(draft.content.trim())
+      const hasRating = (draft.rating ?? 0) >= 1
+      return (hasContent || hasRating) && (!hasContent || !hasRating)
+    })
+    if (incompleteReviewPlace) {
+      setReviewValidationError(
+        `${incompleteReviewPlace.name} 후기는 내용과 별점을 모두 입력해주세요.`
+      )
+      setBottomExpanded(true)
+      setExpandedPlaceIds((current) =>
+        current.includes(incompleteReviewPlace.id)
+          ? current
+          : [...current, incompleteReviewPlace.id]
+      )
+      return
+    }
+    setReviewValidationError(null)
     const uploads = places.flatMap((place) => {
       const photos = pendingPhotosRef.current[place.id] ?? []
       return photos.length > 0
@@ -585,6 +608,15 @@ export default function TravelProgressScreen({
               })}
             </ol>
         </section>
+
+        {reviewValidationError && (
+          <p
+            role="alert"
+            className="mt-4 rounded-xl border border-danger/20 bg-danger/5 px-3 py-2 text-[12px] leading-relaxed text-danger"
+          >
+            {reviewValidationError}
+          </p>
+        )}
 
         <section className="mt-4 flex items-center gap-3 rounded-xl border border-danger/20 bg-danger/5 p-3">
             <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-danger/10 text-danger">

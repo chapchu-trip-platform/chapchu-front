@@ -23,7 +23,11 @@ import {
 import { DEFAULT_ALBUM_COVER_URL } from '@/features/album/constants'
 import type { AlbumDetail, AlbumSummary } from '@/features/album/types/album'
 import { prioritizeAlbumCover } from '@/features/album/lib/album-cover-preference'
-import { findTravelDiaryForCourse } from '@/features/album/lib/album-diary'
+import {
+  findLatestTravelDiaryForCourse,
+  getSavedFinalTravelReview,
+  type TravelDiaryEntry,
+} from '@/features/album/lib/album-diary'
 import { fetchMyPosts } from '@/features/community/api/community-api'
 import {
   createTripPost,
@@ -138,7 +142,7 @@ export default function AlbumScreen({
   const [detailStatus, setDetailStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [detailError, setDetailError] = useState<string | null>(null)
   const [detailReloadKey, setDetailReloadKey] = useState(0)
-  const [serverDiaries, setServerDiaries] = useState<Record<string, string>>({})
+  const [serverDiaries, setServerDiaries] = useState<Record<string, TravelDiaryEntry>>({})
   const [boardShareStatus, setBoardShareStatus] = useState<
     'checking' | 'ready' | 'shared' | 'unavailable'
   >('checking')
@@ -245,7 +249,7 @@ export default function AlbumScreen({
     void fetchMyPosts(controller.signal)
       .then((posts) => {
         if (controller.signal.aborted) return
-        const serverDiary = findTravelDiaryForCourse(posts, selectedAlbum.courseId)
+        const serverDiary = findLatestTravelDiaryForCourse(posts, selectedAlbum.courseId)
         setServerDiaries((current) => {
           if (serverDiary) {
             return { ...current, [selectedAlbum.courseId]: serverDiary }
@@ -294,7 +298,7 @@ export default function AlbumScreen({
 
     setServerDiaries((current) => ({
       ...current,
-      [selectedAlbum.courseId]: post.content,
+      [selectedAlbum.courseId]: { content: post.content, createdAt: Date.now() },
     }))
     setBoardShareStatus('shared')
     router.push('/community?tab=review')
@@ -316,7 +320,12 @@ export default function AlbumScreen({
       const cachedDiary = cachedCourseId === selectedAlbum.courseId
         ? cachedOverallReview.trim()
         : ''
-      const overallReview = serverDiaries[selectedAlbum.courseId] ?? cachedDiary
+      const savedDiary = getSavedFinalTravelReview(selectedAlbum.courseId)
+      const serverDiary = serverDiaries[selectedAlbum.courseId]
+      const latestPersistedDiary = savedDiary && serverDiary
+        ? (savedDiary.createdAt >= serverDiary.createdAt ? savedDiary : serverDiary)
+        : savedDiary ?? serverDiary
+      const overallReview = latestPersistedDiary?.content ?? cachedDiary
       const sharePhotos = detail.summary.photos.map((photo) => ({
         photoId: photo.photoId,
         downloadUrl: photo.downloadUrl,

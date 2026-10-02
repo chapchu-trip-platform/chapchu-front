@@ -84,7 +84,7 @@ export default function MapFlowDetailSheet({
       deltaY <= -SNAP_THRESHOLD_PX ||
       (deltaY < SNAP_THRESHOLD_PX && currentOffset < dragState.maxOffset / 2)
 
-    onExpandedChange(shouldExpand)
+    if (didDragRef.current) onExpandedChange(shouldExpand)
     setDragOffset(null)
     dragStateRef.current = null
     event.currentTarget.releasePointerCapture?.(event.pointerId)
